@@ -752,3 +752,220 @@ def summarise_mismatches(zarr_path, doubletons, *, config, recombination):
         store, doubletons, execution=config, diversity=False, boundaries=setup.boundaries,
     )
     return _mismatch_result(config, setup, reduction)
+
+
+def _power_integral_from_one(z, exponent):
+    """Return integral from 1 to z of x**exponent, including its log limit."""
+    log_z = np.log(z)
+    power = exponent + 1
+    if np.isclose(power, 0):
+        return log_z
+    return np.expm1(power * log_z) / power
+
+
+def _expected_haplotype_mismatches(mu, sigma_sq, pi, length, rate):
+    """One-side gamma-time mismatch expectation, with pi in per-bp units."""
+    alpha = mu**2 / sigma_sq
+    beta = mu / sigma_sq
+    lengths, rates, diversity = np.broadcast_arrays(
+        np.asarray(length, dtype=float), np.asarray(rate, dtype=float),
+        np.asarray(pi, dtype=float),
+    )
+    expected = np.zeros(lengths.shape, dtype=float)
+    nonzero = rates != 0
+    q = 2 * rates[nonzero]
+    z = 1 + q * lengths[nonzero] / beta
+    survival_integral = beta / q * _power_integral_from_one(z, -alpha)
+    values = diversity[nonzero] * (lengths[nonzero] - survival_integral)
+    expected[nonzero] = np.maximum(values, 0)
+    return expected
+
+
+def _expected_error_mismatches(epsilon, length, *, per_side=False):
+    """Linear additive error expectation: 2 epsilon L per side, 4 for both."""
+    sides = 1 if per_side else 2
+    return 2 * sides * epsilon * np.asarray(length, dtype=float)
+
+
+def _fitted_means(mu, sigma_sq, epsilon, summary, pi, per_doubleton):
+    lengths = summary.window_sizes
+    if per_doubleton:
+        side_rates = np.concatenate([summary.left_rates, summary.right_rates], axis=1)
+        side_pi = pi
+        if np.ndim(pi) == 1:
+            side_pi = np.concatenate([pi, pi])
+        haplotype = _expected_haplotype_mismatches(
+            mu, sigma_sq, side_pi, lengths[:, None], side_rates,
+        )
+        errors = _expected_error_mismatches(epsilon, lengths[:, None], per_side=True)
+        return np.mean(haplotype + errors, axis=1)
+    rates = np.mean(summary.window_mean_rate, axis=1)
+    haplotype = _expected_haplotype_mismatches(mu, sigma_sq, pi, lengths, rates)
+    errors = _expected_error_mismatches(epsilon, lengths)
+    return 2 * haplotype + errors
+
+
+def _objective(params, summary, pi, per_doubleton, config):
+    with np.errstate(over='ignore', divide='ignore', invalid='ignore'):
+        mu = np.exp(params[0])
+        sigma_sq = mu**2 + np.exp(params[1])
+        epsilon = np.exp(params[2])
+        fitted = _fitted_means(mu, sigma_sq, epsilon, summary, pi, per_doubleton)
+    # At extreme transformed values the positive excess can round away.
+    # Such a trial no longer represents the model's strict variance constraint.
+    if sigma_sq <= mu**2:
+        return config.objective_penalty
+    if not np.all(np.isfinite([mu, sigma_sq, epsilon])) or np.any(~np.isfinite(fitted)):
+        return config.objective_penalty
+    observed = summary.observed_side_means if per_doubleton else summary.observed_means
+    scale = np.maximum(np.abs(observed), 1)
+    residuals = (observed - fitted) / scale
+    if np.any(~np.isfinite(residuals)) or np.any(np.abs(residuals) > config.residual_guard):
+        return config.objective_penalty
+    value = np.sum(residuals**2)
+    if not np.isfinite(value):
+        return config.objective_penalty
+    return float(value)
+
+
+def _validate_fit_inputs(summary, pi, config, per_doubleton):
+    lengths = np.asarray(summary.window_sizes)
+    if not np.array_equal(lengths, config.window_sizes):
+        raise ValueError('Summary window_sizes must match config.window_sizes')
+    counts = np.asarray(summary.left_counts)
+    if counts.ndim != 2 or counts.shape[0] != len(lengths) or counts.shape[1] == 0:
+        raise ValueError('Mismatch arrays must have shape (W, D), with D positive')
+    for values in (summary.left_counts, summary.right_counts, summary.left_rates, summary.right_rates):
+        values = np.asarray(values)
+        if values.shape != counts.shape or np.any(~np.isfinite(values)) or np.any(values < 0):
+            raise ValueError('Mismatch counts and rates must have matching finite nonnegative (W, D) values')
+    diversity = np.asarray(pi, dtype=float)
+    if diversity.ndim > 1 or (diversity.ndim == 1 and diversity.shape != (counts.shape[1],)):
+        raise ValueError('pi must be a scalar or a (D,) vector aligned to doubletons')
+    if np.any(~np.isfinite(diversity)) or np.any(diversity < 0):
+        raise ValueError('pi must be finite and nonnegative in per-bp units')
+    if diversity.ndim == 1 and not per_doubleton:
+        raise ValueError('Array pi requires per_doubleton=True')
+    return float(diversity) if diversity.ndim == 0 else diversity.copy()
+
+
+def fit_error_model(summary, *, pi, config, per_doubleton=False):
+    """Fit the retained gamma-time model with a linear additive error term.
+
+    Parameters
+    ----------
+    summary : MismatchSummary
+        Counts and rates from :func:`summarise_mismatches`.
+    pi : float or numpy.ndarray
+        Finite nonnegative **per-bp** diversity. A vector must have length D
+        and follow the summary's carrier order; it requires per_doubleton=True.
+    config : EstimationConfig
+        Matching window sizes, transformed bounds and multistart grids.
+    per_doubleton : bool
+        False fits both-side means at the mean window rate and scalar pi.
+        True averages expectations over the 2D sides, retaining paired pi/rate
+        indexing. It does not fit an individual-count likelihood.
+
+    Returns
+    -------
+    ErrorRateFit
+        Lowest-objective trial, including its actual optimiser success/message.
+        All invalid or penalised trials raise RuntimeError. A finite objective
+        alone does not imply convergence or scientific calibration.
+    """
+    pi = _validate_fit_inputs(summary, pi, config, per_doubleton)
+    best = None
+    for alpha in config.start_alpha:
+        for log_beta in config.start_log_beta:
+            beta = np.exp(log_beta)
+            mu = alpha / beta
+            sigma_sq = alpha / beta**2
+            excess = max(sigma_sq - mu**2, np.finfo(float).tiny)
+            for log_epsilon in config.start_log_epsilon:
+                initial = np.array([np.log(mu), np.log(excess), log_epsilon])
+                result = scipy.optimize.minimize(
+                    _objective, x0=initial, args=(summary, pi, per_doubleton, config),
+                    method='L-BFGS-B', bounds=config.optimizer_bounds,
+                )
+                if np.isfinite(result.fun) and result.fun < config.objective_penalty:
+                    if best is None or result.fun < best.fun:
+                        best = result
+    if best is None:
+        raise RuntimeError('Error-model fitting failed: every optimisation trial was invalid or penalised')
+    mu = float(np.exp(best.x[0]))
+    sigma_sq = float(mu**2 + np.exp(best.x[1]))
+    epsilon = float(np.exp(best.x[2]))
+    observed = summary.observed_side_means if per_doubleton else summary.observed_means
+    fitted = _fitted_means(mu, sigma_sq, epsilon, summary, pi, per_doubleton)
+    return ErrorRateFit(
+        epsilon=epsilon, mu=mu, sigma_sq=sigma_sq, objective=float(best.fun),
+        success=bool(best.success), message=str(best.message),
+        observed_means=observed, fitted_means=fitted, pi=pi,
+        fit_mode='per_doubleton' if per_doubleton else 'aggregate',
+    )
+
+
+def estimate_error_rate(zarr_path, *, recombination, config, diversity_zarr_path=None,
+                        pi=None, diversity_mode='global', per_doubleton=False):
+    """Sample doubletons, stream summaries and fit errors per haplotype-bp.
+
+    Parameters
+    ----------
+    zarr_path : pathlib.Path, str or zarr.Group
+        Complete phased inference store; see :func:`sample_doubletons`.
+    recombination : float, msprime.RateMap, pathlib.Path or str
+        Mandatory explicit recombination input for :func:`summarise_mismatches`.
+    config : EstimationConfig
+        Sampling and numerical settings; a generated seed is recorded if None.
+    diversity_zarr_path : pathlib.Path, str, zarr.Group or None
+        Optional source for :func:`compute_diversity`. Cross-chromosome ploidy
+        slots are a chosen convention, not proof of homolog correspondence.
+    pi : float, numpy.ndarray or None
+        Optional per-bp override aligned to the returned doubleton order. For
+        external vectors, staged calls provide explicit control of that order.
+    diversity_mode : {"global", "pairwise"}
+        Computed diversity to fit when pi is None. Pairwise selects side-averaged
+        per-doubleton fitting automatically, including when pi is overridden.
+    per_doubleton : bool
+        Side-average fitting for scalar pi; aggregate remains the default.
+
+    Returns
+    -------
+    ErrorRateEstimate
+        Both diversity summaries, window summaries, fit and resolved seed/config.
+        When sources coincide, diversity and windows share one post-sampling
+        scan. Alternative sources use one scan each, resolving carriers by ID.
+    """
+    if diversity_mode not in ('global', 'pairwise'):
+        raise ValueError('diversity_mode must be global or pairwise')
+    seed = config.random_seed
+    if seed is None:
+        seed = np.random.SeedSequence().entropy
+    resolved_config = dataclasses.replace(config, random_seed=seed)
+    doubletons = sample_doubletons(zarr_path, config=resolved_config)
+    store = _open_store(zarr_path)
+    setup = _prepare_windows(store, doubletons, resolved_config, recombination)
+    diversity_store = store
+    if diversity_zarr_path is not None:
+        diversity_store = _open_store(diversity_zarr_path)
+    same_source = diversity_store.source_path == store.source_path
+    reduction = _reduce_chunks(
+        store, doubletons, execution=resolved_config, diversity=same_source,
+        boundaries=setup.boundaries,
+    )
+    mismatches = _mismatch_result(resolved_config, setup, reduction)
+    if same_source:
+        diversity = _diversity_result(store, doubletons, reduction)
+    else:
+        diversity_reduction = _reduce_chunks(
+            diversity_store, doubletons, execution=resolved_config, diversity=True,
+        )
+        diversity = _diversity_result(diversity_store, doubletons, diversity_reduction)
+    if pi is None:
+        pi = diversity.global_pi_per_bp
+        if diversity_mode == 'pairwise':
+            pi = diversity.pair_pi_per_bp
+    if diversity_mode == 'pairwise':
+        per_doubleton = True
+    fit = fit_error_model(mismatches, pi=pi, config=resolved_config, per_doubleton=per_doubleton)
+    return ErrorRateEstimate(doubletons, diversity, mismatches, fit, store.source_path, resolved_config)

@@ -35,6 +35,7 @@ import msprime
 import numba
 import numpy as np
 import scipy
+import scipy.integrate
 import zarr
 
 import dphil_analysis
@@ -235,6 +236,30 @@ def assert_summaries(path, doubletons, diversity, summary, config):
     print(path.name, 'diversity units, shapes, monotonicity and direct windows passed', flush=True)
 
 
+def assert_fit(fit, *, label, elapsed, doubletons):
+    print(label, {'D': doubletons.num_doubletons, 'seconds': elapsed,
+                  'epsilon_per_haplotype_bp': fit.epsilon, 'mu': fit.mu,
+                  'sigma_sq': fit.sigma_sq, 'objective': fit.objective,
+                  'success': fit.success, 'message': fit.message}, flush=True)
+    assert np.all(np.isfinite([fit.epsilon, fit.mu, fit.sigma_sq, fit.objective]))
+    assert fit.mu > 0
+    assert fit.sigma_sq > fit.mu**2
+    assert fit.epsilon > 0
+    assert np.all(np.isfinite(fit.fitted_means))
+    assert fit.success, fit.message
+
+
+def assert_same_fit(first, second):
+    # Exact row/count agreement elsewhere; numerical agreement tolerances here.
+    np.testing.assert_allclose(
+        [first.epsilon, first.mu, first.sigma_sq, first.objective],
+        [second.epsilon, second.mu, second.sigma_sq, second.objective],
+        rtol=1e-6, atol=1e-12,
+    )
+    np.testing.assert_allclose(first.fitted_means, second.fitted_means, rtol=1e-6, atol=1e-10)
+    assert first.success == second.success
+
+
 if __name__ == '__main__':
     repo = pathlib.Path.home() / 'work' / 'dphil-analysis'
     sim_name = (
@@ -297,6 +322,35 @@ if __name__ == '__main__':
     print('sim diversity/windows seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
     print('Global pi per site/bp:', sim_diversity.global_pi_per_site, sim_diversity.global_pi_per_bp)
 
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    sim_global_fit = error_estimation.fit_error_model(
+        sim_summary, pi=sim_diversity.global_pi_per_bp, config=config,
+    )
+    assert_fit(sim_global_fit, label='sim global fit',
+               elapsed=time.perf_counter() - started, doubletons=sim_doubletons)
+    started = time.perf_counter()
+    sim_pair_fit = error_estimation.fit_error_model(
+        sim_summary, pi=sim_diversity.pair_pi_per_bp, config=config, per_doubleton=True,
+    )
+    assert_fit(sim_pair_fit, label='sim pairwise fit',
+               elapsed=time.perf_counter() - started, doubletons=sim_doubletons)
+    started = time.perf_counter()
+    sim_estimate = error_estimation.estimate_error_rate(
+        sim_smoke_path, recombination=sim_map, config=config,
+    )
+    assert_fit(sim_estimate.fit, label='sim integrated fit',
+               elapsed=time.perf_counter() - started, doubletons=sim_estimate.doubletons)
+    assert_same_doubletons(sim_doubletons, sim_estimate.doubletons)
+    np.testing.assert_array_equal(sim_summary.left_counts, sim_estimate.mismatches.left_counts)
+    np.testing.assert_array_equal(sim_summary.right_counts, sim_estimate.mismatches.right_counts)
+    np.testing.assert_array_equal(sim_diversity.pair_difference_counts, sim_estimate.diversity.pair_difference_counts)
+    np.testing.assert_allclose(sim_diversity.global_pi_per_bp, sim_estimate.diversity.global_pi_per_bp, rtol=1e-12)
+    assert_same_fit(sim_global_fit, sim_estimate.fit)
+    assert sim_estimate.config.random_seed == config.random_seed
+    print('sim: staged and integrated workflows agree', flush=True)
+
 # %% [markdown]
 # # 1000 Genomes Project (tgp) — chr20
 
@@ -333,6 +387,35 @@ if __name__ == '__main__':
     assert_summaries(tgp_smoke_path, tgp_doubletons, tgp_diversity, tgp_summary, config)
     print('tgp diversity/windows seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
     print('Global pi per site/bp:', tgp_diversity.global_pi_per_site, tgp_diversity.global_pi_per_bp)
+
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    tgp_global_fit = error_estimation.fit_error_model(
+        tgp_summary, pi=tgp_diversity.global_pi_per_bp, config=config,
+    )
+    assert_fit(tgp_global_fit, label='tgp global fit',
+               elapsed=time.perf_counter() - started, doubletons=tgp_doubletons)
+    started = time.perf_counter()
+    tgp_pair_fit = error_estimation.fit_error_model(
+        tgp_summary, pi=tgp_diversity.pair_pi_per_bp, config=config, per_doubleton=True,
+    )
+    assert_fit(tgp_pair_fit, label='tgp pairwise fit',
+               elapsed=time.perf_counter() - started, doubletons=tgp_doubletons)
+    started = time.perf_counter()
+    tgp_estimate = error_estimation.estimate_error_rate(
+        tgp_smoke_path, recombination=tgp_map, config=config,
+    )
+    assert_fit(tgp_estimate.fit, label='tgp integrated fit',
+               elapsed=time.perf_counter() - started, doubletons=tgp_estimate.doubletons)
+    assert_same_doubletons(tgp_doubletons, tgp_estimate.doubletons)
+    np.testing.assert_array_equal(tgp_summary.left_counts, tgp_estimate.mismatches.left_counts)
+    np.testing.assert_array_equal(tgp_summary.right_counts, tgp_estimate.mismatches.right_counts)
+    np.testing.assert_array_equal(tgp_diversity.pair_difference_counts, tgp_estimate.diversity.pair_difference_counts)
+    np.testing.assert_allclose(tgp_diversity.global_pi_per_bp, tgp_estimate.diversity.global_pi_per_bp, rtol=1e-12)
+    assert_same_fit(tgp_global_fit, tgp_estimate.fit)
+    assert tgp_estimate.config.random_seed == config.random_seed
+    print('tgp: staged and integrated workflows agree', flush=True)
 
 # %% [markdown]
 # # Focused numerical and indexing checks
@@ -469,14 +552,181 @@ if __name__ == '__main__':
     print('Singleton, explicit diversity, carrier remapping, error propagation and map endpoint checks passed', flush=True)
 
 # %% [markdown]
+# Formula checks use the defining integral as an independent numerical reference.
+# Per-site diversity is conditional on retained stored sites; the fitted pi and
+# epsilon are per bp. Pairwise mode averages paired pi/rate expectations, not
+# independently averaged pi and rates. Alternative chromosomes match sample IDs
+# and ploidy slots as an indexing convention, not biological homolog identity.
+# The two-window tiny routing fixture cannot identify three parameters. Its
+# large fitted mu reflects saturation, so those parameters have no scientific
+# interpretation; it checks routing and numerical contracts only. At extreme
+# transformed values a positive variance excess can round away. The objective
+# rejects that invalid representation instead of returning sigma_sq == mu**2.
+
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    scalar_side_fit = error_estimation.fit_error_model(
+        sim_summary, pi=sim_diversity.global_pi_per_bp, config=config, per_doubleton=True,
+    )
+    scalar_side_seconds = time.perf_counter() - started
+    started = time.perf_counter()
+    constant_pi = np.full(sim_doubletons.num_doubletons, sim_diversity.global_pi_per_bp)
+    vector_side_fit = error_estimation.fit_error_model(
+        sim_summary, pi=constant_pi, config=config, per_doubleton=True,
+    )
+    vector_side_seconds = time.perf_counter() - started
+    assert_fit(scalar_side_fit, label='sim scalar side fit',
+               elapsed=scalar_side_seconds, doubletons=sim_doubletons)
+    assert_fit(vector_side_fit, label='sim constant-vector side fit',
+               elapsed=vector_side_seconds, doubletons=sim_doubletons)
+    assert_same_fit(scalar_side_fit, vector_side_fit)
+    assert_value_error(error_estimation.fit_error_model, sim_summary,
+                       pi=constant_pi, config=config, match='per_doubleton')
+    for invalid_pi in [-1, np.nan, np.zeros(sim_doubletons.num_doubletons + 1)]:
+        assert_value_error(error_estimation.fit_error_model, sim_summary,
+                           pi=invalid_pi, config=config, per_doubleton=True, match='pi')
+    invalid_rates = sim_summary.left_rates.copy()
+    invalid_rates[0, 0] = np.nan
+    invalid_summary = dataclasses.replace(sim_summary, left_rates=invalid_rates)
+    assert_value_error(error_estimation.fit_error_model, invalid_summary,
+                       pi=0.001, config=config, match='finite')
+    zero = error_estimation._expected_haplotype_mismatches(10, 200, [0.001, 0.002], 1000, [0, 0])
+    np.testing.assert_array_equal(zero, [0, 0])
+    np.testing.assert_array_equal(error_estimation._expected_error_mismatches(0, config.window_sizes), np.zeros(len(config.window_sizes)))
+    np.testing.assert_allclose(error_estimation._power_integral_from_one(np.array([1, 2, 10]), -1), np.log([1, 2, 10]), rtol=1e-12)
+    for mu, sigma_sq, pi_value, length, rate in [
+        (10, 200, 0.001, 10000, 1e-6),
+        (1000, 4e6, 0.002, 250000, 1e-8),
+        (10, 100, 0.003, 10000, 1e-6),  # alpha=1 logarithmic limit
+    ]:
+        alpha = mu**2 / sigma_sq
+        beta = mu / sigma_sq
+        integral, quadrature_error = scipy.integrate.quad(
+            lambda x: pi_value * (1 - (1 + 2 * rate * x / beta)**(-alpha)),
+            0, length, epsabs=1e-10, epsrel=1e-10,
+        )
+        expectation = error_estimation._expected_haplotype_mismatches(mu, sigma_sq, pi_value, length, rate)
+        np.testing.assert_allclose(expectation, integral, rtol=1e-9, atol=1e-10)
+        assert quadrature_error < 1e-6
+    # Broadcast diversity before masking zero rates; vary pi jointly with r.
+    vector_expectation = error_estimation._expected_haplotype_mismatches(
+        10, 200, [0.001, 0.003], 10000, [0, 1e-6],
+    )
+    assert vector_expectation[0] == 0
+    np.testing.assert_allclose(vector_expectation[1], error_estimation._expected_haplotype_mismatches(10, 200, 0.003, 10000, 1e-6), rtol=1e-12)
+    selected_mu, selected_sigma, selected_epsilon = 10, 200, 1e-7
+    expected_sides = []
+    for row, length in enumerate(tiny_config.window_sizes):
+        sides = []
+        for pair in range(tiny_doubletons.num_doubletons):
+            for rate in [scalar_summary.left_rates[row, pair], scalar_summary.right_rates[row, pair]]:
+                value = error_estimation._expected_haplotype_mismatches(
+                    selected_mu, selected_sigma, tiny_diversity.pair_pi_per_bp[pair], length, rate,
+                )
+                sides.append(value + 2 * selected_epsilon * length)
+        expected_sides.append(np.mean(sides))
+    fitted_sides = error_estimation._fitted_means(
+        selected_mu, selected_sigma, selected_epsilon, scalar_summary,
+        tiny_diversity.pair_pi_per_bp, True,
+    )
+    np.testing.assert_allclose(fitted_sides, expected_sides, rtol=1e-12)
+    started = time.perf_counter()
+    tiny_estimate = error_estimation.estimate_error_rate(
+        tiny, recombination=synthetic_rate, config=tiny_config,
+        diversity_zarr_path=override_path, diversity_mode='pairwise',
+    )
+    assert_fit(tiny_estimate.fit, label='tiny alternative-source pairwise fit',
+               elapsed=time.perf_counter() - started, doubletons=tiny_estimate.doubletons)
+    np.testing.assert_array_equal(tiny_estimate.diversity.pair_difference_counts, overridden.pair_difference_counts)
+    np.testing.assert_array_equal(tiny_estimate.fit.pi, overridden.pair_pi_per_bp)
+    assert tiny_estimate.fit.fit_mode == 'per_doubleton'
+    started = time.perf_counter()
+    tiny_override = error_estimation.estimate_error_rate(
+        tiny, recombination=synthetic_rate, config=dataclasses.replace(tiny_config, random_seed=None),
+        pi=0.001, diversity_mode='pairwise',
+    )
+    assert_fit(tiny_override.fit, label='tiny scalar override with resolved seed',
+               elapsed=time.perf_counter() - started, doubletons=tiny_override.doubletons)
+    assert tiny_override.fit.pi == 0.001
+    assert isinstance(tiny_override.config.random_seed, int)
+    assert tiny_override.config.random_seed >= 0
+    print('Numerical integrals, logarithmic/zero limits, pi contracts and integrated options passed', flush=True)
+
+# %%
+if __name__ == '__main__':
+    for workers in [1, 2]:
+        capped = error_estimation.sample_doubletons(
+            tiny, config=dataclasses.replace(tiny_config, num_doubletons=1, num_workers=workers),
+        )
+        if workers == 1:
+            capped_serial = capped
+        else:
+            assert_same_doubletons(capped_serial, capped)
+    incompatible = make_tiny_store(tiny_genotypes[:, :, :1], tiny_positions)
+    assert_value_error(error_estimation.compute_diversity, tiny, tiny_doubletons,
+                       zarr_path=incompatible, num_workers=1, match='ploidy')
+    duplicate_ids = make_tiny_store(tiny_genotypes, tiny_positions, sample_ids=['same', 'same', 'other'])
+    assert_value_error(error_estimation.sample_doubletons, duplicate_ids,
+                       config=tiny_config, match='unique ID')
+    mixed_contigs = make_tiny_store(tiny_genotypes, tiny_positions)
+    mixed_contigs['variant_contig'][2] = 1
+    assert_value_error(error_estimation.sample_doubletons, mixed_contigs,
+                       config=tiny_config, match='one represented contig')
+    masked = make_tiny_store(tiny_genotypes, tiny_positions)
+    mask = np.zeros(tiny_genotypes.shape, dtype=bool)
+    mask[2, 0, 0] = True
+    masked.create_array('call_genotype_mask', data=mask)
+    assert_value_error(error_estimation.sample_doubletons, masked,
+                       config=tiny_config, match='Masked genotype')
+    extra_genotypes = np.concatenate([tiny_genotypes, np.ones((6, 1, 2), dtype=np.int8)], axis=1)
+    extra = make_tiny_store(extra_genotypes, tiny_positions)
+    extra_diversity = error_estimation.compute_diversity(tiny, tiny_doubletons, zarr_path=extra, num_workers=1)
+    np.testing.assert_array_equal(extra_diversity.pair_difference_counts, tiny_diversity.pair_difference_counts)
+    extra_flat = extra_genotypes.reshape(6, -1)
+    extra_pairs = [np.count_nonzero(extra_flat[:, a] != extra_flat[:, b])
+                   for a in range(8) for b in range(a + 1, 8)]
+    np.testing.assert_allclose(extra_diversity.global_difference_sum, np.mean(extra_pairs), rtol=1e-12)
+    invalid_params = np.array([30, -30, -12])
+    assert error_estimation._objective(invalid_params, sim_summary, 0.001, False, config) == config.objective_penalty
+    invalid_fit_config = dataclasses.replace(
+        config, optimizer_bounds=((29, 30), (-30, -29), (-50, -49)),
+    )
+    try:
+        error_estimation.fit_error_model(sim_summary, pi=0.001, config=invalid_fit_config)
+    except RuntimeError as error:
+        assert 'every optimisation trial' in str(error)
+    else:
+        raise AssertionError('An all-invalid multistart search must fail explicitly')
+    # Verify the objective's scaled residuals independently at a finite point.
+    parameters = np.log([100, 10000, 1e-5])
+    expected = error_estimation._fitted_means(100, 20000, 1e-5, sim_summary, 0.001, False)
+    residual = (sim_summary.observed_means - expected) / np.maximum(np.abs(sim_summary.observed_means), 1)
+    np.testing.assert_allclose(error_estimation._objective(parameters, sim_summary, 0.001, False, config), np.sum(residual**2), rtol=1e-12)
+    print('Additional identity, reservoir, mask and fitting-failure contracts passed', flush=True)
+
+# %% [markdown]
 # # Execution commands and results
 # From the repository root:
 # ```sh
 # uv sync
 # uv run python -c 'import dphil_analysis, numpy, numba, scipy, zarr, msprime; assert int(zarr.__version__.split(".")[0]) >= 3'
 # uv run python notebooks/ch4_error_estimation/implementation_testing.py
+# export JUPYTER_DATA_DIR="$PWD/.venv/share/jupyter"
+# export JUPYTER_RUNTIME_DIR="$PWD/.venv/jupyter_runtime"
+# export IPYTHONDIR="$PWD/.venv/ipython"
+# uv run python -m ipykernel install --prefix .venv --name dphil_analysis --display-name "dphil-analysis"
+# uv run jupytext --to ipynb notebooks/ch4_error_estimation/implementation_testing.py
+# uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=dphil_analysis --ExecutePreprocessor.timeout=-1 notebooks/ch4_error_estimation/implementation_testing.ipynb
+# uv run jupytext --sync notebooks/ch4_error_estimation/implementation_testing.ipynb
 # ```
+# The script was checked at each implementation checkpoint. Final notebook
+# outputs record fresh-kernel execution, including actual paths, versions,
+# masks, timings and fit outcomes. Numerical tolerances are explicit above;
+# sampled rows and integer counts require exact equality. No complete source
+# chromosome is fitted and these results do not establish calibration.
 
 # %%
 if __name__ == '__main__':
     temporary.cleanup()
+    print('All implementation checks passed; temporary stores removed.', flush=True)
