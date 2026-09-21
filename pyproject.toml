@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dphil-analysis"
+version = "0.1.0"
+description = "Reproducible DPhil analysis methods"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2", "numba", "scipy", "zarr>=3", "msprime"]
+
+[dependency-groups]
+dev = ["jupytext", "ipykernel", "nbconvert", "nbformat"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dphil_analysis"]
