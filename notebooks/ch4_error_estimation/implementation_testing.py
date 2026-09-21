@@ -38,6 +38,7 @@ import scipy
 import zarr
 
 import dphil_analysis
+from dphil_analysis import error_estimation
 
 
 @dataclasses.dataclass
@@ -135,6 +136,73 @@ def source_mask(path, map_path, chrom, smoke):
     return {'source': source, 'interval': interval, 'samples': samples}
 
 
+def make_tiny_store(genotypes, positions, *, path=None, sample_ids=None, phased=None):
+    """Create only ephemeral fixtures; ordinary calls use in-memory Zarr 3."""
+    group = zarr.open_group(path, mode='w', zarr_format=3)
+    genotypes = np.asarray(genotypes, dtype=np.int8)
+    if sample_ids is None:
+        sample_ids = np.asarray([f'sample_{i}' for i in range(genotypes.shape[1])], dtype='T')
+    arrays = {
+        'call_genotype': (genotypes, ('variants', 'samples', 'ploidy')),
+        'variant_position': (np.asarray(positions, dtype=float), ('variants',)),
+        'sample_id': (np.asarray(sample_ids, dtype='T'), ('samples',)),
+        'variant_contig': (np.zeros(len(positions), dtype=np.int8), ('variants',)),
+        'contig_id': (np.asarray(['tiny'], dtype='T'), ('contigs',)),
+    }
+    if phased is not None:
+        arrays['call_genotype_phased'] = (np.asarray(phased), ('variants', 'samples'))
+    for name, (data, dimensions) in arrays.items():
+        chunks = data.shape
+        if dimensions[0] == 'variants':
+            chunks = (min(2, len(data)), *data.shape[1:])
+        group.create_array(name, data=data, chunks=chunks, dimension_names=dimensions)
+    return group
+
+
+def assert_sampling(path, doubletons, config):
+    group = zarr.open_group(path, mode='r')
+    positions = group['variant_position'][:]
+    gt = group['call_genotype']
+    d = doubletons.num_doubletons
+    assert d == min(config.num_doubletons, doubletons.num_eligible)
+    assert np.all(np.diff(doubletons.site_indices) > 0)
+    assert doubletons.sample_indices.shape == (d, 2)
+    assert doubletons.ploidy_indices.shape == (d, 2)
+    assert np.all(doubletons.sample_indices >= 0)
+    assert np.all(doubletons.sample_indices < gt.shape[1])
+    assert np.all(doubletons.ploidy_indices >= 0)
+    assert np.all(doubletons.ploidy_indices < gt.shape[2])
+    assert np.all(doubletons.positions - config.window_sizes[-1] >= positions[0])
+    assert np.all(doubletons.positions + config.window_sizes[-1] <= positions[-1])
+    chunk_indices = doubletons.site_indices // gt.chunks[0]
+    for chunk in np.unique(chunk_indices):
+        offset = chunk * gt.chunks[0]
+        block = gt[offset:offset + gt.chunks[0]]
+        for row in np.flatnonzero(chunk_indices == chunk):
+            site = block[doubletons.site_indices[row] - offset]
+            assert np.all((site == 0) | (site == 1))
+            assert np.count_nonzero(site == 1) == 2
+            assert np.all(site[doubletons.sample_indices[row], doubletons.ploidy_indices[row]] == 1)
+            addresses = doubletons.sample_indices[row] * gt.shape[2] + doubletons.ploidy_indices[row]
+            assert addresses[0] != addresses[1]
+    print('Sampling passed:', d, 'selected;', doubletons.num_eligible, 'eligible', flush=True)
+
+
+def assert_same_doubletons(first, second):
+    for field in ['site_indices', 'positions', 'sample_indices', 'sample_ids', 'ploidy_indices']:
+        np.testing.assert_array_equal(getattr(first, field), getattr(second, field))
+    assert first.num_eligible == second.num_eligible
+
+
+def assert_value_error(function, *args, match, **kwargs):
+    try:
+        function(*args, **kwargs)
+    except ValueError as error:
+        assert match.lower() in str(error).lower(), str(error)
+    else:
+        raise AssertionError(f'Expected ValueError containing {match!r}')
+
+
 if __name__ == '__main__':
     repo = pathlib.Path.home() / 'work' / 'dphil-analysis'
     sim_name = (
@@ -147,6 +215,10 @@ if __name__ == '__main__':
     sim_map = map_dir / 'genetic_map_Hg38_chr17.txt'
     tgp_map = map_dir / 'genetic_map_Hg38_chr20.txt'
     smoke = SmokeConfig()
+    config = error_estimation.EstimationConfig(
+        window_sizes=smoke.window_sizes, num_doubletons=smoke.num_doubletons,
+        random_seed=smoke.seed, num_workers=smoke.num_workers,
+    )
     temporary = tempfile.TemporaryDirectory(prefix='error_estimation_')
     atexit.register(temporary.cleanup)
     sim_smoke_path = pathlib.Path(temporary.name) / 'sim.zarr'
@@ -173,6 +245,13 @@ if __name__ == '__main__':
     print({key: value for key, value in sim_provenance.items() if key != 'sample_ids'})
     print('Fixture wall seconds:', time.perf_counter() - started, flush=True)
 
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    sim_doubletons = error_estimation.sample_doubletons(sim_smoke_path, config=config)
+    assert_sampling(sim_smoke_path, sim_doubletons, config)
+    print('sim sampling seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
+
 # %% [markdown]
 # # 1000 Genomes Project (tgp) — chr20
 
@@ -189,6 +268,13 @@ if __name__ == '__main__':
     print('Map:', tgp_map)
     print({key: value for key, value in tgp_provenance.items() if key != 'sample_ids'})
     print('Fixture wall seconds:', time.perf_counter() - started, flush=True)
+
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    tgp_doubletons = error_estimation.sample_doubletons(tgp_smoke_path, config=config)
+    assert_sampling(tgp_smoke_path, tgp_doubletons, config)
+    print('tgp sampling seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
 
 # %% [markdown]
 # # Focused numerical and indexing checks
@@ -213,6 +299,47 @@ if __name__ == '__main__':
             assert np.all(phased[heterozygous])
             assert not np.any(group['call_genotype_mask'][offset:stop])
         print(path.name, 'schema, completeness and phasing passed', flush=True)
+
+# %%
+if __name__ == '__main__':
+    small_config = dataclasses.replace(config, num_doubletons=10)
+    first = error_estimation.sample_doubletons(sim_smoke_path, config=small_config)
+    second = error_estimation.sample_doubletons(sim_smoke_path, config=small_config)
+    assert_same_doubletons(first, second)
+    assert error_estimation.EstimationConfig(window_sizes=[1]).num_doubletons == 10000
+    for invalid in [0, -1, 1.5, True]:
+        assert_value_error(error_estimation.EstimationConfig, window_sizes=[1],
+                           num_doubletons=invalid, match='positive integer')
+    for invalid in [[], [0], [2, 1], [1, 1], [np.nan]]:
+        assert_value_error(error_estimation.EstimationConfig, window_sizes=invalid,
+                           match='window_sizes')
+    tiny_genotypes = np.array([
+        [[0, 0], [0, 0], [0, 0]],
+        [[1, 1], [0, 0], [0, 0]],
+        [[1, 0], [0, 0], [0, 0]],  # A singleton must survive diversity scans.
+        [[1, 0], [1, 0], [0, 0]],
+        [[0, 2], [0, 0], [0, 0]],  # Sum == 2 is not a doubleton.
+        [[0, 0], [0, 0], [0, 0]],
+    ], dtype=np.int8)
+    tiny_positions = np.arange(6) * 100
+    tiny = make_tiny_store(tiny_genotypes, tiny_positions)
+    tiny_config = error_estimation.EstimationConfig(
+        window_sizes=[50, 100], num_doubletons=10, random_seed=42, num_workers=1,
+    )
+    tiny_doubletons = error_estimation.sample_doubletons(tiny, config=tiny_config)
+    assert tiny_doubletons.num_doubletons == tiny_doubletons.num_eligible == 2
+    np.testing.assert_array_equal(tiny_doubletons.site_indices, [1, 3])
+    parallel = error_estimation.sample_doubletons(
+        tiny, config=dataclasses.replace(tiny_config, num_workers=2),
+    )
+    assert_same_doubletons(tiny_doubletons, parallel)
+    empty = make_tiny_store(np.zeros_like(tiny_genotypes), tiny_positions)
+    assert_value_error(error_estimation.sample_doubletons, empty,
+                       config=tiny_config, match='No eligible doubletons')
+    duplicates = make_tiny_store(tiny_genotypes, [0, 100, 100, 300, 400, 500])
+    assert_value_error(error_estimation.sample_doubletons, duplicates,
+                       config=tiny_config, match='strictly increasing')
+    print('Determinism, worker dispatch, cap and invalid-input checks passed', flush=True)
 
 # %% [markdown]
 # # Execution commands and results
