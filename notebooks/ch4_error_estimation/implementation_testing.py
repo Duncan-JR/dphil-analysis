@@ -203,6 +203,38 @@ def assert_value_error(function, *args, match, **kwargs):
         raise AssertionError(f'Expected ValueError containing {match!r}')
 
 
+def assert_summaries(path, doubletons, diversity, summary, config):
+    group = zarr.open_group(path, mode='r')
+    assert diversity.num_sites == group['call_genotype'].shape[0]
+    assert diversity.pair_difference_counts.shape == (doubletons.num_doubletons,)
+    assert np.isfinite(diversity.global_pi_per_site)
+    assert 0 <= diversity.global_pi_per_site <= 1
+    assert np.all(np.isfinite(diversity.pair_pi_per_site))
+    assert np.all((diversity.pair_pi_per_site >= 0) & (diversity.pair_pi_per_site <= 1))
+    density = diversity.num_sites / diversity.span_bp
+    np.testing.assert_allclose(diversity.global_pi_per_bp, diversity.global_pi_per_site * density, rtol=1e-12)
+    np.testing.assert_allclose(diversity.pair_pi_per_bp, diversity.pair_pi_per_site * density, rtol=1e-12)
+    shape = (len(config.window_sizes), doubletons.num_doubletons)
+    for values in [summary.left_counts, summary.right_counts, summary.left_rates, summary.right_rates]:
+        assert values.shape == shape
+        assert np.all(np.isfinite(values))
+        assert np.all(values >= 0)
+    assert np.all(np.diff(summary.left_counts, axis=0) >= 0)
+    assert np.all(np.diff(summary.right_counts, axis=0) >= 0)
+    positions = group['variant_position'][:]
+    for row in range(min(3, doubletons.num_doubletons)):
+        focal = doubletons.site_indices[row]
+        carriers = doubletons.sample_indices[row] * group['call_genotype'].shape[2] + doubletons.ploidy_indices[row]
+        for window_index, length in enumerate(config.window_sizes):
+            left = np.searchsorted(positions, positions[focal] - length, side='left')
+            right = np.searchsorted(positions, positions[focal] + length, side='right')
+            block = group['call_genotype'][left:right].reshape(right - left, -1)
+            differences = block[:, carriers[0]] != block[:, carriers[1]]
+            assert summary.left_counts[window_index, row] == differences[:focal-left].sum()
+            assert summary.right_counts[window_index, row] == differences[focal-left+1:].sum()
+    print(path.name, 'diversity units, shapes, monotonicity and direct windows passed', flush=True)
+
+
 if __name__ == '__main__':
     repo = pathlib.Path.home() / 'work' / 'dphil-analysis'
     sim_name = (
@@ -252,6 +284,19 @@ if __name__ == '__main__':
     assert_sampling(sim_smoke_path, sim_doubletons, config)
     print('sim sampling seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
 
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    sim_diversity = error_estimation.compute_diversity(
+        sim_smoke_path, sim_doubletons, num_workers=config.num_workers,
+    )
+    sim_summary = error_estimation.summarise_mismatches(
+        sim_smoke_path, sim_doubletons, config=config, recombination=sim_map,
+    )
+    assert_summaries(sim_smoke_path, sim_doubletons, sim_diversity, sim_summary, config)
+    print('sim diversity/windows seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
+    print('Global pi per site/bp:', sim_diversity.global_pi_per_site, sim_diversity.global_pi_per_bp)
+
 # %% [markdown]
 # # 1000 Genomes Project (tgp) — chr20
 
@@ -275,6 +320,19 @@ if __name__ == '__main__':
     tgp_doubletons = error_estimation.sample_doubletons(tgp_smoke_path, config=config)
     assert_sampling(tgp_smoke_path, tgp_doubletons, config)
     print('tgp sampling seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
+
+# %%
+if __name__ == '__main__':
+    started = time.perf_counter()
+    tgp_diversity = error_estimation.compute_diversity(
+        tgp_smoke_path, tgp_doubletons, num_workers=config.num_workers,
+    )
+    tgp_summary = error_estimation.summarise_mismatches(
+        tgp_smoke_path, tgp_doubletons, config=config, recombination=tgp_map,
+    )
+    assert_summaries(tgp_smoke_path, tgp_doubletons, tgp_diversity, tgp_summary, config)
+    print('tgp diversity/windows seconds:', time.perf_counter() - started, 'workers:', config.num_workers)
+    print('Global pi per site/bp:', tgp_diversity.global_pi_per_site, tgp_diversity.global_pi_per_bp)
 
 # %% [markdown]
 # # Focused numerical and indexing checks
@@ -340,6 +398,75 @@ if __name__ == '__main__':
     assert_value_error(error_estimation.sample_doubletons, duplicates,
                        config=tiny_config, match='strictly increasing')
     print('Determinism, worker dispatch, cap and invalid-input checks passed', flush=True)
+
+# %%
+if __name__ == '__main__':
+    tiny_diversity = error_estimation.compute_diversity(tiny, tiny_doubletons, num_workers=1)
+    flat = tiny_genotypes.reshape(len(tiny_positions), -1)
+    pair_differences = []
+    for a in range(flat.shape[1]):
+        for b in range(a + 1, flat.shape[1]):
+            pair_differences.append(np.count_nonzero(flat[:, a] != flat[:, b]))
+    np.testing.assert_allclose(tiny_diversity.global_difference_sum, np.mean(pair_differences), rtol=1e-12)
+    # Site 2 is a singleton and contributes a mismatch to both carrier pairs.
+    for row, carriers in enumerate(tiny_doubletons.sample_indices * 2 + tiny_doubletons.ploidy_indices):
+        expected = np.count_nonzero(flat[:, carriers[0]] != flat[:, carriers[1]])
+        assert tiny_diversity.pair_difference_counts[row] == expected
+        assert flat[2, carriers[0]] != flat[2, carriers[1]]
+    order = np.array([2, 0, 1])
+    reordered = make_tiny_store(tiny_genotypes[:, order], tiny_positions,
+                                sample_ids=tiny['sample_id'][:][order])
+    remapped = error_estimation.compute_diversity(tiny, tiny_doubletons, zarr_path=reordered, num_workers=1)
+    np.testing.assert_array_equal(remapped.pair_difference_counts, tiny_diversity.pair_difference_counts)
+    np.testing.assert_allclose(remapped.global_difference_sum, tiny_diversity.global_difference_sum, rtol=1e-12)
+    override_path = pathlib.Path(temporary.name) / 'reordered.zarr'
+    make_tiny_store(tiny_genotypes[:, order], tiny_positions * 2, path=override_path,
+                    sample_ids=tiny['sample_id'][:][order])
+    overridden = error_estimation.compute_diversity(tiny, tiny_doubletons, zarr_path=override_path, num_workers=1)
+    np.testing.assert_array_equal(overridden.pair_difference_counts, tiny_diversity.pair_difference_counts)
+    assert overridden.span_bp == tiny_diversity.span_bp * 2
+    np.testing.assert_allclose(overridden.pair_pi_per_bp, tiny_diversity.pair_pi_per_bp / 2, rtol=1e-12)
+    absent = make_tiny_store(tiny_genotypes, tiny_positions, sample_ids=['absent', 'sample_1', 'sample_2'])
+    assert_value_error(error_estimation.compute_diversity, tiny, tiny_doubletons,
+                       zarr_path=absent, num_workers=1, match='absent')
+    negative_genotypes = tiny_genotypes.copy()
+    negative_genotypes[2, 0, 0] = -1
+    negative = make_tiny_store(negative_genotypes, tiny_positions)
+    assert_value_error(error_estimation.compute_diversity, negative, tiny_doubletons,
+                       num_workers=1, match='Negative allele code at site 2')
+    assert_value_error(error_estimation.sample_doubletons, negative,
+                       config=dataclasses.replace(tiny_config, num_workers=2), match='Negative allele code')
+    unphased = make_tiny_store(tiny_genotypes, tiny_positions, phased=np.zeros((6, 3), dtype=bool))
+    assert_value_error(error_estimation.summarise_mismatches, unphased, tiny_doubletons,
+                       config=tiny_config, recombination=0, match='Unphased heterozygote')
+    zero_summary = error_estimation.summarise_mismatches(tiny, tiny_doubletons, config=tiny_config, recombination=0)
+    assert np.all(zero_summary.left_rates == 0)
+    assert np.all(zero_summary.right_rates == 0)
+    synthetic_rate = 1e-8  # Synthetic constant for a units/endpoint check, not a data fit.
+    constant_map = msprime.RateMap(position=[0, 500], rate=[synthetic_rate])
+    scalar_summary = error_estimation.summarise_mismatches(tiny, tiny_doubletons, config=tiny_config, recombination=synthetic_rate)
+    map_summary = error_estimation.summarise_mismatches(tiny, tiny_doubletons, config=tiny_config, recombination=constant_map)
+    np.testing.assert_array_equal(scalar_summary.total_counts, map_summary.total_counts)
+    np.testing.assert_allclose(scalar_summary.left_rates, map_summary.left_rates, rtol=1e-12, atol=1e-20)
+    np.testing.assert_allclose(scalar_summary.right_rates, map_summary.right_rates, rtol=1e-12, atol=1e-20)
+    assert np.all(scalar_summary.left_rates[0] == 0)  # Empty 50 bp sides.
+    assert np.all(scalar_summary.right_rates[0] == 0)
+    np.testing.assert_allclose(scalar_summary.left_rates[1], synthetic_rate, rtol=1e-12)
+    np.testing.assert_allclose(scalar_summary.right_rates[1], synthetic_rate, rtol=1e-12)
+    np.testing.assert_array_equal(scalar_summary.left_counts, [[0, 0], [0, 1]])
+    np.testing.assert_array_equal(scalar_summary.right_counts, [[0, 0], [1, 0]])
+    parallel_diversity = error_estimation.compute_diversity(tiny, tiny_doubletons, num_workers=2)
+    np.testing.assert_array_equal(parallel_diversity.pair_difference_counts, tiny_diversity.pair_difference_counts)
+    np.testing.assert_allclose(parallel_diversity.global_difference_sum, tiny_diversity.global_difference_sum, rtol=1e-12)
+    invalid_map = msprime.RateMap(position=[0, 250, 500], rate=[synthetic_rate, np.nan])
+    assert_value_error(error_estimation.summarise_mismatches, tiny, tiny_doubletons,
+                       config=tiny_config, recombination=invalid_map, match='undefined')
+    short_map = msprime.RateMap(position=[0, 400], rate=[synthetic_rate])
+    assert_value_error(error_estimation.summarise_mismatches, tiny, tiny_doubletons,
+                       config=tiny_config, recombination=short_map, match='cover')
+    assert_value_error(error_estimation.summarise_mismatches, tiny, tiny_doubletons,
+                       config=tiny_config, recombination=-1, match='nonnegative')
+    print('Singleton, explicit diversity, carrier remapping, error propagation and map endpoint checks passed', flush=True)
 
 # %% [markdown]
 # # Execution commands and results

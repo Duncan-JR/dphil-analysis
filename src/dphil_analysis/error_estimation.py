@@ -376,6 +376,8 @@ def _scan_doubletons(block, offset, bounds):
 def _chunk_task(block, offset, operation, payload):
     if operation == 'sample':
         return _scan_doubletons(block, offset, payload)
+    if operation == 'reduce':
+        return _reduce_chunk(block, offset, payload)
     raise ValueError(f'Unknown chunk operation: {operation}')
 
 
@@ -510,3 +512,243 @@ def sample_doubletons(zarr_path, *, config):
         sample_ids=store.sample_ids[sample_indices], ploidy_indices=ploidy_indices,
         num_eligible=eligible, source_ploidy=store.ploidy,
     )
+
+
+@dataclasses.dataclass
+class _ReductionTask:
+    carriers: np.ndarray
+    diversity: bool
+    boundaries: np.ndarray | None
+
+
+@dataclasses.dataclass
+class _ReductionResult:
+    global_difference_sum: float
+    pair_difference_counts: np.ndarray
+    left_counts: np.ndarray
+    right_counts: np.ndarray
+
+
+@dataclasses.dataclass
+class _WindowSetup:
+    boundaries: np.ndarray
+    left_rates: np.ndarray
+    right_rates: np.ndarray
+
+
+@numba.njit(cache=True)
+def _accumulate_diversity(block, carriers, pair_counts):
+    """Accumulate distinct-pair diversity without materialising haplotype pairs."""
+    haplotypes = block.shape[1]
+    denominator = haplotypes * (haplotypes - 1)
+    allele_counts = np.zeros(int(np.max(block)) + 1, dtype=np.int64)
+    difference_sum = 0.0
+    for site in range(len(block)):
+        allele_counts[:] = 0
+        for haplotype in range(haplotypes):
+            allele_counts[block[site, haplotype]] += 1
+        equal_pairs = 0
+        for count in allele_counts:
+            equal_pairs += count * (count - 1)
+        difference_sum += (denominator - equal_pairs) / denominator
+        for pair in range(len(carriers)):
+            pair_counts[pair] += block[site, carriers[pair, 0]] != block[site, carriers[pair, 1]]
+    return difference_sum
+
+
+@numba.njit(cache=True)
+def _accumulate_windows(block, offset, boundaries, carriers, pair_counts, left_counts, right_counts):
+    """Query chunk-local pair prefixes at clipped, inclusive physical endpoints."""
+    prefix = np.empty(len(block) + 1, dtype=np.int64)
+    for pair in range(len(carriers)):
+        prefix[0] = 0
+        for site in range(len(block)):
+            unequal = block[site, carriers[pair, 0]] != block[site, carriers[pair, 1]]
+            prefix[site + 1] = prefix[site] + unequal
+        pair_counts[pair] = prefix[-1]
+        for window in range(boundaries.shape[1]):
+            left, focal, right = boundaries[:, window, pair]
+            start = min(max(left - offset, 0), len(block))
+            stop = min(max(focal - offset, 0), len(block))
+            left_counts[window, pair] = prefix[stop] - prefix[start]
+            start = min(max(focal + 1 - offset, 0), len(block))
+            stop = min(max(right - offset, 0), len(block))
+            right_counts[window, pair] = prefix[stop] - prefix[start]
+
+
+def _reduce_chunk(block, offset, task):
+    pairs = len(task.carriers)
+    windows = 0 if task.boundaries is None else task.boundaries.shape[1]
+    result = _ReductionResult(
+        global_difference_sum=0.0,
+        pair_difference_counts=np.zeros(pairs, dtype=np.int64),
+        left_counts=np.zeros((windows, pairs), dtype=np.int64),
+        right_counts=np.zeros((windows, pairs), dtype=np.int64),
+    )
+    if task.diversity:
+        carriers = task.carriers
+        if task.boundaries is not None:
+            # Window prefixes also give whole-chunk pair totals in the fused pass.
+            carriers = np.empty((0, 2), dtype=np.int64)
+        result.global_difference_sum = _accumulate_diversity(
+            block, carriers, result.pair_difference_counts,
+        )
+    if task.boundaries is not None:
+        _accumulate_windows(
+            block, offset, task.boundaries, task.carriers,
+            result.pair_difference_counts, result.left_counts, result.right_counts,
+        )
+    return result
+
+
+def _reduce_chunks(store, doubletons, *, execution, diversity, boundaries=None):
+    carriers = _resolve_carriers(store, doubletons)
+    task = _ReductionTask(carriers, diversity, boundaries)
+    pairs = len(carriers)
+    windows = 0 if boundaries is None else boundaries.shape[1]
+    result = _ReductionResult(
+        0.0, np.zeros(pairs, dtype=np.int64),
+        np.zeros((windows, pairs), dtype=np.int64),
+        np.zeros((windows, pairs), dtype=np.int64),
+    )
+    for partial in _execute_chunks(store, 'reduce', task, execution):
+        result.global_difference_sum += partial.global_difference_sum
+        result.pair_difference_counts += partial.pair_difference_counts
+        result.left_counts += partial.left_counts
+        result.right_counts += partial.right_counts
+    return result
+
+
+def _site_recombination_cumsum(positions, recombination):
+    """Integrate a literal HapMap path, RateMap or finite nonnegative scalar.
+
+    No extrapolation over undefined map intervals is permitted. Distances are
+    later differenced at included site endpoints, not physical window edges.
+    """
+    if isinstance(recombination, (str, pathlib.Path)):
+        recombination = msprime.RateMap.read_hapmap(
+            pathlib.Path(recombination), position_col=1, rate_col=2,
+        )
+    if isinstance(recombination, msprime.RateMap):
+        if positions[0] < recombination.position[0] or positions[-1] > recombination.position[-1]:
+            raise ValueError('Recombination map does not cover the represented positions')
+        overlap = (recombination.left < positions[-1]) & (recombination.right > positions[0])
+        rates = recombination.rate[overlap]
+        if np.any(~np.isfinite(rates)) or np.any(rates < 0):
+            raise ValueError('Recombination map has undefined or invalid rates over the store span')
+        cumulative = recombination.get_cumulative_mass(positions)
+    else:
+        rate = np.asarray(recombination, dtype=float)
+        if rate.ndim != 0 or not np.isfinite(rate) or rate < 0:
+            raise ValueError('Recombination rate must be a finite nonnegative scalar or map')
+        cumulative = positions * float(rate)
+    if np.any(~np.isfinite(cumulative)):
+        raise ValueError('Nonfinite cumulative recombination distance')
+    return cumulative
+
+
+def _prepare_windows(store, doubletons, config, recombination):
+    positions = store.positions
+    sites = doubletons.site_indices
+    if sites.ndim != 1 or len(sites) == 0 or not np.issubdtype(sites.dtype, np.integer):
+        raise ValueError('Doubleton sites must be a nonempty integer vector')
+    if np.any(sites < 0) or np.any(sites >= len(positions)) or np.any(np.diff(sites) <= 0):
+        raise ValueError('Doubleton site indices must be ordered, unique and in bounds')
+    if not np.array_equal(positions[sites], doubletons.positions):
+        raise ValueError('Doubleton positions do not match the inference store')
+    maximum = config.window_sizes[-1]
+    if np.any(doubletons.positions - maximum < positions[0]) or np.any(doubletons.positions + maximum > positions[-1]):
+        raise ValueError('Doubletons must have complete windows for every requested length')
+    windows = config.window_sizes[:, None]
+    focal_positions = doubletons.positions[None, :]
+    left = np.searchsorted(positions, focal_positions - windows, side='left')
+    right = np.searchsorted(positions, focal_positions + windows, side='right')
+    focal = np.broadcast_to(sites, left.shape)
+    boundaries = np.stack([left, focal, right])
+    cumulative = _site_recombination_cumsum(positions, recombination)
+    left_distance = cumulative[focal] - cumulative[left]
+    right_distance = cumulative[right - 1] - cumulative[focal]
+    left_rates = left_distance / windows
+    right_rates = right_distance / windows
+    return _WindowSetup(boundaries, left_rates, right_rates)
+
+
+def _diversity_result(store, doubletons, reduction):
+    return Diversity(
+        num_sites=len(store.positions),
+        num_haplotypes=len(store.sample_ids) * store.ploidy,
+        span_bp=float(store.positions[-1] - store.positions[0]),
+        global_difference_sum=reduction.global_difference_sum,
+        pair_difference_counts=reduction.pair_difference_counts,
+        source_path=store.source_path,
+        sample_ids=doubletons.sample_ids.copy(),
+        ploidy_indices=doubletons.ploidy_indices.copy(),
+    )
+
+
+def _mismatch_result(config, setup, reduction):
+    return MismatchSummary(
+        window_sizes=config.window_sizes.copy(),
+        left_counts=reduction.left_counts, right_counts=reduction.right_counts,
+        left_rates=setup.left_rates, right_rates=setup.right_rates,
+    )
+
+
+def compute_diversity(inference_zarr_path, doubletons, *, zarr_path=None, num_workers=None):
+    """Compute global and carrier-pair diversity in one complete genotype scan.
+
+    Parameters
+    ----------
+    inference_zarr_path : pathlib.Path, str or zarr.Group
+        Default source of diversity, used only when zarr_path is None.
+    doubletons : Doubletons
+        Carrier identities in the stable order from :func:`sample_doubletons`.
+    zarr_path : pathlib.Path, str, zarr.Group or None
+        Optional alternative source. Sample IDs, not source row indices, resolve
+        the carriers. Cross-chromosome ploidy slots are an indexing convention,
+        not biological evidence of homolog correspondence. Extra samples still
+        contribute to global diversity.
+    num_workers : int or None
+        Parallel chunk workers; None uses available CPUs at dispatch.
+
+    Returns
+    -------
+    Diversity
+        Both per-stored-site and per-bp normalisations using this source's span.
+        Every site, including singletons, contributes. :func:`fit_error_model`
+        requires the per-bp normalisation.
+    """
+    source = inference_zarr_path if zarr_path is None else zarr_path
+    store = _open_store(source)
+    execution = _ExecutionConfig(num_workers=num_workers)
+    reduction = _reduce_chunks(store, doubletons, execution=execution, diversity=True)
+    return _diversity_result(store, doubletons, reduction)
+
+
+def summarise_mismatches(zarr_path, doubletons, *, config, recombination):
+    """Count two-sided physical-window mismatches in one streamed scan.
+
+    Parameters
+    ----------
+    zarr_path : pathlib.Path, str or zarr.Group
+        Inference genotype store used by :func:`sample_doubletons`.
+    doubletons : Doubletons
+        Sampled focal sites and carriers, retaining their genomic row order.
+    config : EstimationConfig
+        Increasing positive window lengths, in bp, and worker settings.
+    recombination : float, msprime.RateMap, pathlib.Path or str
+        Explicit per-bp per-generation scalar rate or map; paths are literal
+        HapMap inputs with position column 1 and rate column 2.
+
+    Returns
+    -------
+    MismatchSummary
+        Exact integer counts and side rates for :func:`fit_error_model`.
+        Focal sites are excluded; empty sides have zero genetic distance.
+    """
+    store = _open_store(zarr_path)
+    setup = _prepare_windows(store, doubletons, config, recombination)
+    reduction = _reduce_chunks(
+        store, doubletons, execution=config, diversity=False, boundaries=setup.boundaries,
+    )
+    return _mismatch_result(config, setup, reduction)
