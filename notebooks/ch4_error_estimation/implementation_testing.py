@@ -38,8 +38,7 @@ import scipy
 import scipy.integrate
 import zarr
 
-import dphil_analysis
-from dphil_analysis import error_estimation
+import error_estimation
 
 
 @dataclasses.dataclass
@@ -283,7 +282,7 @@ if __name__ == '__main__':
     for package in ['dphil-analysis', 'numpy', 'numba', 'scipy', 'zarr', 'msprime']:
         print(package, importlib.metadata.version(package))
     assert int(zarr.__version__.split('.')[0]) >= 3
-    print('Installed package:', dphil_analysis.__file__)
+    print('Installed module:', error_estimation.__file__)
 
 # %% [markdown]
 # # Simulated data — chr17
@@ -710,7 +709,7 @@ if __name__ == '__main__':
 # From the repository root:
 # ```sh
 # uv sync
-# uv run python -c 'import dphil_analysis, numpy, numba, scipy, zarr, msprime; assert int(zarr.__version__.split(".")[0]) >= 3'
+# uv run python -c 'import error_estimation, numpy, numba, scipy, zarr, msprime; assert int(zarr.__version__.split(".")[0]) >= 3'
 # uv run python notebooks/ch4_error_estimation/implementation_testing.py
 # export JUPYTER_DATA_DIR="$PWD/.venv/share/jupyter"
 # export JUPYTER_RUNTIME_DIR="$PWD/.venv/jupyter_runtime"

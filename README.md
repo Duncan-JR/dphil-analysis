@@ -1,6 +1,7 @@
 # DPhil analysis
 
-Install the package and notebook environment from this repository root:
+This project uses Python 3.12, selected by `.python-version`. Install the
+package and notebook environment from this repository root:
 
 ```sh
 uv sync
@@ -22,4 +23,10 @@ uv run python -m ipykernel install --prefix .venv --name dphil_analysis --displa
 uv run jupytext --to ipynb notebooks/ch4_error_estimation/implementation_testing.py
 uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=dphil_analysis --ExecutePreprocessor.timeout=-1 notebooks/ch4_error_estimation/implementation_testing.ipynb
 uv run jupytext --sync notebooks/ch4_error_estimation/implementation_testing.ipynb
+```
+
+To work interactively, start JupyterLab from the repository root after `uv sync`:
+
+```sh
+uv run jupyter lab
 ```

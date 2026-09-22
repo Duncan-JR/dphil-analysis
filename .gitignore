@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 *.nbc
 *.nbi
+*.ipynb
+.python-version
 .ipynb_checkpoints/
 .DS_Store
 data/

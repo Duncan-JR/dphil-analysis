@@ -3,7 +3,7 @@
 ## Deliverable and repository boundary
 
 Implement a small importable package in `~/work/dphil-analysis`, with the estimator
-at `src/dphil_analysis/error_estimation.py`. All implementation, dependencies,
+at `src/error_estimation.py`. All implementation, dependencies,
 notebooks, results and commits belong to that repository. Follow its `AGENTS.md`
 and the placement advice in
 `~/work/tsinfer-paper/plans/dphil_analysis_directory.md`. Do not modify
@@ -25,7 +25,7 @@ not import tsinfer-paper, tsinfer, sgkit, pandas or plotting libraries.
 dphil-analysis/
 ├── pyproject.toml
 ├── uv.lock
-├── src/dphil_analysis/
+├── src/
 │   ├── __init__.py
 │   └── error_estimation.py
 ├── notebooks/ch4_error_estimation/
@@ -38,7 +38,8 @@ dphil-analysis/
 
 Use a fresh package environment: runtime dependencies `numpy>=2`, `numba`,
 `scipy`, `zarr>=3` and `msprime` (for the existing HapMap reader). Development
-notebook dependencies are `jupytext`, `ipykernel`, `nbconvert` and `nbformat`.
+notebook dependencies are `jupyterlab`, `jupytext`, `ipykernel`, `nbconvert`
+and `nbformat`.
 Use an ordinary build backend with a `src` package layout; `uv sync` must install
 it so notebooks can import it without `sys.path` manipulation. Commit the lock
 file. Do not create an environment inside another repository or add sgkit.
@@ -440,7 +441,7 @@ Planned commit: `Set up dphil-analysis package and error estimation notebook`
 Changes:
 
 - Create `pyproject.toml` with the package/dependencies specified above, a
-  `src/dphil_analysis/__init__.py`, and a brief README showing `uv sync` and
+  `src/__init__.py`, and a brief README showing `uv sync` and
   notebook execution from the repository root. Keep `__init__.py` minimal.
 - Add `.gitignore` entries for `.venv/`, Python/Numba caches, notebook checkpoints,
   `.DS_Store`, `data/` and `results/`. Preserve every existing data file/symlink.
@@ -474,7 +475,7 @@ Commands from the new repository (include these in the notebook command log):
 
 ```sh
 uv sync
-uv run python -c 'import dphil_analysis, numpy, numba, scipy, zarr, msprime; assert int(zarr.__version__.split(".")[0]) >= 3'
+uv run python -c 'import error_estimation, numpy, numba, scipy, zarr, msprime; assert int(zarr.__version__.split(".")[0]) >= 3'
 uv run python notebooks/ch4_error_estimation/implementation_testing.py
 ```
 
@@ -649,8 +650,8 @@ doubletons, move the interval to the densest of a small fixed set of candidate
 4 Mb intervals and record the chosen interval; do not increase data size or scan
 the whole estimator workflow repeatedly.
 
-Import `from dphil_analysis import error_estimation` normally from the installed
-package. Put process-launching script cells under `if __name__ == "__main__":`
+Import `error_estimation` normally from the installed package. Put
+process-launching script cells under `if __name__ == "__main__":`
 so the percent-format source also runs safely on macOS with spawn; keep worker
 functions in the installed module, never in notebook cells. This guard is true
 in notebook execution and false in spawned script imports. Initialise fixtures
@@ -720,6 +721,7 @@ notebook using the project's own Python kernel:
 
 ```sh
 uv run python -m ipykernel install --prefix .venv --name dphil_analysis --display-name "dphil-analysis"
+uv run jupyter lab
 uv run jupytext --to ipynb notebooks/ch4_error_estimation/implementation_testing.py
 uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=dphil_analysis --ExecutePreprocessor.timeout=-1 notebooks/ch4_error_estimation/implementation_testing.ipynb
 uv run jupytext --sync notebooks/ch4_error_estimation/implementation_testing.ipynb
