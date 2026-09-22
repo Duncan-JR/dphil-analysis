@@ -7,10 +7,18 @@ name = "dphil-analysis"
 version = "0.1.0"
 description = "Reproducible DPhil analysis methods"
 requires-python = ">=3.11,<3.13"
-dependencies = ["numpy>=2", "scipy", "zarr>=3", "msprime"]
+dependencies = ["numpy>=2", "scipy", "zarr>=3", "msprime", "tskit"]
 
 [dependency-groups]
-dev = ["jupyterlab", "jupytext", "ipykernel", "nbconvert", "nbformat"]
+dev = [
+    "ipykernel",
+    "jupyterlab",
+    "jupytext",
+    "matplotlib",
+    "nbconvert",
+    "nbformat",
+    "pandas",
+]
 
 [tool.hatch.build.targets.wheel]
 only-include = ["src"]
