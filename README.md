@@ -1,32 +1,50 @@
 # DPhil analysis
 
-This project uses Python 3.12, selected by `.python-version`. Install the
-package and notebook environment from this repository root:
+Install from the repository root:
 
 ```sh
 uv sync
-uv run python notebooks/ch4_error_estimation/implementation_testing.py
 ```
 
-The error-estimation validation notebook uses local, read-only genotype stores
-and explicit HapMap files described in `plans/refactor_error_estimation.md`.
-It creates temporary 200-sample, 4 Mb fixtures; results are software smoke tests,
-not cohort error-rate estimates. Edit the paired percent-format Python source.
-
-Execute the notebook from the repository root:
+The development dependencies include JupyterLab and Jupytext. Open the paired
+notebook with:
 
 ```sh
-export JUPYTER_DATA_DIR="$PWD/.venv/share/jupyter"
-export JUPYTER_RUNTIME_DIR="$PWD/.venv/jupyter_runtime"
-export IPYTHONDIR="$PWD/.venv/ipython"
-uv run python -m ipykernel install --prefix .venv --name dphil_analysis --display-name "dphil-analysis"
-uv run jupytext --to ipynb notebooks/ch4_error_estimation/implementation_testing.py
-uv run jupyter nbconvert --to notebook --execute --inplace --ExecutePreprocessor.kernel_name=dphil_analysis --ExecutePreprocessor.timeout=-1 notebooks/ch4_error_estimation/implementation_testing.ipynb
-uv run jupytext --sync notebooks/ch4_error_estimation/implementation_testing.ipynb
+uv run jupyter lab notebooks/ch4_initial_testing.ipynb
 ```
 
-To work interactively, start JupyterLab from the repository root after `uv sync`:
+Keep the Python and notebook forms synchronized with:
 
 ```sh
-uv run jupyter lab
+uv run jupytext --sync notebooks/ch4_initial_testing.py
 ```
+
+The estimator assumes complete, phased, fixed-ploidy, biallelic 0/1 genotypes
+on one sequence, with sorted, unique variant positions. It uses observed
+doubletons with complete windows and global diversity from the same store.
+Recombination is supplied explicitly, for example as a HapMap file with
+position and rate in columns 1 and 2 (zero-indexed).
+
+Run a script with `uv run python estimate.py`:
+
+```python
+import error_estimation
+
+
+if __name__ == "__main__":
+    config = error_estimation.EstimationConfig(
+        window_sizes=[1_000, 5_000, 10_000, 50_000, 100_000, 250_000],
+        num_doubletons=10_000,
+        random_seed=42,
+    )
+    result = error_estimation.estimate_error_rate(
+        "data.zarr",
+        recombination="genetic_map.txt",
+        config=config,
+    )
+    print(result.fit.epsilon)
+    print(result.fit.success, result.fit.message)
+```
+
+The main guard supports multiprocessing; set `num_workers=1` for serial use.
+`epsilon` means additive errors per haplotype-bp, not a per-genotype probability.
