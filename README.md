@@ -36,6 +36,8 @@ if __name__ == "__main__":
         window_sizes=[1_000, 5_000, 10_000, 50_000, 100_000, 250_000],
         num_doubletons=10_000,
         random_seed=42,
+        exclude_high_mismatch_proportion=0.25,
+        L_mismatch_trim=1_000,
     )
     result = error_estimation.estimate_error_rate(
         "data.zarr",
@@ -48,3 +50,10 @@ if __name__ == "__main__":
 
 The main guard supports multiprocessing; set `num_workers=1` for serial use.
 `epsilon` means additive errors per haplotype-bp, not a per-genotype probability.
+Before fitting, the estimator ranks doubletons by their mismatch counts at
+`L_mismatch_trim` and excludes the configured highest-count proportion from
+every window. `L_mismatch_trim` defaults to the smallest configured window. The
+full mismatch arrays remain available in the result. Pass
+`fixed_doubletons_path="doubletons.csv"` to use a fixed set created with
+`error_validation.write_doubletons_csv()` instead of sampling from the input
+Zarr.

@@ -5,6 +5,7 @@ sequence with sorted, unique positions. All stored sites contribute to diversity
 and mismatches; observed allele counts determine doubleton ascertainment.
 """
 
+import csv
 import dataclasses
 import logging
 import multiprocessing
@@ -25,11 +26,17 @@ class EstimationConfig:
 
     ``num_workers=None`` uses available CPUs for mismatch chunks only.
     A generated ``random_seed`` is recorded in :class:`ErrorRateEstimate`.
+    ``exclude_high_mismatch_proportion`` removes that fraction of doubletons
+    with the highest mismatch counts at ``L_mismatch_trim`` from every window
+    used for fitting. The smallest configured window is used when
+    ``L_mismatch_trim`` is None.
     """
 
     window_sizes: np.ndarray
     num_doubletons: int = 10000
     random_seed: int | None = None
+    exclude_high_mismatch_proportion: float = 0.25
+    L_mismatch_trim: float | None = None
     num_workers: int | None = None
     queue_depth: int = 2
     worker_poll_seconds: float = 0.2
@@ -49,6 +56,8 @@ class EstimationConfig:
             raise ValueError('window_sizes must be positive, finite and increasing')
         if self.num_doubletons <= 0:
             raise ValueError('num_doubletons must be positive')
+        if not 0 <= self.exclude_high_mismatch_proportion < 1:
+            raise ValueError('exclude_high_mismatch_proportion must be in [0, 1)')
 
 
 @dataclasses.dataclass
@@ -115,6 +124,8 @@ class ErrorRateFit:
     observed_means: np.ndarray
     fitted_means: np.ndarray
     pi: float
+    num_doubletons: int
+    L_mismatch_trim: float
 
 
 @dataclasses.dataclass
@@ -167,6 +178,28 @@ def _sample_doubletons(G, ac, positions, config):
     return Doubletons(
         dbtn_sites, dbtn_pos, samples_long.reshape(n, 2),
         ploidies_long.reshape(n, 2), num_eligible,
+    )
+
+
+def _load_doubletons_csv(path):
+    """Load fixed doubletons from the CSV written by error validation code."""
+    with pathlib.Path(path).expanduser().open(newline='') as source:
+        rows = list(csv.DictReader(source))
+    site_indices = np.array([row['site_index'] for row in rows], dtype=np.int64)
+    positions = np.array([row['position'] for row in rows], dtype=float)
+    sample_indices = np.array(
+        [[row['sample_0'], row['sample_1']] for row in rows], dtype=np.int64,
+    )
+    ploidy_indices = np.array(
+        [[row['ploidy_0'], row['ploidy_1']] for row in rows], dtype=np.int64,
+    )
+    order = np.argsort(site_indices)
+    return Doubletons(
+        site_indices=site_indices[order],
+        positions=positions[order],
+        sample_indices=sample_indices[order],
+        ploidy_indices=ploidy_indices[order],
+        num_eligible=int(rows[0]['num_eligible']),
     )
 
 
@@ -351,16 +384,36 @@ def _objective(params, lengths, observed, mean_r, pi, config):
     return float(value)
 
 
+def _fit_doubleton_indices(summary, config):
+    num_doubletons = summary.counts.shape[1]
+    num_excluded = int(config.exclude_high_mismatch_proportion * num_doubletons)
+    L_mismatch_trim = config.L_mismatch_trim
+    if L_mismatch_trim is None:
+        L_mismatch_trim = summary.window_sizes[0]
+    matches = np.flatnonzero(summary.window_sizes == L_mismatch_trim)
+    if len(matches) != 1:
+        raise ValueError('L_mismatch_trim must be one of window_sizes')
+    trim_counts = summary.counts[matches[0]]
+    order = np.argsort(trim_counts, kind='stable')
+    fit_indices = order[:num_doubletons - num_excluded]
+    return fit_indices, float(L_mismatch_trim)
+
+
 def fit_error_model(summary, *, pi, config):
     """Fit aggregate means with scalar per-bp diversity and historical multistarts.
 
     Retains FitErrorRate's gamma-time expectation, transformed parameters,
     bounds, L-BFGS-B and scaled least-squares objective. Numerical guards reject
     invalid trials; the returned success flag reports optimiser convergence.
+    Doubletons in the configured highest-mismatch fraction at one trim window
+    are excluded consistently from every fitted window.
     """
     pi = float(pi)
-    observed = summary.observed_means
-    mean_r = summary.mean_rates
+    fit_indices, L_mismatch_trim = _fit_doubleton_indices(summary, config)
+    fit_counts = summary.counts[:, fit_indices]
+    fit_rates = summary.rates[:, fit_indices]
+    observed = np.mean(fit_counts, axis=1)
+    mean_r = np.mean(fit_rates, axis=1)
     best = None
     for alpha in config.start_alpha:
         for log_beta in config.start_log_beta:
@@ -387,16 +440,26 @@ def fit_error_model(summary, *, pi, config):
         epsilon=epsilon, mu=mu, sigma_sq=sigma_sq, objective=float(best.fun),
         success=bool(best.success), message=str(best.message),
         observed_means=observed, fitted_means=fitted, pi=pi,
+        num_doubletons=len(fit_indices), L_mismatch_trim=L_mismatch_trim,
     )
 
 
-def estimate_error_rate(zarr_path, *, recombination, config, pi=None):
+def estimate_error_rate(
+    zarr_path,
+    *,
+    recombination,
+    config,
+    pi=None,
+    fixed_doubletons_path=None,
+):
     """Estimate additive errors per haplotype-bp from a complete genotype store.
 
     ``recombination`` is an explicit HapMap path, msprime RateMap or scalar
     per-bp per-generation rate. ``pi`` optionally overrides global per-bp
-    diversity with a scalar. Genotypes are released before mismatch workers
-    open the store; only that phase uses chunking and multiprocessing.
+    diversity with a scalar. ``fixed_doubletons_path`` optionally names a CSV
+    containing ``site_index``, ``position``, two sample indices, two ploidy
+    indices and ``num_eligible``. Genotypes are released before mismatch
+    workers open the store; only that phase uses chunking and multiprocessing.
     """
     path = str(pathlib.Path(zarr_path).expanduser().resolve())
     seed = config.random_seed
@@ -406,7 +469,10 @@ def estimate_error_rate(zarr_path, *, recombination, config, pi=None):
     store = _open_store(path)
     G = np.asarray(store.group['call_genotype'][:])
     ac = G.sum(axis=(1, 2))
-    doubletons = _sample_doubletons(G, ac, store.positions, config)
+    if fixed_doubletons_path is None:
+        doubletons = _sample_doubletons(G, ac, store.positions, config)
+    else:
+        doubletons = _load_doubletons_csv(fixed_doubletons_path)
     H = G.shape[1] * G.shape[2]
     site_diversity = 2 * ac * (H - ac) / (H * (H - 1))
     diversity = Diversity(
