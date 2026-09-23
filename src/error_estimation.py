@@ -1,10 +1,12 @@
 """Estimate additive errors per haplotype-bp using the aggregate FitErrorRate model.
 
 Inputs are complete, phased, fixed-ploidy, biallelic 0/1 genotypes on one
-sequence with sorted, unique positions. All stored sites contribute to diversity
-and mismatches; observed allele counts determine doubleton ascertainment.
+sequence with sorted positions. All included sites contribute to diversity and
+mismatches; observed allele counts determine doubleton ascertainment. Included
+positions must be unique after optional masks are applied.
 """
 
+import collections.abc
 import csv
 import dataclasses
 import logging
@@ -144,14 +146,31 @@ class ErrorRateEstimate:
 class _Store:
     group: zarr.Group
     positions: np.ndarray
+    site_indices: np.ndarray
 
 
-def _open_store(zarr_path):
+def _open_store(zarr_path, variant_mask_name=None):
+    """Open a store and select variants not excluded by the requested masks."""
     group = zarr.open_group(zarr_path, mode='r')
-    positions = np.asarray(group['variant_position'][:], dtype=float)
+    all_positions = np.asarray(group['variant_position'][:], dtype=float)
+    excluded = np.zeros(len(all_positions), dtype=bool)
+    if variant_mask_name is not None:
+        mask_names = variant_mask_name
+        if isinstance(mask_names, str):
+            mask_names = [mask_names]
+        elif not isinstance(mask_names, collections.abc.Sequence):
+            raise TypeError(
+                'variant_mask_name must be a string or a sequence of strings'
+            )
+        for mask_name in mask_names:
+            excluded |= np.asarray(group[mask_name][:], dtype=bool)
+    site_indices = np.flatnonzero(~excluded)
+    positions = all_positions[site_indices]
+    if len(positions) == 0:
+        raise ValueError('Variant masks exclude every site')
     if np.any(np.diff(positions) == 0):
         raise ValueError('Duplicate variant positions are unsupported')
-    return _Store(group, positions)
+    return _Store(group, positions, site_indices)
 
 
 def _sample_doubletons(G, ac, positions, config):
@@ -210,19 +229,30 @@ class _MismatchContribution:
     counts: np.ndarray
 
 
-def _mismatch_chunk(genotype, index, left_sites, right_sites, focal_sites, carriers):
+def _mismatch_chunk(
+    genotype,
+    site_indices,
+    index,
+    left_sites,
+    right_sites,
+    focal_sites,
+    carriers,
+):
     """Compare active pairs in a storage chunk; clip every count to its window.
 
     Only chunks intersecting a pair's max-L interval compare that pair.
     Vectorisation adds at most one chunk of excess work at either endpoint.
     """
     start = index * genotype.chunks[0]
-    stop = min(start + genotype.chunks[0], genotype.shape[0])
+    stop = min(start + genotype.chunks[0], len(site_indices))
     first = np.searchsorted(right_sites[-1], start, side='right')
     last = np.searchsorted(left_sites[-1], stop, side='left')
     if first == last:
         return None
-    block = np.asarray(genotype[start:stop]).reshape(stop - start, -1)
+    raw_site_indices = site_indices[start:stop]
+    selection = (raw_site_indices, slice(None), slice(None))
+    block = np.asarray(genotype.get_orthogonal_selection(selection))
+    block = block.reshape(stop - start, -1)
     active = carriers[first:last]
     mismatch = block[:, active[:, 0]] != block[:, active[:, 1]]
     focal = focal_sites[first:last] - start
@@ -237,7 +267,7 @@ def _mismatch_chunk(genotype, index, left_sites, right_sites, focal_sites, carri
     return _MismatchContribution(first, last, counts)
 
 
-def _mismatch_worker(path, left, right, focal, carriers, jobs, results):
+def _mismatch_worker(path, site_indices, left, right, focal, carriers, jobs, results):
     """Open once and consume mismatch chunk indices from the work queue."""
     try:
         genotype = zarr.open_group(path, mode='r')['call_genotype']
@@ -245,22 +275,36 @@ def _mismatch_worker(path, left, right, focal, carriers, jobs, results):
             index = jobs.get()
             if index is None:
                 return
-            result = _mismatch_chunk(genotype, index, left, right, focal, carriers)
+            result = _mismatch_chunk(
+                genotype, site_indices, index, left, right, focal, carriers,
+            )
             results.put(result)
     except Exception as exc:
         results.put(exc)
 
 
-def _mismatch_counts(path, genotype, left, right, focal, carriers, config):
+def _mismatch_counts(
+    path,
+    genotype,
+    site_indices,
+    left,
+    right,
+    focal,
+    carriers,
+    config,
+):
     counts = np.zeros(left.shape, dtype=np.int64)
-    num_chunks = (genotype.shape[0] + genotype.chunks[0] - 1) // genotype.chunks[0]
+    num_sites = len(site_indices)
+    num_chunks = (num_sites + genotype.chunks[0] - 1) // genotype.chunks[0]
     workers = config.num_workers
     if workers is None:
         workers = multiprocessing.cpu_count()
     workers = min(workers, num_chunks)
     if workers == 1:
         for index in range(num_chunks):
-            result = _mismatch_chunk(genotype, index, left, right, focal, carriers)
+            result = _mismatch_chunk(
+                genotype, site_indices, index, left, right, focal, carriers,
+            )
             if result is not None:
                 counts[:, result.first:result.last] += result.counts
         return counts
@@ -271,7 +315,9 @@ def _mismatch_counts(path, genotype, left, right, focal, carriers, config):
     processes = [
         context.Process(
             target=_mismatch_worker,
-            args=(path, left, right, focal, carriers, jobs, results),
+            args=(
+                path, site_indices, left, right, focal, carriers, jobs, results,
+            ),
         )
         for _ in range(workers)
     ]
@@ -328,7 +374,14 @@ def _summarise_mismatches(path, store, doubletons, recombination, config):
     genotype = store.group['call_genotype']
     carriers = doubletons.sample_indices * genotype.shape[2] + doubletons.ploidy_indices
     counts = _mismatch_counts(
-        path, genotype, left, right, doubletons.site_indices, carriers, config,
+        path,
+        genotype,
+        store.site_indices,
+        left,
+        right,
+        doubletons.site_indices,
+        carriers,
+        config,
     )
     return MismatchSummary(config.window_sizes.copy(), counts, rates)
 
@@ -451,6 +504,7 @@ def estimate_error_rate(
     config,
     pi=None,
     fixed_doubletons_path=None,
+    variant_mask_name=None,
 ):
     """Estimate additive errors per haplotype-bp from a complete genotype store.
 
@@ -458,21 +512,31 @@ def estimate_error_rate(
     per-bp per-generation rate. ``pi`` optionally overrides global per-bp
     diversity with a scalar. ``fixed_doubletons_path`` optionally names a CSV
     containing ``site_index``, ``position``, two sample indices, two ploidy
-    indices and ``num_eligible``. Genotypes are released before mismatch
-    workers open the store; only that phase uses chunking and multiprocessing.
+    indices and ``num_eligible``. ``variant_mask_name`` optionally names one
+    boolean array, or a sequence of arrays, whose true values exclude variants.
+    Every subsequent calculation uses only included variants. Genotypes are
+    released before mismatch workers open the store; only that phase uses
+    chunking and multiprocessing.
     """
     path = str(pathlib.Path(zarr_path).expanduser().resolve())
     seed = config.random_seed
     if seed is None:
         seed = np.random.SeedSequence().entropy
     config = dataclasses.replace(config, random_seed=seed)
-    store = _open_store(path)
-    G = np.asarray(store.group['call_genotype'][:])
+    store = _open_store(path, variant_mask_name=variant_mask_name)
+    selection = (store.site_indices, slice(None), slice(None))
+    genotype = store.group['call_genotype']
+    G = np.asarray(genotype.get_orthogonal_selection(selection))
     ac = G.sum(axis=(1, 2))
     if fixed_doubletons_path is None:
         doubletons = _sample_doubletons(G, ac, store.positions, config)
     else:
         doubletons = _load_doubletons_csv(fixed_doubletons_path)
+        expected_positions = store.positions[doubletons.site_indices]
+        if not np.array_equal(doubletons.positions, expected_positions):
+            raise ValueError(
+                'Fixed doubleton CSV does not match the selected variants'
+            )
     H = G.shape[1] * G.shape[2]
     site_diversity = 2 * ac * (H - ac) / (H * (H - 1))
     diversity = Diversity(

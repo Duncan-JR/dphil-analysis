@@ -218,11 +218,12 @@ fig
 # ## Doubleton ascertainment testing
 
 # %%
-cutoff_proportions = [0.10, 0.25, 0.50]
+cutoff_proportions = [0.10, 0.25, 0.50,0.75]
 L_mismatch_trim_values = [config.window_sizes[0], config.window_sizes[-1]]
 classification_records = []
 true_doubleton_masks = {}
-
+# Define true positive as true doubleton and false positive as false doubleton. 
+# Add TPR and FPR to dataframe, relabeling everything to use standard TP/FP nomenclature.
 for multiplier, estimate in ascertained_estimates.items():
     true_doubleton_mask = error_validation.get_true_doubleton_mask(
         estimate.doubletons,
@@ -240,7 +241,9 @@ for multiplier, estimate in ascertained_estimates.items():
     classification_records.extend(records)
 
 classification_df = pd.DataFrame(classification_records)
-classification_df
+
+# %% [markdown]
+# ### Mismatch count as classifier
 
 # %%
 fig, axes = plt.subplots(
@@ -252,6 +255,7 @@ fig, axes = plt.subplots(
     constrained_layout=True,
 )
 
+# Add legend on rightmost plot of each row to ensure that False doubletons is included in legend
 for row, L_mismatch_trim in enumerate(L_mismatch_trim_values):
     window_index = list(config.window_sizes).index(L_mismatch_trim)
     for col, multiplier in enumerate(error_multipliers):
@@ -273,10 +277,10 @@ for row, L_mismatch_trim in enumerate(L_mismatch_trim_values):
         ax.set_title(f"{multiplier:g}x error, L={L_mismatch_trim:g}")
         ax.set_xlabel("Mismatches per bp")
 
+#add row for ROC for each error rate, with annotation at bottom right for AUROC
 for ax in axes[:, 0]:
     ax.set_ylabel("Empirical cumulative proportion")
 axes[0, 0].legend(fontsize=8)
-fig
 
 # %%
 true_proportion_df = (
@@ -296,14 +300,13 @@ ax.plot(
 ax.set_xlabel("Genotype error-rate multiplier")
 ax.set_ylabel("Proportion of observed doubletons that are true")
 ax.set_ylim(0, 1)
-ax.set_title("Observed-doubleton ascertainment")
-fig
+ax.set_title("Proportion of doubletons that are real")
 
 # %%
 metric_specs = [
     ("retained_true_proportion", "True proportion among retained"),
     ("true_retention_rate", "True-doubleton retention rate"),
-    ("false_removal_rate", "False-doubleton removal rate"),
+    ("false_removal_rate", "False-doubleton removal rate"), 
     ("accuracy", "Classification accuracy"),
 ]
 
@@ -336,37 +339,115 @@ for ax, (metric, title) in zip(axes.flat, metric_specs):
     ax.set_title(title)
 
 axes[0, 0].legend(fontsize=8)
-fig
 
 # %%
-fig, axes = plt.subplots(
-    1,
-    len(L_mismatch_trim_values),
-    figsize=(12, 4.5),
-    sharey=True,
-    constrained_layout=True,
+
+# %% [markdown]
+# ## Real data
+#
+# The requested TGP density mask does not itself remove multiallelic rows that
+# share a position. Combine it with the store's duplicate-position mask so the
+# estimator receives one biallelic row per genomic position. The local chr17
+# map copy extends the source map's terminal zero-rate interval to the end of
+# the Zarr; the map README records this assumption.
+
+# %%
+tgp_zarr_path = Path("../data/zarr_vcfs/tgp/chr17/data.zarr")
+tgp_recombination = Path(
+    "../data/HapMapII_GRCh38/genetic_map_Hg38_chr17_for_tgp_zarr.txt"
+)
+tgp_variant_masks = [
+    (
+        "variant_all_subset_chr17p_region_filterNton23_"
+        "site_density_threshold_sites_per_kbp_5_window_size_100000_mask"
+    ),
+    "variant_duplicate_position_mask",
+]
+
+tgp_estimate = error_estimation.estimate_error_rate(
+    tgp_zarr_path,
+    recombination=tgp_recombination,
+    config=config,
+    variant_mask_name=tgp_variant_masks,
+)
+tgp_estimate.fit
+
+# %% [markdown]
+# The Johnsson et al. (2021) sex-averaged map uses Sscrofa11.1 coordinates.
+# The local derived copy extends its terminal zero-rate interval to the final
+# coordinate in this Zarr; `data/pig_recombination_map/README.txt` records the
+# source and the exact adjustment.
+
+# %%
+
+config2 = error_estimation.EstimationConfig(
+    window_sizes=[1e3, 5e3, 7e3, 1e4, 5e4, 7e4, 1e5, 5e5, 7e5],
+    num_doubletons=10_000,
+    random_seed=42,
+    exclude_high_mismatch_proportion=0.5,
+    L_mismatch_trim=7e5,
 )
 
-for ax, L_mismatch_trim in zip(axes, L_mismatch_trim_values):
-    for cutoff_proportion in cutoff_proportions:
-        select = (
-            (classification_df["L_mismatch_trim"] == L_mismatch_trim)
-            & (
-                classification_df["cutoff_proportion"]
-                == cutoff_proportion
-            )
-        )
-        plot_df = classification_df[select].sort_values("error_multiplier")
-        ax.plot(
-            plot_df["error_multiplier"],
-            plot_df["excluded_false_proportion"],
-            marker="o",
-            label=f"Cutoff={cutoff_proportion:g}",
-        )
-    ax.set_xlabel("Genotype error-rate multiplier")
-    ax.set_title(f"L mismatch trim = {L_mismatch_trim:g}")
-    ax.set_ylim(0, 1)
-    ax.legend()
+pig_zarr_path = Path("../data/zarr_vcfs/pigs/chr18/data.zarr")
+pig_recombination = Path(
+    "../data/pig_recombination_map/"
+    "Johnsson_2021_sex_averaged_chr18_for_data_zarr.txt"
+)
+pig_variant_mask = (
+    "variant_allSample_subset_chr18_region_filterDensity_"
+    "site_density_threshold_sites_per_kbp_10_window_size_1000_mask"
+)
 
-axes[0].set_ylabel("False proportion among excluded doubletons")
-fig
+pig_estimate = error_estimation.estimate_error_rate(
+    pig_zarr_path,
+    recombination=pig_recombination,
+    config=config2,
+    variant_mask_name=pig_variant_mask,
+)
+pig_estimate.fit
+
+# %% [markdown]
+#
+
+# %%
+import pandas as pd
+
+fit_df = pd.read_csv("../data/tmp/dphil-analysis-results.csv")
+
+fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
+ax.plot(
+    fit_df["error_multiplier"],
+    fit_df["true_error"],
+    marker="o",
+    label="True simulation error",
+)
+ax.plot(
+    fit_df["error_multiplier"],
+    fit_df["epsilon"],
+    marker="o",
+    label="Estimated (ascertained doubletons)",
+)
+ax.plot(
+    fit_df["error_multiplier"],
+    fit_df["true_doubleton_epsilon"],
+    marker="o",
+    label="Estimated (true doubletons)",
+)
+ax.axhline(
+    tgp_estimate.fit.epsilon,
+    color="tab:purple",
+    linestyle="--",
+    label="TGP chr17 estimate",
+)
+ax.axhline(
+    pig_estimate.fit.epsilon,
+    color="tab:brown",
+    linestyle="--",
+    label="Pig chr18 estimate",
+)
+ax.set_xlabel("Genotype error-rate multiplier")
+ax.set_ylabel("Errors per haplotype-bp")
+ax.set_title("Simulated and real-data error estimates")
+ax.legend()
+
+# %%

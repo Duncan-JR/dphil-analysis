@@ -57,3 +57,8 @@ full mismatch arrays remain available in the result. Pass
 `fixed_doubletons_path="doubletons.csv"` to use a fixed set created with
 `error_validation.write_doubletons_csv()` instead of sampling from the input
 Zarr.
+
+Pass `variant_mask_name="variant_mask"` to exclude sites where that boolean
+Zarr array is true. A sequence of mask names excludes the union of their true
+values. Doubleton ascertainment, diversity, region span, mismatch counts and
+recombination summaries all use the resulting included sites.
