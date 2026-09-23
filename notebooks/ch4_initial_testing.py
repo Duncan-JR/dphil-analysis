@@ -33,6 +33,7 @@ import error_validation
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy.stats
 import zarr
 
 
@@ -380,8 +381,8 @@ axes[0, 0].legend(fontsize=8)
 
 # %%
 def plot_cumulative_mismatch_profiles(profiles, title):
-    """Compare class means and mismatch-free distances in three panels."""
-    fig, axes = plt.subplots(1, 3, figsize=(17, 4.5), constrained_layout=True)
+    """Compare mean cumulative counts on fixed clean and dirty sides."""
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
     max_L = profiles.distances[-1]
     minimum_distance = profiles.distances[0]
     powers = np.arange(
@@ -418,40 +419,151 @@ def plot_cumulative_mismatch_profiles(profiles, title):
                 )
             ax.set_title(side_label)
             ax.set_ylabel("Mean cumulative mismatches")
-
-        ax = axes[2]
-        values = profiles.max_first_mismatch_distance[select]
-        censored = profiles.max_first_mismatch_censored[select]
-        if count > 0:
-            observed = np.sort(values[~censored])
-            num_below = np.searchsorted(observed, minimum_distance, side="left")
-            visible = observed[num_below:]
-            ecdf = np.arange(num_below + 1, len(observed) + 1) / count
-            ax.step(
-                np.r_[minimum_distance, visible],
-                np.r_[num_below / count, ecdf],
-                where="post",
-                color=color,
-                label=legend_label,
-            )
-            if np.any(censored):
-                ax.text(
-                    0.04, 0.96 - 0.08 * class_index,
-                    f"{label}: {censored.mean():.1%} censored at max L",
-                    transform=ax.transAxes, va="top", color=color,
-                )
-    axes[2].set_title("Longer mismatch-free side")
-    axes[2].set_ylabel("First-mismatch distance ECDF")
-    axes[2].set_ylim(0, 1)
     for ax in axes:
         ax.set_xscale("log")
         ax.set_xlim(minimum_distance, max_L)
         ax.set_xticks(ticks)
         ax.set_xlabel("Physical distance from focal doubleton (bp)")
         ax.legend(fontsize=8)
-    for ax in axes[:2]:
         ax.set_ylim(bottom=0)
-    fig.suptitle(title)
+    fig.suptitle(f"{title} (shading: 95% CI of mean)")
+    return fig
+
+
+# %%
+def plot_doubleton_mismatch_summaries(profiles, title):
+    """Compare scalar mismatch summaries with densities and ECDFs by class."""
+    summaries = [
+        (
+            "Longer mismatch-free side",
+            profiles.max_first_mismatch_distance,
+            "First-mismatch distance (bp)",
+            profiles.max_first_mismatch_censored,
+        ),
+        ("Max clean count", profiles.max_clean_count, "Mismatches at max L", None),
+        ("Max dirty count", profiles.max_dirty_count, "Mismatches at max L", None),
+    ]
+    classes = [
+        (profiles.is_true_doubleton, "True doubletons", "tab:blue"),
+        (~profiles.is_true_doubleton, "False doubletons", "tab:orange"),
+    ]
+    fig, axes = plt.subplots(3, 3, figsize=(17, 13), constrained_layout=True)
+    for col, (heading, all_values, xlabel, all_censored) in enumerate(summaries):
+        histogram_ax = axes[0, col]
+        ecdf_ax = axes[1, col]
+        maximum = max(float(np.max(all_values)), 1.0)
+        if col == 0:
+            minimum = max(float(np.min(all_values)), 1.0)
+            maximum = float(profiles.distances[-1])
+            bins = np.geomspace(minimum, maximum, 41)
+            grid = np.geomspace(minimum, maximum, 250)
+        else:
+            minimum = 0.0
+            bins = np.linspace(minimum, maximum, 41)
+            grid = np.linspace(minimum, maximum, 250)
+
+        for class_index, (select, label, color) in enumerate(classes):
+            values = all_values[select]
+            count = len(values)
+            if count == 0:
+                continue
+            legend_label = f"{label} (n = {count})"
+            if all_censored is None:
+                censored = np.zeros(count, dtype=bool)
+            else:
+                censored = all_censored[select]
+            observed = values[~censored]
+            if len(observed) > 0:
+                histogram_ax.hist(
+                    observed, bins=bins, density=True, alpha=0.25,
+                    color=color, label=legend_label,
+                )
+                if np.ptp(observed) > 0:
+                    if col == 0:
+                        log_values = np.log(observed)
+                        log_density = scipy.stats.gaussian_kde(log_values)
+                        density = log_density(np.log(grid)) / grid
+                    else:
+                        density_estimate = scipy.stats.gaussian_kde(observed)
+                        density = density_estimate(grid)
+                    histogram_ax.plot(grid, density, color=color)
+
+            mean = values.mean()
+            histogram_ax.axvline(mean, color=color, linestyle="--")
+            ecdf_ax.axvline(mean, color=color, linestyle="--")
+            ordered = np.sort(observed)
+            num_below = np.searchsorted(ordered, minimum, side="left")
+            visible = ordered[num_below:]
+            cumulative = np.arange(num_below + 1, len(ordered) + 1) / count
+            ecdf_ax.step(
+                np.r_[minimum, visible],
+                np.r_[num_below / count, cumulative],
+                where="post", color=color, label=legend_label,
+            )
+            if np.any(censored):
+                ecdf_ax.text(
+                    0.04, 0.96 - 0.08 * class_index,
+                    f"{label}: {censored.mean():.1%} censored at max L",
+                    transform=ecdf_ax.transAxes, va="top", color=color,
+                )
+
+        histogram_ax.set_title(heading)
+        histogram_ax.set_ylabel("Density")
+        ecdf_ax.set_ylabel("Empirical cumulative proportion")
+        ecdf_ax.set_ylim(0, 1)
+        for ax in (histogram_ax, ecdf_ax):
+            ax.set_xlim(minimum, maximum)
+            ax.set_xlabel(xlabel)
+            ax.legend(fontsize=8)
+            if col == 0:
+                ax.set_xscale("log")
+    first_mismatch_log10 = np.log10(profiles.max_first_mismatch_distance)
+    scatter_specs = [
+        (
+            first_mismatch_log10,
+            profiles.max_clean_count,
+            "log10 first-mismatch distance (bp)",
+            "Max clean count",
+        ),
+        (
+            first_mismatch_log10,
+            profiles.max_dirty_count,
+            "log10 first-mismatch distance (bp)",
+            "Max dirty count",
+        ),
+        (
+            profiles.max_clean_count,
+            profiles.max_dirty_count,
+            "Max clean count",
+            "Max dirty count",
+        ),
+    ]
+    for col, (x_values, y_values, x_label, y_label) in enumerate(scatter_specs):
+        ax = axes[2, col]
+        for class_index, (select, label, color) in enumerate(classes):
+            x = x_values[select]
+            y = y_values[select]
+            count = len(x)
+            legend_label = f"{label} (n = {count})"
+            ax.scatter(x, y, color=color, alpha=0.15, s=10, label=legend_label)
+            if count > 1 and np.ptp(x) > 0 and np.ptp(y) > 0:
+                regression = scipy.stats.linregress(x, y)
+                regression_x = np.linspace(x.min(), x.max(), 100)
+                regression_y = regression.intercept + regression.slope * regression_x
+                ax.plot(regression_x, regression_y, color=color, linestyle="--")
+                ax.text(
+                    0.03, 0.97 - 0.09 * class_index,
+                    f"{label}: Pearson r = {regression.rvalue:.2f}",
+                    transform=ax.transAxes, va="top", color=color,
+                )
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        ax.legend(fontsize=8)
+
+    mean_note = "dashed lines: class means above, class regressions below"
+    if np.any(profiles.max_first_mismatch_censored):
+        mean_note += "; censored distances capped at max L"
+    fig.suptitle(f"{title} ({mean_note})")
     return fig
 
 
@@ -470,6 +582,18 @@ for multiplier in [1, 5, 10]:
     )
     display(profile_fig)
     plt.close(profile_fig)
+
+# %% [markdown]
+# ### Per-doubleton mismatch summaries
+
+# %%
+for multiplier in [1, 5, 10]:
+    summary_fig = plot_doubleton_mismatch_summaries(
+        cumulative_profiles[multiplier],
+        f"{multiplier}x simulated genotype error: mismatch summaries",
+    )
+    display(summary_fig)
+    plt.close(summary_fig)
 
 # %% [markdown]
 # ## Real data

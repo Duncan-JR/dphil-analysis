@@ -68,6 +68,8 @@ class TestCumulativeMismatchProfiles:
         np.testing.assert_array_equal(profiles.right_count[:, 0], [0, 1, 2])
         np.testing.assert_array_equal(profiles.clean_count[:, 0], [1, 1, 1])
         np.testing.assert_array_equal(profiles.dirty_count[:, 0], [0, 1, 2])
+        np.testing.assert_array_equal(profiles.max_clean_count, profiles.clean_count[-1])
+        np.testing.assert_array_equal(profiles.max_dirty_count, profiles.dirty_count[-1])
         assert profiles.max_first_mismatch_distance[0] == 60
         assert not profiles.max_first_mismatch_censored[0]
         assert profiles.max_first_mismatch_distance[1] == 100

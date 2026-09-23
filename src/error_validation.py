@@ -48,6 +48,14 @@ class CumulativeMismatchProfiles:
         return np.where(self.left_is_clean[None, :], self.right_count, self.left_count)
 
     @property
+    def max_clean_count(self):
+        return np.minimum(self.max_left_count, self.max_right_count)
+
+    @property
+    def max_dirty_count(self):
+        return np.maximum(self.max_left_count, self.max_right_count)
+
+    @property
     def max_first_mismatch_distance(self):
         return np.maximum(
             self.left_first_mismatch_distance,
