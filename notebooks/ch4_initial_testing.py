@@ -33,6 +33,7 @@ import error_validation
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import zarr
 
 
 # %%
@@ -379,8 +380,8 @@ axes[0, 0].legend(fontsize=8)
 
 # %%
 def plot_cumulative_mismatch_profiles(profiles, title):
-    """Compare fixed clean/dirty sides and mismatch-free distances by truth."""
-    fig, axes = plt.subplots(3, 2, figsize=(12, 11), constrained_layout=True)
+    """Compare class means and mismatch-free distances in three panels."""
+    fig, axes = plt.subplots(1, 3, figsize=(17, 4.5), constrained_layout=True)
     max_L = profiles.distances[-1]
     minimum_distance = profiles.distances[0]
     powers = np.arange(
@@ -392,14 +393,16 @@ def plot_cumulative_mismatch_profiles(profiles, title):
         (profiles.is_true_doubleton, "True doubletons"),
         (~profiles.is_true_doubleton, "False doubletons"),
     ]
-    for col, (select, label) in enumerate(classes):
+    colors = ["tab:blue", "tab:orange"]
+    for class_index, (select, label) in enumerate(classes):
         count = np.count_nonzero(select)
-        axes[0, col].set_title(f"{label} (n = {count})")
-        for row, (side_counts, side_label) in enumerate([
+        legend_label = f"{label} (n = {count})"
+        color = colors[class_index]
+        for panel, (side_counts, side_label) in enumerate([
             (profiles.clean_count, "Clean side"),
             (profiles.dirty_count, "Dirty side"),
         ]):
-            ax = axes[row, col]
+            ax = axes[panel]
             if count > 0:
                 selected_counts = side_counts[:, select]
                 mean = selected_counts.mean(axis=1)
@@ -409,16 +412,14 @@ def plot_cumulative_mismatch_profiles(profiles, title):
                     sem = selected_counts.std(axis=1, ddof=1) / np.sqrt(count)
                 lower = np.maximum(0, mean - 1.96 * sem)
                 upper = mean + 1.96 * sem
-                ax.plot(profiles.distances, mean)
-                ax.fill_between(profiles.distances, lower, upper, alpha=0.25)
-            ax.set_xscale("log")
-            ax.set_xlim(minimum_distance, max_L)
-            ax.set_xticks(ticks)
-            ax.set_ylim(bottom=0)
-            ax.set_ylabel(f"{side_label}: mean cumulative mismatches")
-            ax.set_xlabel("Physical distance from focal doubleton (bp)")
+                ax.plot(profiles.distances, mean, color=color, label=legend_label)
+                ax.fill_between(
+                    profiles.distances, lower, upper, color=color, alpha=0.2
+                )
+            ax.set_title(side_label)
+            ax.set_ylabel("Mean cumulative mismatches")
 
-        ax = axes[2, col]
+        ax = axes[2]
         values = profiles.max_first_mismatch_distance[select]
         censored = profiles.max_first_mismatch_censored[select]
         if count > 0:
@@ -430,22 +431,26 @@ def plot_cumulative_mismatch_profiles(profiles, title):
                 np.r_[minimum_distance, visible],
                 np.r_[num_below / count, ecdf],
                 where="post",
+                color=color,
+                label=legend_label,
             )
-            ax.annotate(
-                f"No mismatch by max L: {censored.mean():.1%}",
-                (0.04, 0.96), xycoords="axes fraction", va="top",
-            )
+            if np.any(censored):
+                ax.text(
+                    0.04, 0.96 - 0.08 * class_index,
+                    f"{label}: {censored.mean():.1%} censored at max L",
+                    transform=ax.transAxes, va="top", color=color,
+                )
+    axes[2].set_title("Longer mismatch-free side")
+    axes[2].set_ylabel("First-mismatch distance ECDF")
+    axes[2].set_ylim(0, 1)
+    for ax in axes:
         ax.set_xscale("log")
         ax.set_xlim(minimum_distance, max_L)
         ax.set_xticks(ticks)
-        ax.set_ylim(0, 1)
-        ax.set_ylabel("First-mismatch distance ECDF")
         ax.set_xlabel("Physical distance from focal doubleton (bp)")
-
-    for row in (0, 1):
-        upper = max(axes[row, 0].get_ylim()[1], axes[row, 1].get_ylim()[1])
-        for ax in axes[row]:
-            ax.set_ylim(0, upper)
+        ax.legend(fontsize=8)
+    for ax in axes[:2]:
+        ax.set_ylim(bottom=0)
     fig.suptitle(title)
     return fig
 
@@ -503,19 +508,15 @@ tgp_estimate.fit
 # source and the exact adjustment.
 
 # %%
-window_sizes = np.geomspace(1000, 1_000_000, 50)
-window_sizes
-
-# %%
-import numpy as np
-
-window_sizes = np.geomspace(1000, 1_000_000, 50)
+pig_window_sizes = np.unique(
+    np.r_[np.geomspace(1_000, 1_000_000, 50), 100_000.0]
+)
 config2 = error_estimation.EstimationConfig(
-    window_sizes=window_sizes,
+    window_sizes=pig_window_sizes,
     num_doubletons=10_000,
     random_seed=42,
     exclude_high_mismatch_proportion=0.25,
-    L_mismatch_trim=window_sizes[-1],
+    L_mismatch_trim=pig_window_sizes[-1],
 )
 
 pig_zarr_path = Path("../data/zarr_vcfs/pigs/chr18/data.zarr")
@@ -536,17 +537,239 @@ pig_estimate = error_estimation.estimate_error_rate(
 )
 pig_estimate.fit
 
-# %%
-# The result of epsilon fitting depends on the window sizes: add some plots below showing the density of sites along the genome in the zarr: how wide is the region?
+# %% [markdown]
+# ### Pig chr18 site density and retained quality flags
+#
+# The current density-threshold mask is applied on its own. Show how much of
+# chr18 it retains, and which other Zarr quality flags remain among those sites.
 
 # %%
+pig_group = zarr.open_group(pig_zarr_path, mode="r")
+pig_all_positions = np.asarray(pig_group["variant_position"][:], dtype=float)
+pig_excluded = np.asarray(pig_group[pig_variant_mask][:], dtype=bool)
+pig_positions = pig_all_positions[~pig_excluded]
+pig_bin_width = 100_000
+pig_bins = np.arange(
+    0, np.ceil(pig_all_positions[-1] / pig_bin_width) * pig_bin_width + pig_bin_width,
+    pig_bin_width,
+)
+pig_bin_midpoints_mb = (pig_bins[:-1] + pig_bins[1:]) / 2e6
+all_sites_per_bin, _ = np.histogram(pig_all_positions, bins=pig_bins)
+retained_sites_per_bin, _ = np.histogram(pig_positions, bins=pig_bins)
+
+pig_quality_masks = {
+    "Non-SNP": "variant_not_snps_mask",
+    "Low-quality ancestral allele": "variant_low_quality_ancestral_allele_mask",
+    "Bad ancestral allele": "variant_bad_ancestral_mask",
+    "Dataset filterDensity mask": "variant_allSample_subset_chr18_region_filterDensity_mask",
+}
+pig_quality_rows = []
+pig_flag_rates = {}
+for label, mask_name in pig_quality_masks.items():
+    flagged = np.asarray(pig_group[mask_name][:], dtype=bool)[~pig_excluded]
+    flagged_counts, _ = np.histogram(pig_positions[flagged], bins=pig_bins)
+    pig_flag_rates[label] = np.divide(
+        flagged_counts,
+        retained_sites_per_bin,
+        out=np.zeros_like(flagged_counts, dtype=float),
+        where=retained_sites_per_bin > 0,
+    )
+    pig_quality_rows.append({
+        "flag": label,
+        "retained_sites_flagged": np.count_nonzero(flagged),
+        "fraction_of_retained_sites": flagged.mean(),
+    })
+pig_quality_df = pd.DataFrame(pig_quality_rows)
+display(pig_quality_df)
+
+fig, axes = plt.subplots(2, 1, figsize=(13, 7), sharex=True, constrained_layout=True)
+axes[0].plot(pig_bin_midpoints_mb, all_sites_per_bin / 100, label="All Zarr sites")
+axes[0].plot(
+    pig_bin_midpoints_mb, retained_sites_per_bin / 100,
+    label=(
+        f"Retained by current mask ({len(pig_positions):,} sites; "
+        f"{np.count_nonzero(pig_excluded):,} removed)"
+    ),
+)
+axes[0].set_ylabel("Sites per kb in 100-kb bins")
+axes[0].set_title(
+    f"Pig chr18: retained span {pig_positions[0] / 1e6:.2f}–"
+    f"{pig_positions[-1] / 1e6:.2f} Mb"
+)
+axes[0].legend()
+for label, rates in pig_flag_rates.items():
+    axes[1].plot(pig_bin_midpoints_mb, rates, label=label)
+axes[1].set_xlabel("Pig chr18 position (Mb)")
+axes[1].set_ylabel("Fraction of retained sites flagged")
+axes[1].set_ylim(0, 1)
+axes[1].legend(ncol=2, fontsize=8)
+fig
 
 # %%
-# Plot Proportion of excluded doubletons 0, 0.1,0.25,0.5,0.75 on x and three panes for epsilon, mu and sigma^2 on y with L_mismatch_trem = 1e5,
+pig_mask_comparisons = {
+    "Current density-threshold mask": pig_estimate,
+}
+pig_additional_masks = {
+    "Plus dataset density-filter flag": [
+        pig_variant_mask,
+        "variant_allSample_subset_chr18_region_filterDensity_mask",
+    ],
+    "Plus non-SNP and ancestral flags": [
+        pig_variant_mask,
+        "variant_not_snps_mask",
+        "variant_bad_ancestral_mask",
+        "variant_low_quality_ancestral_allele_mask",
+    ],
+}
+for label, masks in pig_additional_masks.items():
+    pig_mask_comparisons[label] = error_estimation.estimate_error_rate(
+        pig_zarr_path,
+        recombination=pig_recombination,
+        config=config2,
+        variant_mask_name=masks,
+    )
+pig_mask_rows = []
+for label, estimate in pig_mask_comparisons.items():
+    pig_mask_rows.append({
+        "site_selection": label,
+        "num_sites": estimate.diversity.num_sites,
+        "eligible_doubletons": estimate.doubletons.num_eligible,
+        "epsilon": estimate.fit.epsilon,
+        "mu": estimate.fit.mu,
+        "sigma_sq": estimate.fit.sigma_sq,
+    })
+pig_mask_comparison_df = pd.DataFrame(pig_mask_rows)
+display(pig_mask_comparison_df)
+
+# %% [markdown]
+# ### Pig fit sensitivity to doubleton trimming
+#
+# Refit the same sampled doubletons and mismatch windows, ranking exclusions
+# by the observed count at 100 kb. This isolates trimming from data sampling.
 
 # %%
-import pandas as pd
+pig_trim_proportions = [0, 0.1, 0.25, 0.5, 0.75]
+pig_trim_L = pig_window_sizes[-1]
+pig_trim_rows = []
+for proportion in pig_trim_proportions:
+    trim_config = dataclasses.replace(
+        config2,
+        exclude_high_mismatch_proportion=proportion,
+        L_mismatch_trim=pig_trim_L,
+    )
+    fit = error_estimation.fit_error_model(
+        pig_estimate.mismatches, pi=pig_estimate.fit.pi, config=trim_config
+    )
+    pig_trim_rows.append({
+        "excluded_proportion": proportion,
+        "num_doubletons": fit.num_doubletons,
+        "epsilon": fit.epsilon,
+        "mu": fit.mu,
+        "sigma_sq": fit.sigma_sq,
+        "objective": fit.objective,
+    })
+pig_trim_df = pd.DataFrame(pig_trim_rows)
+display(pig_trim_df)
 
+fig, axes = plt.subplots(1, 3, figsize=(14, 4), constrained_layout=True)
+for ax, (column, ylabel) in zip(axes, [
+    ("epsilon", "Errors per haplotype-bp"),
+    ("mu", r"Fitted $\mu$"),
+    ("sigma_sq", r"Fitted $\sigma^2$"),
+]):
+    ax.plot(pig_trim_df["excluded_proportion"], pig_trim_df[column], marker="o")
+    ax.set_xlabel("Proportion of doubletons excluded")
+    ax.set_ylabel(ylabel)
+    ax.set_yscale("log")
+    ax.set_xticks(pig_trim_proportions)
+fig.suptitle("Pig chr18 fit sensitivity (trim at 100 kb)")
+
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(11, 4), constrained_layout=True)
+axes[0].plot(
+    pig_window_sizes, pig_estimate.fit.observed_means,
+    marker=".", label="Observed",
+)
+axes[0].plot(
+    pig_window_sizes, pig_estimate.fit.fitted_means,
+    label="Fitted",
+)
+axes[0].set_xscale("log")
+axes[0].set_yscale("log")
+axes[0].set_xlabel("One-sided window length L (bp)")
+axes[0].set_ylabel("Mean full-window mismatch count")
+axes[0].legend()
+relative_residual = (
+    pig_estimate.fit.observed_means - pig_estimate.fit.fitted_means
+) / pig_estimate.fit.observed_means
+axes[1].plot(pig_window_sizes, relative_residual, marker=".")
+axes[1].axhline(0, color="0.5", linestyle="--")
+axes[1].set_xscale("log")
+axes[1].set_xlabel("One-sided window length L (bp)")
+axes[1].set_ylabel("(Observed − fitted) / observed")
+fig.suptitle("Pig chr18: aggregate fit across window sizes")
+fig
+
+# %% [markdown]
+# ### Pig doubleton mismatches and local site density
+
+# %%
+pig_trim_index = np.flatnonzero(pig_window_sizes == pig_trim_L)[0]
+pig_trim_counts = pig_estimate.mismatches.counts[pig_trim_index]
+pig_focal_positions = pig_estimate.doubletons.positions
+pig_local_left = np.searchsorted(
+    pig_positions, pig_focal_positions - pig_trim_L, side="left"
+)
+pig_local_right = np.searchsorted(
+    pig_positions, pig_focal_positions + pig_trim_L, side="right"
+)
+pig_local_sites_per_kb = (pig_local_right - pig_local_left) / (2 * pig_trim_L / 1_000)
+pig_raw_focal_indices = np.flatnonzero(~pig_excluded)[pig_estimate.doubletons.site_indices]
+pig_focal_quality_rows = []
+for label, mask_name in pig_quality_masks.items():
+    flagged = np.asarray(pig_group[mask_name][:], dtype=bool)[pig_raw_focal_indices]
+    pig_focal_quality_rows.append({
+        "flag": label,
+        "flagged_doubletons": np.count_nonzero(flagged),
+        "median_mismatches_flagged": np.median(pig_trim_counts[flagged]),
+        "median_mismatches_unflagged": np.median(pig_trim_counts[~flagged]),
+    })
+pig_focal_quality_df = pd.DataFrame(pig_focal_quality_rows)
+display(pig_focal_quality_df)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4), constrained_layout=True)
+ordered_counts = np.sort(pig_trim_counts)
+axes[0].plot(ordered_counts, np.arange(1, len(ordered_counts) + 1) / len(ordered_counts))
+axes[0].set_xlabel("Mismatch count within ±100 kb")
+axes[0].set_ylabel("Empirical cumulative proportion")
+axes[0].set_title("Large variation among sampled doubletons")
+density_plot = axes[1].hexbin(
+    pig_local_sites_per_kb, pig_trim_counts, gridsize=45, bins="log", mincnt=1
+)
+fig.colorbar(density_plot, ax=axes[1], label="Number of doubletons")
+axes[1].set_xlabel("Local retained sites per kb (±100 kb)")
+axes[1].set_ylabel("Mismatch count within ±100 kb")
+axes[1].set_title("Mismatch count versus local site density")
+fig
+
+# %% [markdown]
+# The current mask retains nearly all sites across 0.06–55.89 Mb. Several
+# quality flags remain among the retained rows, and flagged focal doubletons
+# tend to have higher mismatch counts at 100 kb. Local site density also varies
+# markedly, but the scatter shows a broad range of mismatch counts at any given
+# density. The aggregate fitted curve follows the observed mean closely while
+# the fitted parameters change by orders of magnitude under trimming; the
+# residual objective also rises sharply with the most aggressive exclusions.
+# Removing the additional flagged site sets reduces the fitted variance only
+# modestly.
+# Those mask comparisons also resample eligible doubletons and recalculate
+# diversity, so they are sensitivity checks rather than isolated flag effects.
+# These checks identify heterogeneity and fit sensitivity; they do not by
+# themselves distinguish technical error from population structure or a model
+# mismatch.
+
+# %%
 fit_df = pd.read_csv("../data/tmp/dphil-analysis-results.csv")
 
 fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
