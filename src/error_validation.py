@@ -3,9 +3,12 @@
 import csv
 import dataclasses
 import pathlib
+import warnings
 
 import error_estimation
 import numpy as np
+import scipy.optimize
+import scipy.special
 import tskit
 import zarr
 
@@ -72,6 +75,168 @@ class CumulativeMismatchProfiles:
             (self.right_first_mismatch_distance == maximum)
             & self.right_first_mismatch_censored
         )
+
+
+@dataclasses.dataclass
+class DoubletonClassifier:
+    """Simulation-trained score and operating threshold for true doubletons."""
+
+    tier: str
+    threshold: float | None
+    feature_mean: np.ndarray | None = None
+    feature_scale: np.ndarray | None = None
+    coefficients: np.ndarray | None = None
+
+
+def doubleton_features(profiles):
+    """Return log first-mismatch distance and max clean-side mismatch count."""
+    if np.any(profiles.max_first_mismatch_censored):
+        warnings.warn("Some first-mismatch distances are censored at max_L")
+    log_distance = np.log10(profiles.max_first_mismatch_distance)
+    return np.column_stack((log_distance, profiles.max_clean_count))
+
+
+def _design_matrix(features, mean, scale, interaction):
+    standardized = (features - mean) / scale
+    columns = [np.ones(len(features)), standardized[:, 0], standardized[:, 1]]
+    if interaction:
+        columns.append(standardized[:, 0] * standardized[:, 1])
+    return np.column_stack(columns)
+
+
+def fit_doubleton_classifier(tier, training_profiles, *, target_recall=0.95):
+    """Fit a tier and calibrate its threshold from true training doubletons."""
+    if tier not in ("tier_1", "tier_1b", "tier_2", "tier_3"):
+        raise ValueError(f"Unknown learned classifier tier: {tier}")
+    features = np.concatenate([doubleton_features(p) for p in training_profiles])
+    truth = np.concatenate([p.is_true_doubleton for p in training_profiles])
+    if tier in ("tier_1", "tier_1b"):
+        classifier = DoubletonClassifier(tier=tier, threshold=None)
+    else:
+        mean = features.mean(axis=0)
+        scale = features.std(axis=0)
+        design = _design_matrix(features, mean, scale, tier == "tier_3")
+        labels = truth.astype(float)
+
+        def objective(coefficients):
+            logits = design @ coefficients
+            loss = np.logaddexp(0, logits).sum() - labels @ logits
+            gradient = design.T @ (scipy.special.expit(logits) - labels)
+            return loss, gradient
+
+        result = scipy.optimize.minimize(
+            objective,
+            np.zeros(design.shape[1]),
+            jac=True,
+            method="L-BFGS-B",
+        )
+        if not result.success:
+            raise RuntimeError(f"{tier} logistic fit failed: {result.message}")
+        classifier = DoubletonClassifier(
+            tier=tier,
+            threshold=None,
+            feature_mean=mean,
+            feature_scale=scale,
+            coefficients=result.x,
+        )
+    scores = doubleton_scores(classifier, features)
+    positive_scores = np.sort(scores[truth])
+    retained_positive = int(np.ceil(target_recall * len(positive_scores)))
+    threshold_index = len(positive_scores) - retained_positive
+    classifier.threshold = float(positive_scores[threshold_index])
+    return classifier
+
+
+def doubleton_scores(classifier, features):
+    """Return scores increasing with evidence for a true doubleton."""
+    if classifier.tier == "tier_1":
+        return features[:, 0]
+    if classifier.tier == "tier_1b":
+        return -features[:, 1]
+    design = _design_matrix(
+        features,
+        classifier.feature_mean,
+        classifier.feature_scale,
+        classifier.tier == "tier_3",
+    )
+    return design @ classifier.coefficients
+
+
+def classify_doubletons(classifier, profiles, summary, *, baseline_excluded=0.25):
+    """Score and retain doubletons for one estimate, including the Tier 0 rule."""
+    if classifier.tier == "tier_0":
+        counts = summary.counts[-1]
+        scores = -counts.astype(float)
+        num_excluded = int(baseline_excluded * len(scores))
+        order = np.argsort(counts, kind="stable")
+        retained = np.zeros(len(scores), dtype=bool)
+        retained[order[:len(scores) - num_excluded]] = True
+        return scores, retained
+    features = doubleton_features(profiles)
+    scores = doubleton_scores(classifier, features)
+    return scores, scores >= classifier.threshold
+
+
+def classifier_curves(scores, truth):
+    """ROC and precision-recall curves over every distinct score threshold."""
+    truth = np.asarray(truth, dtype=bool)
+    positives = np.count_nonzero(truth)
+    negatives = len(truth) - positives
+    if positives == 0 or negatives == 0:
+        raise ValueError("Both truth classes are required for ROC and PR curves")
+    order = np.argsort(scores, kind="stable")[::-1]
+    ordered_scores = scores[order]
+    ordered_truth = truth[order]
+    group_end = np.r_[np.diff(ordered_scores) != 0, True]
+    tp = np.cumsum(ordered_truth)[group_end]
+    fp = np.cumsum(~ordered_truth)[group_end]
+    tpr = np.r_[0.0, tp / positives]
+    fpr = np.r_[0.0, fp / negatives]
+    precision = np.r_[1.0, tp / (tp + fp)]
+    average_precision = float(np.sum(np.diff(tpr) * precision[1:]))
+    return {
+        "fpr": fpr,
+        "tpr": tpr,
+        "precision": precision,
+        "auroc": float(np.trapezoid(tpr, fpr)),
+        "average_precision": average_precision,
+    }
+
+
+def classifier_metrics(scores, truth, retained):
+    """Summarize ranking and retained/excluded classification performance."""
+    curves = classifier_curves(scores, truth)
+    tp = np.count_nonzero(retained & truth)
+    fp = np.count_nonzero(retained & ~truth)
+    positives = np.count_nonzero(truth)
+    negatives = len(truth) - positives
+    return {
+        "auroc": curves["auroc"],
+        "average_precision": curves["average_precision"],
+        "tpr": tp / positives,
+        "fpr": fp / negatives,
+        "precision": tp / (tp + fp),
+        "fraction_retained": np.mean(retained),
+    }
+
+
+def fit_error_rate_with_selected_doubletons(estimate, retained):
+    """Refit the existing aggregate error model on a validation-selected subset."""
+    summary = estimate.mismatches
+    selected_summary = error_estimation.MismatchSummary(
+        window_sizes=summary.window_sizes,
+        counts=summary.counts[:, retained],
+        rates=summary.rates[:, retained],
+    )
+    config = dataclasses.replace(
+        estimate.config,
+        exclude_high_mismatch_proportion=0,
+    )
+    return error_estimation.fit_error_model(
+        selected_summary,
+        pi=estimate.fit.pi,
+        config=config,
+    )
 
 
 def get_true_error_rate(zarr_path):

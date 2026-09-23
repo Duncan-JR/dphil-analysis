@@ -27,12 +27,13 @@
 # %%
 import dataclasses
 from pathlib import Path
-
+import importlib
 import error_estimation
 import error_validation
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy.special
 import scipy.stats
 import zarr
 
@@ -137,86 +138,38 @@ fit_df
 fit_df.to_csv("../data/tmp/dphil-analysis-results.csv", index=None)
 
 # %%
-fig, axes = plt.subplots(2, 2, figsize=(11, 8), constrained_layout=True)
+def plot_error_estimates(frame, estimate_label, *, baseline_frame=None, title=None):
+    """Plot the four fitted quantities against simulation truth and references."""
+    specs = [
+        ("epsilon", "true_error", "true_doubleton_epsilon", "Genotype error rate", "Errors per haplotype-bp"),
+        ("diversity", "true_diversity", "true_doubleton_pi", "Diversity", "Diversity per bp"),
+        ("mu", None, "true_doubleton_mu", "Gamma mean", r"Estimated $\mu$"),
+        ("sigma_sq", None, "true_doubleton_sigma_sq", "Gamma variance", r"Estimated $\sigma^2$"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8), constrained_layout=True)
+    for ax, (column, truth_column, fixed_column, heading, ylabel) in zip(axes.flat, specs):
+        if truth_column is not None:
+            ax.plot(frame["error_multiplier"], frame[truth_column], marker="o", label="True")
+        ax.plot(frame["error_multiplier"], frame[column], marker="o", label=estimate_label)
+        if baseline_frame is not None:
+            ax.plot(
+                baseline_frame["error_multiplier"], baseline_frame[column],
+                marker="o", label="Original 25% mismatch trim",
+            )
+        ax.plot(
+            frame["error_multiplier"], frame[fixed_column],
+            marker="o", label="Estimated (fixed true doubletons)",
+        )
+        ax.set_xlabel("Genotype error-rate multiplier")
+        ax.set_ylabel(ylabel)
+        ax.set_title(heading)
+        ax.legend(fontsize=8)
+    if title is not None:
+        fig.suptitle(title)
+    return fig
 
-axes[0, 0].plot(
-    fit_df["error_multiplier"],
-    fit_df["true_error"],
-    marker="o",
-    label="True",
-)
-axes[0, 0].plot(
-    fit_df["error_multiplier"],
-    fit_df["epsilon"],
-    marker="o",
-    label="Estimated (ascertained doubletons)",
-)
-axes[0, 0].plot(
-    fit_df["error_multiplier"],
-    fit_df["true_doubleton_epsilon"],
-    marker="o",
-    label="Estimated (true doubletons)",
-)
-axes[0, 0].set_ylabel("Errors per haplotype-bp")
-axes[0, 0].set_title("Genotype error rate")
-axes[0, 0].legend()
 
-axes[0, 1].plot(
-    fit_df["error_multiplier"],
-    fit_df["true_diversity"],
-    marker="o",
-    label="True",
-)
-axes[0, 1].plot(
-    fit_df["error_multiplier"],
-    fit_df["diversity"],
-    marker="o",
-    label="Estimated (ascertained doubletons)",
-)
-axes[0, 1].plot(
-    fit_df["error_multiplier"],
-    fit_df["true_doubleton_pi"],
-    marker="o",
-    label="Estimated (true doubletons)",
-)
-axes[0, 1].set_ylabel("Diversity per bp")
-axes[0, 1].set_title("Diversity")
-axes[0, 1].legend()
-
-axes[1, 0].plot(
-    fit_df["error_multiplier"],
-    fit_df["mu"],
-    marker="o",
-    label="Estimated (ascertained doubletons)",
-)
-axes[1, 0].plot(
-    fit_df["error_multiplier"],
-    fit_df["true_doubleton_mu"],
-    marker="o",
-    label="Estimated (true doubletons)",
-)
-axes[1, 0].set_ylabel(r"Estimated $\mu$")
-axes[1, 0].set_title("Gamma mean")
-axes[1, 0].legend()
-
-axes[1, 1].plot(
-    fit_df["error_multiplier"],
-    fit_df["sigma_sq"],
-    marker="o",
-    label="Estimated (ascertained doubletons)",
-)
-axes[1, 1].plot(
-    fit_df["error_multiplier"],
-    fit_df["true_doubleton_sigma_sq"],
-    marker="o",
-    label="Estimated (true doubletons)",
-)
-axes[1, 1].set_ylabel(r"Estimated $\sigma^2$")
-axes[1, 1].set_title("Gamma variance")
-axes[1, 1].legend()
-
-for ax in axes.flat:
-    ax.set_xlabel("Genotype error-rate multiplier")
+plot_error_estimates(fit_df, "Estimated (ascertained doubletons)")
 
 
 # %% [markdown]
@@ -594,6 +547,338 @@ for multiplier in [1, 5, 10]:
     )
     display(summary_fig)
     plt.close(summary_fig)
+
+# %% [markdown]
+# ## Fitting models to doubleton data
+
+# %%
+import importlib
+importlib.reload(error_estimation)
+importlib.reload(error_validation)
+
+for multiplier in [0, 2]:
+    cumulative_profiles[multiplier] = error_validation.cumulative_mismatch_profiles(
+        ascertained_estimates[multiplier],
+        zero_error_zarr_path,
+        distances=profile_distances,
+    )
+
+classifier_tiers = ["tier_0", "tier_1", "tier_1b", "tier_2", "tier_3"]
+classifier_labels = {
+    "tier_0": "Fixed 25% mismatch trim",
+    "tier_1": "First-mismatch threshold",
+    "tier_1b": "Clean-count threshold",
+    "tier_2": "Two-feature logistic",
+    "tier_3": "Logistic with interaction",
+}
+training_multipliers = [1, 5, 10]
+classifier_rows = []
+classifier_curves = {}
+held_out_models = {}
+for held_out_multiplier in training_multipliers:
+    training_profiles = [
+        cumulative_profiles[multiplier]
+        for multiplier in training_multipliers
+        if multiplier != held_out_multiplier
+    ]
+    test_profiles = cumulative_profiles[held_out_multiplier]
+    estimate = ascertained_estimates[held_out_multiplier]
+    true_epsilon = fit_df.loc[
+        fit_df["error_multiplier"] == held_out_multiplier, "true_error"
+    ].iloc[0]
+    for tier in classifier_tiers:
+        if tier == "tier_0":
+            model = error_validation.DoubletonClassifier(tier=tier, threshold=None)
+        else:
+            model = error_validation.fit_doubleton_classifier(tier, training_profiles)
+        held_out_models[(held_out_multiplier, tier)] = model
+        scores, retained = error_validation.classify_doubletons(
+            model, test_profiles, estimate.mismatches
+        )
+        metrics = error_validation.classifier_metrics(
+            scores, test_profiles.is_true_doubleton, retained
+        )
+        fitted = error_validation.fit_error_rate_with_selected_doubletons(
+            estimate, retained
+        )
+        metrics.update({
+            "tier": tier,
+            "test_multiplier": held_out_multiplier,
+            "fitted_epsilon": fitted.epsilon,
+            "epsilon_relative_error": abs(fitted.epsilon - true_epsilon) / true_epsilon,
+            "fitted_mu": fitted.mu,
+            "fitted_sigma_sq": fitted.sigma_sq,
+        })
+        classifier_rows.append(metrics)
+        classifier_curves[(held_out_multiplier, tier)] = (
+            error_validation.classifier_curves(
+                scores, test_profiles.is_true_doubleton
+            )
+        )
+
+classifier_cv_df = pd.DataFrame(classifier_rows)
+classifier_cv_summary = classifier_cv_df.groupby("tier", sort=False)[
+    ["auroc", "average_precision", "tpr", "fpr", "precision", "fraction_retained", "epsilon_relative_error"]
+].mean()
+display(classifier_cv_df)
+display(classifier_cv_summary)
+
+# %%
+fig, axes = plt.subplots(2, 3, figsize=(16, 9), constrained_layout=True)
+for col, multiplier in enumerate(training_multipliers):
+    for tier in classifier_tiers:
+        curves = classifier_curves[(multiplier, tier)]
+        label = classifier_labels[tier]
+        axes[0, col].plot(curves["fpr"], curves["tpr"], label=label)
+        axes[1, col].plot(curves["tpr"], curves["precision"], label=label)
+    axes[0, col].plot([0, 1], [0, 1], color="0.7", linestyle="--")
+    prevalence = cumulative_profiles[multiplier].is_true_doubleton.mean()
+    axes[1, col].axhline(prevalence, color="0.7", linestyle="--")
+    axes[0, col].set_title(f"Held-out {multiplier}x: ROC")
+    axes[1, col].set_title(f"Held-out {multiplier}x: precision-recall")
+    axes[0, col].set_xlabel("False positive rate")
+    axes[0, col].set_ylabel("True positive rate")
+    axes[1, col].set_xlabel("Recall (true positive rate)")
+    axes[1, col].set_ylabel("Precision")
+    for ax in axes[:, col]:
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+axes[0, 0].legend(fontsize=8)
+fig.suptitle("Classifiers trained on the other two error multipliers")
+fig
+
+# %%
+fig, axes = plt.subplots(2, 2, figsize=(11, 8), constrained_layout=True)
+for tier in classifier_tiers:
+    tier_rows = classifier_cv_df[classifier_cv_df["tier"] == tier]
+    axes[0, 0].plot(
+        tier_rows["test_multiplier"], tier_rows["fpr"],
+        marker="o", label=classifier_labels[tier],
+    )
+    axes[0, 1].plot(
+        tier_rows["test_multiplier"], tier_rows["tpr"],
+        marker="o", label=classifier_labels[tier],
+    )
+    axes[1, 0].plot(
+        tier_rows["test_multiplier"], tier_rows["fraction_retained"],
+        marker="o", label=classifier_labels[tier],
+    )
+    axes[1, 1].plot(
+        tier_rows["test_multiplier"], tier_rows["epsilon_relative_error"],
+        marker="o", label=classifier_labels[tier],
+    )
+axes[0, 0].set_ylabel("False positive rate")
+axes[0, 1].set_ylabel("True positive rate")
+axes[1, 0].set_ylabel("Fraction of doubletons retained")
+axes[1, 1].set_ylabel("Absolute relative error in fitted epsilon")
+for ax in axes.flat:
+    ax.set_xlabel("Held-out error multiplier")
+    ax.set_xticks(training_multipliers)
+axes[0, 0].legend(fontsize=8)
+fig.suptitle("Held-out classification and downstream error-rate fit")
+fig
+
+# %% [markdown]
+# ### Interpolation at 2x and fitted decision surfaces
+
+# %%
+pooled_training_profiles = [
+    cumulative_profiles[multiplier] for multiplier in training_multipliers
+]
+pooled_models = {}
+interpolation_rows = []
+interpolation_curves = {}
+interpolation_profiles = cumulative_profiles[2]
+interpolation_estimate = ascertained_estimates[2]
+interpolation_true_error = fit_df.loc[
+    fit_df["error_multiplier"] == 2, "true_error"
+].iloc[0]
+for tier in classifier_tiers:
+    if tier == "tier_0":
+        model = error_validation.DoubletonClassifier(tier=tier, threshold=None)
+    else:
+        model = error_validation.fit_doubleton_classifier(tier, pooled_training_profiles)
+    pooled_models[tier] = model
+    scores, retained = error_validation.classify_doubletons(
+        model, interpolation_profiles, interpolation_estimate.mismatches
+    )
+    metrics = error_validation.classifier_metrics(
+        scores, interpolation_profiles.is_true_doubleton, retained
+    )
+    fitted = error_validation.fit_error_rate_with_selected_doubletons(
+        interpolation_estimate, retained
+    )
+    metrics.update({
+        "tier": tier,
+        "fitted_epsilon": fitted.epsilon,
+        "epsilon_relative_error": (
+            abs(fitted.epsilon - interpolation_true_error) / interpolation_true_error
+        ),
+    })
+    interpolation_rows.append(metrics)
+    interpolation_curves[tier] = error_validation.classifier_curves(
+        scores, interpolation_profiles.is_true_doubleton
+    )
+interpolation_df = pd.DataFrame(interpolation_rows)
+display(interpolation_df)
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), constrained_layout=True)
+for tier in classifier_tiers:
+    curves = interpolation_curves[tier]
+    axes[0].plot(curves["fpr"], curves["tpr"], label=classifier_labels[tier])
+    axes[1].plot(curves["tpr"], curves["precision"], label=classifier_labels[tier])
+axes[0].plot([0, 1], [0, 1], color="0.7", linestyle="--")
+axes[1].axhline(interpolation_profiles.is_true_doubleton.mean(), color="0.7", linestyle="--")
+axes[0].set_xlabel("False positive rate")
+axes[0].set_ylabel("True positive rate")
+axes[1].set_xlabel("Recall (true positive rate)")
+axes[1].set_ylabel("Precision")
+for ax in axes:
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+axes[0].legend(fontsize=8)
+fig.suptitle("2x interpolation test; training used 1x, 5x and 10x")
+fig
+
+# %%
+interpolation_features = error_validation.doubleton_features(interpolation_profiles)
+horizontal = np.linspace(interpolation_features[:, 0].min(), interpolation_features[:, 0].max(), 120)
+vertical = np.linspace(interpolation_features[:, 1].min(), interpolation_features[:, 1].max(), 120)
+grid_x, grid_y = np.meshgrid(horizontal, vertical)
+grid_features = np.column_stack((grid_x.ravel(), grid_y.ravel()))
+fig, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+for ax, tier in zip(axes, ["tier_2", "tier_3"]):
+    model = pooled_models[tier]
+    grid_scores = error_validation.doubleton_scores(model, grid_features)
+    grid_probability = scipy.special.expit(grid_scores).reshape(grid_x.shape)
+    filled = ax.contourf(
+        grid_x, grid_y, grid_probability,
+        levels=np.linspace(0, 1, 21), cmap="RdBu", alpha=0.6,
+    )
+    ax.contour(
+        grid_x, grid_y, grid_scores.reshape(grid_x.shape),
+        levels=[model.threshold], colors="black", linewidths=2,
+    )
+    for select, label, color in [
+        (interpolation_profiles.is_true_doubleton, "True doubletons", "tab:blue"),
+        (~interpolation_profiles.is_true_doubleton, "False doubletons", "tab:orange"),
+    ]:
+        ax.scatter(
+            interpolation_features[select, 0], interpolation_features[select, 1],
+            s=3, alpha=0.08, color=color, label=label,
+        )
+    ax.set_title(classifier_labels[tier])
+    ax.set_xlabel("log10 first-mismatch distance (bp)")
+    ax.set_ylabel("Max clean count at max L")
+axes[0].legend(fontsize=8)
+fig.colorbar(filled, ax=axes, label="Fitted probability of a true doubleton")
+fig.suptitle("2x doubletons and pooled logistic decision boundaries")
+fig
+
+# %% [markdown]
+# ### Selected classifier and downstream error model
+#
+# Tier 3 is selected: it improves the downstream epsilon fit in all three
+# held-out error-level comparisons. Its 2x interpolation result is effectively
+# tied with Tier 2 (relative epsilon error 0.21% versus 0.22%), but the
+# consistent held-out gain supports the interaction.
+# The learned threshold targets 95% recall in pooled training data, but recall
+# varies substantially across held-out error levels. At 10x, the pooled model
+# retains only 78.7% of true doubletons and still underestimates epsilon by
+# about 33%. These error levels share one underlying simulation, so this
+# comparison is not independent validation.
+
+# %%
+selected_tier = "tier_3"
+selected_model = pooled_models[selected_tier]
+selected_fit_rows = []
+selected_classification_rows = []
+for multiplier in error_multipliers:
+    estimate = ascertained_estimates[multiplier]
+    profiles = cumulative_profiles[multiplier]
+    scores, retained = error_validation.classify_doubletons(
+        selected_model, profiles, estimate.mismatches
+    )
+    fitted = error_validation.fit_error_rate_with_selected_doubletons(
+        estimate, retained
+    )
+    selected_fit_rows.append({
+        "error_multiplier": multiplier,
+        "epsilon": fitted.epsilon,
+        "mu": fitted.mu,
+        "sigma_sq": fitted.sigma_sq,
+    })
+    classification_row = {
+        "error_multiplier": multiplier,
+        "retained_doubletons": int(retained.sum()),
+        "total_doubletons": len(retained),
+        "fraction_retained": retained.mean(),
+    }
+    truth = profiles.is_true_doubleton
+    if truth.any() and (~truth).any():
+        metrics = error_validation.classifier_metrics(scores, truth, retained)
+        classification_row.update({
+            "tpr": metrics["tpr"],
+            "fpr": metrics["fpr"],
+            "precision": metrics["precision"],
+        })
+    selected_classification_rows.append(classification_row)
+
+selected_fit_df = fit_df.drop(columns=["epsilon", "mu", "sigma_sq"]).merge(
+    pd.DataFrame(selected_fit_rows), on="error_multiplier", validate="one_to_one"
+)
+selected_classification_df = pd.DataFrame(selected_classification_rows)
+display(selected_classification_df)
+display(selected_fit_df[[
+    "error_multiplier", "true_error", "epsilon", "true_doubleton_epsilon",
+    "mu", "sigma_sq",
+]])
+
+# %%
+plot_error_estimates(
+    selected_fit_df,
+    "Estimated (Tier 3 retained doubletons)",
+    baseline_frame=fit_df,
+    title="Error-model fits after Tier 3 doubleton selection",
+)
+
+# %%
+diagnostic_profiles = cumulative_profiles[10]
+diagnostic_features = error_validation.doubleton_features(diagnostic_profiles)
+diagnostic_scores, diagnostic_retained = error_validation.classify_doubletons(
+    selected_model, diagnostic_profiles, ascertained_estimates[10].mismatches
+)
+diagnostic_truth = diagnostic_profiles.is_true_doubleton
+outcomes = [
+    (diagnostic_retained & diagnostic_truth, "TP: retained true", "tab:blue"),
+    (diagnostic_retained & ~diagnostic_truth, "FP: retained false", "tab:orange"),
+    (~diagnostic_retained & diagnostic_truth, "FN: excluded true", "tab:red"),
+    (~diagnostic_retained & ~diagnostic_truth, "TN: excluded false", "tab:green"),
+]
+fig, ax = plt.subplots(figsize=(8, 6), constrained_layout=True)
+diagnostic_x = np.linspace(diagnostic_features[:, 0].min(), diagnostic_features[:, 0].max(), 120)
+diagnostic_y = np.linspace(diagnostic_features[:, 1].min(), diagnostic_features[:, 1].max(), 120)
+diagnostic_grid_x, diagnostic_grid_y = np.meshgrid(diagnostic_x, diagnostic_y)
+diagnostic_grid_features = np.column_stack((
+    diagnostic_grid_x.ravel(), diagnostic_grid_y.ravel()
+))
+diagnostic_grid_scores = error_validation.doubleton_scores(
+    selected_model, diagnostic_grid_features
+).reshape(diagnostic_grid_x.shape)
+ax.contour(
+    diagnostic_grid_x, diagnostic_grid_y, diagnostic_grid_scores,
+    levels=[selected_model.threshold], colors="black", linestyles="--",
+)
+for select, label, color in outcomes:
+    ax.scatter(
+        diagnostic_features[select, 0], diagnostic_features[select, 1],
+        s=4, alpha=0.16, color=color, label=f"{label} (n = {select.sum()})",
+    )
+ax.set_xlabel("log10 first-mismatch distance (bp)")
+ax.set_ylabel("Max clean count at max L")
+ax.set_title("10x diagnostic with pooled Tier 3 classifier")
+ax.legend(markerscale=3, fontsize=8)
+fig
 
 # %% [markdown]
 # ## Real data

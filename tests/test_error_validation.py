@@ -76,3 +76,42 @@ class TestCumulativeMismatchProfiles:
         assert profiles.max_first_mismatch_censored[1]
         assert profiles.left_is_clean[2]
         np.testing.assert_array_equal(profiles.is_true_doubleton, [True] * 3)
+
+
+class TestDoubletonClassifier:
+    def test_learned_threshold_and_baseline_score_direction(self):
+        truth = np.array([True, True, True, True, False, False, False, False])
+        profiles = types.SimpleNamespace(
+            max_first_mismatch_distance=np.array([100, 200, 300, 400, 10, 20, 30, 40]),
+            max_clean_count=np.array([0, 0, 1, 1, 3, 3, 4, 4]),
+            max_first_mismatch_censored=np.zeros(8, dtype=bool),
+            is_true_doubleton=truth,
+        )
+        model = error_validation.fit_doubleton_classifier(
+            "tier_1", [profiles], target_recall=0.75
+        )
+        counts = np.array([[0, 1, 2, 3, 4, 5, 6, 7]])
+        summary = error_estimation.MismatchSummary(
+            np.array([100.0]), counts, np.zeros_like(counts)
+        )
+        scores, retained = error_validation.classify_doubletons(
+            model, profiles, summary
+        )
+        assert np.count_nonzero(retained & truth) == 3
+        assert not np.any(retained & ~truth)
+        assert scores[0] > scores[4]
+
+        baseline = error_validation.DoubletonClassifier("tier_0", None)
+        baseline_scores, baseline_retained = error_validation.classify_doubletons(
+            baseline, profiles, summary
+        )
+        assert baseline_retained.sum() == 6
+        assert baseline_scores[0] > baseline_scores[-1]
+
+    def test_curves_use_true_doubletons_as_positive_class(self):
+        scores = np.array([4.0, 3.0, 2.0, 1.0])
+        truth = np.array([True, True, False, False])
+        curves = error_validation.classifier_curves(scores, truth)
+        assert curves["auroc"] == 1
+        assert curves["average_precision"] == 1
+        np.testing.assert_array_equal(curves["fpr"], [0, 0, 0, 0.5, 1])
