@@ -132,7 +132,11 @@ class ErrorRateFit:
 
 @dataclasses.dataclass
 class ErrorRateEstimate:
-    """Results and resolved settings from :func:`estimate_error_rate`."""
+    """Results from :func:`estimate_error_rate` with masked-to-raw site mapping.
+
+    ``doubletons.site_indices`` indexes ``included_positions``;
+    ``included_variant_indices`` maps those positions back to raw Zarr rows.
+    """
 
     doubletons: Doubletons
     diversity: Diversity
@@ -140,6 +144,8 @@ class ErrorRateEstimate:
     fit: ErrorRateFit
     inference_path: str
     config: EstimationConfig
+    included_positions: np.ndarray
+    included_variant_indices: np.ndarray
 
 
 @dataclasses.dataclass
@@ -550,4 +556,13 @@ def estimate_error_rate(
     if pi is None:
         pi = diversity.global_pi_per_bp
     fit = fit_error_model(mismatches, pi=pi, config=config)
-    return ErrorRateEstimate(doubletons, diversity, mismatches, fit, path, config)
+    return ErrorRateEstimate(
+        doubletons=doubletons,
+        diversity=diversity,
+        mismatches=mismatches,
+        fit=fit,
+        inference_path=path,
+        config=config,
+        included_positions=store.positions.copy(),
+        included_variant_indices=store.site_indices.copy(),
+    )

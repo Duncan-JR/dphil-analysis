@@ -30,6 +30,8 @@ from pathlib import Path
 import importlib
 import error_estimation
 import error_validation
+importlib.reload(error_validation)
+importlib.reload(error_estimation)
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -42,10 +44,10 @@ import zarr
 zarr_dir = Path(
     "~/work/tsinfer-anc-eval/data/error_eval/zarr_vcfs/"
 ).expanduser()
-zarr_prefix = "OutOfAfrica_4J17-chr17-L0-R22.7e6-n1500-s1-rep0"
+zarr_prefix = "OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0"
 ts_path = Path(
     "~/work/tsinfer-anc-eval/data/error_eval/simulated/"
-    "OutOfAfrica_4J17-chr17-L0-R22.7e6-n1500-s1-rep0.trees"
+    "OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees"
 ).expanduser()
 #zarr_dir = Path(
 #    "~/work/tsinfer-anc-eval/data/anc_eval/zarr_vcfs/"
@@ -172,8 +174,8 @@ def plot_error_estimates(frame, estimate_label, *, baseline_frame=None, title=No
 plot_error_estimates(fit_df, "Estimated (ascertained doubletons)")
 
 
-# %% [markdown]
-# ## Doubleton ascertainment testing
+# %%
+## Doubleton ascertainment testing
 
 # %%
 cutoff_proportions = [0.10, 0.25, 0.50,0.75]
@@ -908,7 +910,7 @@ tgp_estimate = error_estimation.estimate_error_rate(
     config=config,
     variant_mask_name=tgp_variant_masks,
 )
-tgp_estimate.fit
+tgp_estimate.fit.epsilon
 
 # %% [markdown]
 # The Johnsson et al. (2021) sex-averaged map uses Sscrofa11.1 coordinates.
@@ -944,7 +946,7 @@ pig_estimate = error_estimation.estimate_error_rate(
     config=config2,
     variant_mask_name=pig_variant_mask,
 )
-pig_estimate.fit
+pig_estimate.fit.epsilon
 
 # %% [markdown]
 # ### Pig chr18 site density and retained quality flags
@@ -1178,43 +1180,241 @@ fig
 # themselves distinguish technical error from population structure or a model
 # mismatch.
 
-# %%
-fit_df = pd.read_csv("../data/tmp/dphil-analysis-results.csv")
+# %% [markdown]
+# ## Using doubleton classifiers on real data
+#
+# Doubletons are sampled from each dataset's masked site list. Verify that the
+# selected-to-raw Zarr mapping used for one-sided features is the same mapping
+# used for the original mismatch summary. Then reuse each estimate's sampled
+# doubletons, global diversity and recombination rates for every classifier.
 
-fig, ax = plt.subplots(figsize=(7, 5), constrained_layout=True)
-ax.plot(
-    fit_df["error_multiplier"],
-    fit_df["true_error"],
-    marker="o",
-    label="True simulation error",
-)
-ax.plot(
-    fit_df["error_multiplier"],
-    fit_df["epsilon"],
-    marker="o",
-    label="Estimated (ascertained doubletons)",
-)
-ax.plot(
-    fit_df["error_multiplier"],
-    fit_df["true_doubleton_epsilon"],
-    marker="o",
-    label="Estimated (true doubletons)",
-)
-ax.axhline(
-    tgp_estimate.fit.epsilon,
-    color="tab:purple",
-    linestyle="--",
-    label="TGP chr17 estimate",
-)
-ax.axhline(
-    pig_estimate.fit.epsilon,
-    color="tab:brown",
-    linestyle="--",
-    label="Pig chr18 estimate",
-)
-ax.set_xlabel("Genotype error-rate multiplier")
-ax.set_ylabel("Errors per haplotype-bp")
-ax.set_title("Simulated and real-data error estimates")
-ax.legend()
+# %%
+real_datasets = {
+    "TGP chr17": (tgp_estimate, tgp_zarr_path, tgp_variant_masks),
+    "Pig chr18": (pig_estimate, pig_zarr_path, [pig_variant_mask]),
+}
+real_profiles = {}
+real_selections = {}
+real_rows = []
+for dataset, (estimate, zarr_path, mask_names) in real_datasets.items():
+    group = zarr.open_group(zarr_path, mode="r")
+    excluded_variants = np.zeros(group["variant_position"].shape[0], dtype=bool)
+    for mask_name in mask_names:
+        excluded_variants |= np.asarray(group[mask_name][:], dtype=bool)
+    expected_raw_indices = np.flatnonzero(~excluded_variants)
+    assert np.array_equal(estimate.included_variant_indices, expected_raw_indices)
+    raw_positions = np.asarray(group["variant_position"][:])
+    assert np.array_equal(
+        estimate.included_positions, raw_positions[expected_raw_indices]
+    )
+    assert np.array_equal(
+        estimate.doubletons.positions,
+        estimate.included_positions[estimate.doubletons.site_indices],
+    )
+
+    max_L = estimate.config.window_sizes[-1]
+    profiles = error_validation.cumulative_mismatch_profiles(
+        estimate, distances=np.array([max_L])
+    )
+    real_profiles[dataset] = profiles
+    assert profiles.is_true_doubleton is None
+    assert profiles.max_clean_count.shape == estimate.doubletons.positions.shape
+    assert profiles.max_first_mismatch_distance.shape == estimate.doubletons.positions.shape
+    assert np.array_equal(
+        profiles.max_left_count + profiles.max_right_count,
+        estimate.mismatches.counts[-1],
+    )
+
+    real_selections[dataset] = {}
+    for tier in classifier_tiers:
+        model = pooled_models[tier]
+        scores, retained = error_validation.classify_doubletons(
+            model, profiles, estimate.mismatches,
+            baseline_excluded=estimate.config.exclude_high_mismatch_proportion,
+        )
+        assert len(retained) == len(estimate.doubletons.positions)
+        real_selections[dataset][tier] = retained
+        if tier == "tier_0":
+            fitted = estimate.fit
+            assert fitted.num_doubletons == retained.sum()
+        else:
+            fitted = error_validation.fit_error_rate_with_selected_doubletons(
+                estimate, retained
+            )
+        real_rows.append({
+            "dataset": dataset,
+            "tier": tier,
+            "sampled_doubletons": len(retained),
+            "retained_doubletons": int(retained.sum()),
+            "excluded_doubletons": int((~retained).sum()),
+            "epsilon": fitted.epsilon,
+            "diversity": estimate.diversity.global_pi_per_bp,
+            "mu": fitted.mu,
+            "sigma_sq": fitted.sigma_sq,
+            "fit_success": fitted.success,
+            "first_mismatch_censored": int(
+                profiles.max_first_mismatch_censored.sum()
+            ),
+        })
+
+real_classifier_df = pd.DataFrame(real_rows)
+display(real_classifier_df)
+
+# %% [markdown]
+# ### Exclusions by predictor
+#
+# Tier 1 uses mismatch-free distance; Tier 1b uses clean-side count. The
+# overlap partitions describe their individual rules, while Tiers 2 and 3
+# combine the predictors and have no unique per-predictor attribution.
+
+# %%
+fig, axes = plt.subplots(2, 2, figsize=(14, 8), constrained_layout=True)
+for col, dataset in enumerate(real_datasets):
+    rows = real_classifier_df[real_classifier_df["dataset"] == dataset]
+    excluded_counts = [
+        rows.loc[rows["tier"] == tier, "excluded_doubletons"].iloc[0]
+        for tier in classifier_tiers
+    ]
+    labels = [classifier_labels[tier] for tier in classifier_tiers]
+    axes[0, col].bar(labels, excluded_counts)
+    axes[0, col].tick_params(axis="x", labelrotation=35)
+    axes[0, col].set_ylabel("Excluded doubletons")
+    axes[0, col].set_title(
+        f"{dataset}: exclusions by classifier (n = {rows['sampled_doubletons'].iloc[0]:,})"
+    )
+    for index, count in enumerate(excluded_counts):
+        axes[0, col].text(index, count, f"{count:,}", ha="center", va="bottom")
+
+    distance_excluded = ~real_selections[dataset]["tier_1"]
+    clean_excluded = ~real_selections[dataset]["tier_1b"]
+    overlap = [
+        ("Distance only", int((distance_excluded & ~clean_excluded).sum())),
+        ("Clean count only", int((~distance_excluded & clean_excluded).sum())),
+        ("Both", int((distance_excluded & clean_excluded).sum())),
+        ("Neither", int((~distance_excluded & ~clean_excluded).sum())),
+    ]
+    left = 0
+    for label, count in overlap:
+        axes[1, col].barh("Sampled doubletons", count, left=left, label=f"{label}: {count:,}")
+        left += count
+    axes[1, col].set_xlim(0, left)
+    axes[1, col].set_xlabel("Number of doubletons")
+    axes[1, col].set_title(f"{dataset}: overlap of one-predictor exclusions")
+    axes[1, col].legend(fontsize=8)
+fig.suptitle("Real-data doubleton exclusions from simulation-trained classifiers")
+fig
+
+# %%
+feature_sets = {
+    "Training simulations (1x, 5x, 10x)": np.concatenate([
+        error_validation.doubleton_features(profiles)
+        for profiles in pooled_training_profiles
+    ]),
+}
+for dataset, profiles in real_profiles.items():
+    feature_sets[dataset] = error_validation.doubleton_features(profiles)
+
+fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
+for label, features in feature_sets.items():
+    distance = np.sort(features[:, 0])
+    clean = np.sort(np.log1p(features[:, 1]))
+    ecdf = np.arange(1, len(features) + 1) / len(features)
+    axes[0].plot(distance, ecdf, label=label)
+    axes[1].plot(clean, ecdf, label=label)
+axes[0].set_xlabel("log10 longer first-mismatch distance (bp)")
+axes[1].set_xlabel("log1p max clean-side mismatch count")
+for ax in axes:
+    ax.set_ylabel("Fraction of sampled doubletons")
+    ax.legend(fontsize=8)
+fig.suptitle("Classifier predictor distributions in training and real data")
+
+
+# %% [markdown]
+# ### Error-model estimates by tier
+#
+# Diversity uses all variants retained by the dataset's site masks, so it is
+# the same for every doubleton classifier. Tier 1b remains in the results
+# table above as an independent predictor check; these figures show the four
+# numbered tiers requested for comparison.
+# The real-data predictor distributions differ from those in the training
+# simulations. In particular, the pig clean-count rule excludes many more
+# doubletons than the distance-only rule. The large changes in pig epsilon and
+# sigma-squared across tiers are fit sensitivity, not validation of the
+# simulation-trained classifier on that dataset. With the current masks, Tier
+# 3 retains 8,369 TGP and 4,454 pig doubletons; the corresponding epsilon fits
+# are approximately 1.08e-5 and 1.71e-5 errors per haplotype-bp. TGP has
+# 1,008 first-mismatch distances censored at 1 Mb, compared with 10 in pig.
+# These shifts may reflect genotype quality, population structure, or model
+# transfer; they do not identify the real error rate without external truth.
+
+# %%
+def plot_real_classifier_estimates(results, dataset):
+    """Compare the four numbered doubleton-selection tiers for one dataset."""
+    tiers = ["tier_0", "tier_1", "tier_2", "tier_3"]
+    selected = results[results["dataset"] == dataset].set_index("tier").loc[tiers]
+    labels = [f"Tier {tier[-1]}\n(n={n:,})" for tier, n in zip(
+        tiers, selected["retained_doubletons"]
+    )]
+    quantities = [
+        ("epsilon", "Genotype error rate", "Errors per haplotype-bp"),
+        ("diversity", "Diversity", "Diversity per bp"),
+        ("mu", "Gamma mean", r"Estimated $\mu$"),
+        ("sigma_sq", "Gamma variance", r"Estimated $\sigma^2$"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(11, 8), constrained_layout=True)
+    for ax, (column, heading, ylabel) in zip(axes.flat, quantities):
+        ax.plot(labels, selected[column], marker="o")
+        ax.set_title(heading)
+        ax.set_ylabel(ylabel)
+        if column == "sigma_sq":
+            ax.set_yscale("log")
+    fig.suptitle(f"{dataset}: error-model estimates by doubleton-selection tier")
+
+
+for dataset in real_datasets:
+    display(plot_real_classifier_estimates(real_classifier_df, dataset))
+
+# %% [markdown]
+# ### Real Tier 3 epsilon against simulation estimates
+#
+# The horizontal lines show the fitted values on the real datasets. The
+# simulated multiplier is a reference axis, not an inferred real-data error
+# multiplier.
+
+# %%
+fig, (ax, zoom_ax) = plt.subplots(1, 2, figsize=(13, 5), constrained_layout=True)
+simulation_curves = [
+    (fit_df, "true_error", "True simulation error"),
+    (fit_df, "epsilon", "Estimated (ascertained doubletons)"),
+    (fit_df, "true_doubleton_epsilon", "Estimated (fixed true doubletons)"),
+    (selected_fit_df, "epsilon", "Estimated (Tier 2 doubletons)"),
+]
+for frame, column, label in simulation_curves:
+    ax.plot(frame["error_multiplier"], frame[column], marker="o", label=label)
+    zoom_ax.plot(frame["error_multiplier"], frame[column], marker="o", markersize=3)
+real_epsilon_values = {}
+for dataset, color in [("TGP chr17", "tab:purple"), ("Pig chr18", "tab:brown")]:
+    epsilon = real_classifier_df.loc[
+        (real_classifier_df["dataset"] == dataset)
+        & (real_classifier_df["tier"] == "tier_2"),
+        "epsilon",
+    ].iloc[0]
+    real_epsilon_values[dataset] = epsilon
+    ax.axhline(epsilon, color=color, linestyle="--", label=f"{dataset} Tier 2")
+    zoom_ax.axhline(epsilon, color=color, linestyle="--")
+zoom_ax.set_xlim(-0.1, 2.5)
+zoom_ax.set_ylim(0, 2.5 * max(real_epsilon_values.values()))
+ax.set_title("Full range")
+zoom_ax.set_title("Low-error range")
+for panel in (ax, zoom_ax):
+    panel.set_xlabel("Genotype error-rate multiplier in simulation")
+    panel.set_ylabel("Errors per haplotype-bp")
+ax.legend(fontsize=8)
+fig.suptitle("Simulated and real-data error estimates")
+fig
+
+# %%
+
+# %%
 
 # %%

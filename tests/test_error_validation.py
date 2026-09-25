@@ -58,7 +58,11 @@ class TestCumulativeMismatchProfiles:
         )
         config = types.SimpleNamespace(window_sizes=np.array([20.0, 100.0]))
         estimate = types.SimpleNamespace(
-            inference_path=str(path), config=config, doubletons=doubletons
+            inference_path=str(path),
+            config=config,
+            doubletons=doubletons,
+            included_positions=positions,
+            included_variant_indices=np.arange(len(positions)),
         )
         profiles = error_validation.cumulative_mismatch_profiles(
             estimate, path, distances=np.array([20.0, 60.0, 100.0])

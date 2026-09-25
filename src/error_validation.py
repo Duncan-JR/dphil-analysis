@@ -24,7 +24,7 @@ class CumulativeMismatchProfiles:
     distances: np.ndarray
     left_count: np.ndarray
     right_count: np.ndarray
-    is_true_doubleton: np.ndarray
+    is_true_doubleton: np.ndarray | None
     left_first_mismatch_distance: np.ndarray
     right_first_mismatch_distance: np.ndarray
     left_first_mismatch_censored: np.ndarray
@@ -321,14 +321,14 @@ def get_true_doubleton_mask(doubletons, truth_zarr_path):
 
 def cumulative_mismatch_profiles(
     estimate,
-    truth_zarr_path,
+    truth_zarr_path=None,
     *,
     distances=None,
 ):
     """Reread bounded genotype chunks for one-sided validation profiles.
 
     ``distances`` is independent of the fitting windows and must end at max_L.
-    The truth store uses the same raw site indexing as the simulation store.
+    The truth store is optional for datasets without known doubleton labels.
     """
     max_L = float(estimate.config.window_sizes[-1])
     if distances is None:
@@ -344,9 +344,9 @@ def cumulative_mismatch_profiles(
     ):
         raise ValueError("distances must increase from positive values to max_L")
 
-    store = error_estimation._open_store(estimate.inference_path)
     doubletons = estimate.doubletons
-    positions = store.positions
+    positions = estimate.included_positions
+    raw_site_indices = estimate.included_variant_indices
     focal = doubletons.site_indices
     if not np.array_equal(positions[focal], doubletons.positions):
         raise ValueError("Selected variants do not match the estimate")
@@ -357,7 +357,7 @@ def cumulative_mismatch_profiles(
     right = np.searchsorted(
         positions, focal_positions[None, :] + distances[:, None], side="right"
     )
-    genotype = store.group["call_genotype"]
+    genotype = zarr.open_group(estimate.inference_path, mode="r")["call_genotype"]
     carriers = doubletons.sample_indices * genotype.shape[2] + doubletons.ploidy_indices
     num_doubletons = len(focal)
     shape = (len(distances), num_doubletons)
@@ -375,7 +375,7 @@ def cumulative_mismatch_profiles(
         last = np.searchsorted(left[-1], stop, side="left")
         if first == last:
             continue
-        selected_sites = store.site_indices[start:stop]
+        selected_sites = raw_site_indices[start:stop]
         selection = (selected_sites, slice(None), slice(None))
         block = np.asarray(genotype.get_orthogonal_selection(selection))
         block = block.reshape(stop - start, -1)
@@ -419,7 +419,9 @@ def cumulative_mismatch_profiles(
     right_censored = np.isinf(right_first)
     left_first[left_censored] = max_L
     right_first[right_censored] = max_L
-    is_true = get_true_doubleton_mask(doubletons, truth_zarr_path)
+    is_true = None
+    if truth_zarr_path is not None:
+        is_true = get_true_doubleton_mask(doubletons, truth_zarr_path)
     return CumulativeMismatchProfiles(
         distances=distances,
         left_count=left_count,
