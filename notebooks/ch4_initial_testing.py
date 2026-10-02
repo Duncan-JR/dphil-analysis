@@ -1384,10 +1384,9 @@ for dataset in real_datasets:
 # %%
 fig, (ax, zoom_ax) = plt.subplots(1, 2, figsize=(13, 5), constrained_layout=True)
 simulation_curves = [
-    (fit_df, "true_error", "True simulation error"),
-    (fit_df, "epsilon", "Estimated (ascertained doubletons)"),
-    (fit_df, "true_doubleton_epsilon", "Estimated (fixed true doubletons)"),
-    (selected_fit_df, "epsilon", "Estimated (Tier 2 doubletons)"),
+    (fit_df, "true_error", "True error in simulation"),
+    (fit_df, "true_doubleton_epsilon", "Estimated error in simulation (fixed true doubletons)"),
+    (selected_fit_df, "epsilon", "Estimated error in simulation (ascertained doubletons)"),
 ]
 for frame, column, label in simulation_curves:
     ax.plot(frame["error_multiplier"], frame[column], marker="o", label=label)
@@ -1400,7 +1399,7 @@ for dataset, color in [("TGP chr17", "tab:purple"), ("Pig chr18", "tab:brown")]:
         "epsilon",
     ].iloc[0]
     real_epsilon_values[dataset] = epsilon
-    ax.axhline(epsilon, color=color, linestyle="--", label=f"{dataset} Tier 2")
+    ax.axhline(epsilon, color=color, linestyle="--", label=f"{dataset}")
     zoom_ax.axhline(epsilon, color=color, linestyle="--")
 zoom_ax.set_xlim(-0.1, 2.5)
 zoom_ax.set_ylim(0, 2.5 * max(real_epsilon_values.values()))
@@ -1410,7 +1409,7 @@ for panel in (ax, zoom_ax):
     panel.set_xlabel("Genotype error-rate multiplier in simulation")
     panel.set_ylabel("Errors per haplotype-bp")
 ax.legend(fontsize=8)
-fig.suptitle("Simulated and real-data error estimates")
+fig.suptitle("Comparison: Simulated vs. real-data error estimates")
 fig
 
 # %%
