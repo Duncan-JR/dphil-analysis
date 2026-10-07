@@ -1,9 +1,8 @@
-"""Site-weighted focal-chunk coverage, independent of HMM copying paths.
+"""Site-weighted focal-ancestor interval coverage, independent of HMM paths.
 
-Read the match-eval products with :func:`load_coverage_data`, then sweep each
-haplotype with :func:`summarise_coverage`. Retain only the lowest carried focal
-site's chunk for each ancestor and haplotype at each budget. All denominators
-use the inferred panel's complete site axis, including uncovered sites.
+Read raw match-eval intervals with :func:`load_coverage_data`, then sweep each
+haplotype with :func:`summarise_coverage`. Generation chooses one leftmost focal
+anchor per association. Denominators include the panel's complete site axis.
 """
 
 import dataclasses
@@ -21,12 +20,16 @@ logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass
 class CoverageData:
-    """Selected chunks and the full haplotype roster, including empty candidates."""
+    """Raw associations and the full haplotype roster, including empty candidates."""
 
     dataset: str
     num_sites: int
     haplotypes: pl.DataFrame
-    chunks: pl.DataFrame
+    offsets: np.ndarray
+    focal_ac: np.ndarray
+    left_site_index: np.ndarray
+    right_site_index: np.ndarray
+    max_ac: int
     mismatch_budgets: list[int]
     first_position: int
     last_position: int
@@ -136,15 +139,13 @@ def load_coverage_data(
     max_mismatches: list[int],
     truth_ts_path: pathlib.Path | None = None,
 ) -> CoverageData:
-    """Read only site bounds and requested AC/budget rows using Polars.
+    """Load compact intervals and select requested budget columns without repacking.
 
-    Identities come from the focal NPZ, never from the chunk rows. Population
-    labels come from the statistics CSV (which includes every haplotype), or
-    from the original simulation TS via :func:`_truth_populations`. Site bounds
-    are already zero-based and half-open; no BP-to-site conversion is needed.
-    ``max_mismatches`` selects exact source budgets, each allowing k per side.
-    Multiple focal seeds for one ancestor are reduced to the lowest carried
-    focal-site index, consistently across budgets; their intervals are not merged.
+    Validate the archive roster against the focal NPZ and site count against
+    the panel. Population labels come from the statistics CSV or the original
+    simulation TS via :func:`_truth_populations`. Exact AC arrays are retained;
+    :func:`summarise_coverage` applies inclusive cumulative analysis cutoffs.
+    Requested limits must be within those used to generate the archive.
     """
     if len(max_mismatches) == 0 or any(budget < 0 for budget in max_mismatches):
         raise ValueError("Select at least one nonnegative mismatch budget")
@@ -159,6 +160,78 @@ def load_coverage_data(
         haplotypes = pl.DataFrame(
             {"sample_id": focal["sample_id"], "ploidy_index": focal["ploidy_index"]}
         )
+    archive_path = (
+        data_dir
+        / "haplotype_intervals"
+        / f"{dataset}_inferred_focal_ancestor_intervals.npz"
+    )
+    with np.load(archive_path, allow_pickle=False) as archive:
+        sample_ids = archive["sample_id"]
+        ploidy_indices = archive["ploidy_index"]
+        if sample_ids.ndim != 1 or sample_ids.dtype.kind != "U":
+            raise ValueError("Interval archive sample_id must be a Unicode roster")
+        for name, expected in (
+            ("sample_id", haplotypes["sample_id"].to_numpy()),
+            ("ploidy_index", haplotypes["ploidy_index"].to_numpy()),
+        ):
+            if not np.array_equal(archive[name], expected):
+                raise ValueError(
+                    f"Interval archive {name} disagrees with focal NPZ roster"
+                )
+        for name in (
+            "ploidy_index",
+            "offsets",
+            "focal_ac",
+            "left_site_index",
+            "right_site_index",
+            "num_sites",
+            "max_ac_cutoff",
+            "max_mismatches",
+        ):
+            if archive[name].dtype != np.dtype("int64"):
+                raise ValueError(f"Interval archive {name} must use int64")
+        for name in ("num_sites", "max_ac_cutoff", "max_mismatches"):
+            if archive[name].shape != ():
+                raise ValueError(f"Interval archive {name} must be scalar")
+        if int(archive["num_sites"]) != num_sites:
+            raise ValueError("Interval archive site count disagrees with panel")
+        generated_ac = int(archive["max_ac_cutoff"])
+        generated_budget = int(archive["max_mismatches"])
+        if generated_ac < 1 or generated_budget < 0:
+            raise ValueError("Interval archive generation limits are invalid")
+        if max_ac < 1 or max_ac > generated_ac:
+            raise ValueError(
+                "Requested AC limit exceeds interval archive generation limit"
+            )
+        missing = sorted(set(max_mismatches) - set(range(generated_budget + 1)))
+        if len(missing) > 0:
+            raise ValueError(f"Interval archive lacks mismatch budgets {missing}")
+        offsets = archive["offsets"]
+        counts = archive["focal_ac"]
+        left = archive["left_site_index"]
+        right = archive["right_site_index"]
+        if counts.ndim != 1 or ploidy_indices.shape != sample_ids.shape:
+            raise ValueError(
+                "Interval archive association/roster dimensions are invalid"
+            )
+        if (
+            offsets.shape != (haplotypes.height + 1,)
+            or offsets[0] != 0
+            or offsets[-1] != len(counts)
+            or np.any(np.diff(offsets) < 0)
+        ):
+            raise ValueError("Interval archive has invalid ragged offsets")
+        shape = (len(counts), generated_budget + 1)
+        if left.shape != shape or right.shape != shape:
+            raise ValueError("Interval archive bounds have invalid dimensions")
+        if np.any((counts < 1) | (counts > generated_ac)):
+            raise ValueError("Interval archive focal AC is outside its generation limit")
+        if np.any((left < 0) | (left >= right) | (right > num_sites)):
+            raise ValueError(
+                "Interval archive bounds must satisfy 0 <= left < right <= num_sites"
+            )
+        left = left[:, max_mismatches]
+        right = right[:, max_mismatches]
     keys = ["sample_id", "ploidy_index"]
     if haplotypes.unique(keys).height != haplotypes.height:
         raise ValueError("Focal NPZ has duplicate haplotype identities")
@@ -179,70 +252,37 @@ def load_coverage_data(
         raise ValueError("Every haplotype must have a population label")
     haplotypes = haplotypes.with_row_index("haplotype_index")
 
-    chunks_path = (
-        data_dir / "dataframes" / f"{dataset}_inferred_focal_ancestor_chunks.csv"
-    )
-    source = pl.scan_csv(chunks_path, schema_overrides={"sample_id": pl.String})
-    available = source.select("max_mismatches").unique().collect()
-    missing = set(max_mismatches) - set(available["max_mismatches"].to_list())
-    if len(missing) > 0:
-        raise ValueError(f"Chunk CSV lacks mismatch budgets {sorted(missing)}")
-    selected = source.filter(
-        (pl.col("focal_ac") >= 2)
-        & (pl.col("focal_ac") <= max_ac)
-        & pl.col("max_mismatches").is_in(max_mismatches)
-    )
-    chunk_keys = [*keys, "ancestor_index", "max_mismatches"]
-    selected = selected.select(
-        *chunk_keys,
-        "focal_site_index",
-        "focal_ac",
-        "left_site_index",
-        "right_site_index",
-    )
-    selected = selected.sort("focal_site_index").unique(subset=chunk_keys, keep="first")
-    chunks = selected.collect(engine="streaming")
-    chunks = chunks.join(
-        haplotypes.select(*keys, "haplotype_index"),
-        on=keys,
-        how="left",
-        validate="m:1",
-    )
-    if chunks["haplotype_index"].null_count() > 0:
-        raise ValueError("Chunk CSV contains haplotypes absent from the focal NPZ")
-    invalid_bounds = chunks.filter(
-        (pl.col("left_site_index") < 0)
-        | (pl.col("right_site_index") > num_sites)
-        | (pl.col("left_site_index") >= pl.col("right_site_index"))
-    )
-    if invalid_bounds.height > 0:
-        raise ValueError("Chunk bounds must satisfy 0 <= left < right <= num_sites")
     logger.info(
-        "Loaded %s: %d sites, %d haplotypes, %d chunks",
+        "Loaded %s: %d sites, %d haplotypes, %d associations, budgets %s",
         dataset,
         num_sites,
         haplotypes.height,
-        chunks.height,
+        len(counts),
+        max_mismatches,
     )
     return CoverageData(
-        dataset,
-        num_sites,
-        haplotypes,
-        chunks,
-        list(max_mismatches),
-        int(positions[0]),
-        int(positions[-1]),
+        dataset=dataset,
+        num_sites=num_sites,
+        haplotypes=haplotypes,
+        offsets=offsets,
+        focal_ac=counts,
+        left_site_index=left,
+        right_site_index=right,
+        max_ac=max_ac,
+        mismatch_budgets=list(max_mismatches),
+        first_position=int(positions[0]),
+        last_position=int(positions[-1]),
     )
 
 
 def _sweep_haplotype(task: SweepTask) -> SweepResult:
-    """Sweep sorted endpoints, updating cumulative AC eligibility once per chunk.
+    """Sweep sorted endpoints, updating cumulative AC eligibility once per association.
 
     Coverage is constant between successive endpoints. Segment lengths are
     counts of sites, so histogram weights give exact order statistics without
     allocating a per-site coverage vector. Quantiles match NumPy's default
     linear interpolation on that conceptual vector, including zero coverage.
-    Time is O(C log C + B E), memory O(C + E + max coverage), for C chunks,
+    Time is O(C log C + B E), memory O(C + E + max coverage), for C associations,
     B cutoffs and E distinct endpoints; neither depends on BP length.
     """
     endpoints = np.concatenate(([0, task.num_sites], task.left, task.right))
@@ -287,22 +327,24 @@ def _sweep_haplotype(task: SweepTask) -> SweepResult:
     return SweepResult(task.haplotype_index, records)
 
 
-def _sweep_tasks(data: CoverageData, chunks: pl.DataFrame, cutoffs: np.ndarray):
-    """Slice sorted numeric columns into disjoint haplotype queue tasks."""
-    indices = chunks["haplotype_index"].to_numpy()
-    counts = chunks["focal_ac"].to_numpy()
-    left = chunks["left_site_index"].to_numpy()
-    right = chunks["right_site_index"].to_numpy()
+def _sweep_tasks(data: CoverageData, budget_column: int, cutoffs: np.ndarray):
+    """Sort ragged associations by exact AC, keeping chapter 5's AC >= 2 convention."""
     for index in range(data.haplotypes.height):
-        start = int(np.searchsorted(indices, index, side="left"))
-        stop = int(np.searchsorted(indices, index, side="right"))
+        start = data.offsets[index]
+        stop = data.offsets[index + 1]
+        counts = data.focal_ac[start:stop]
+        eligible = np.flatnonzero(counts >= 2)
+        order = np.argsort(counts[eligible], kind="stable")
+        selected = eligible[order]
+        left = data.left_site_index[start:stop, budget_column]
+        right = data.right_site_index[start:stop, budget_column]
         yield SweepTask(
             index,
             data.num_sites,
             cutoffs,
-            counts[start:stop],
-            left[start:stop],
-            right[start:stop],
+            counts[selected],
+            left[selected],
+            right[selected],
         )
 
 
@@ -314,6 +356,8 @@ def summarise_coverage(
 ) -> pl.DataFrame:
     """Return per-haplotype statistics for inclusive maximum focal AC thresholds.
 
+    As in the original chapter 5 analysis, AC=1 associations do not contribute.
+    They remain available in the raw archive and loaded arrays.
     ``workers=None`` uses all available CPUs, capped by the haplotype count.
     Spawned workers consume independent numeric tasks through Pool queues;
     ``workers=1`` runs the same sweep locally. See :func:`_sweep_haplotype` for
@@ -327,15 +371,16 @@ def summarise_coverage(
     if np.any(cutoffs < 2) or np.any(np.diff(cutoffs) <= 0):
         raise ValueError("cutoffs must be strictly increasing and >= 2")
     if max_mismatches not in data.mismatch_budgets:
-        raise ValueError("Reload chunks with the requested mismatch budget")
+        raise ValueError("Reload intervals with the requested mismatch budget")
+    if cutoffs[-1] > data.max_ac:
+        raise ValueError("Summary cutoffs exceed the loaded analysis AC limit")
     if workers is None:
         workers = multiprocessing.cpu_count()
     if workers < 1:
         raise ValueError("workers must be >= 1")
     workers = min(workers, data.haplotypes.height)
-    chunks = data.chunks.filter(pl.col("max_mismatches") == max_mismatches)
-    chunks = chunks.sort("haplotype_index", "focal_ac")
-    tasks = _sweep_tasks(data, chunks, cutoffs)
+    budget_column = data.mismatch_budgets.index(max_mismatches)
+    tasks = _sweep_tasks(data, budget_column, cutoffs)
     if workers == 1:
         results = list(map(_sweep_haplotype, tasks))
     else:

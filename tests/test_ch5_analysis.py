@@ -1,4 +1,4 @@
-"""Check sparse sweeps against explicit site coverage and source deduplication."""
+"""Check sparse sweeps against explicit site coverage and raw interval loading."""
 
 import ch5_analysis
 import numpy as np
@@ -17,17 +17,20 @@ def coverage_data():
             "population": ["A", "A", "B"],
         }
     )
-    chunks = pl.DataFrame(
-        {
-            "haplotype_index": [0, 0, 0, 1, 0, 0, 0, 1],
-            "focal_ac": [2, 3, 6, 2, 2, 3, 6, 2],
-            "max_mismatches": [0, 0, 0, 0, 1, 1, 1, 1],
-            "left_site_index": [0, 3, 5, 0, 0, 2, 4, 0],
-            "right_site_index": [4, 5, 10, 10, 5, 7, 10, 10],
-        }
-    )
     return ch5_analysis.CoverageData(
-        "fixture", 10, haplotypes, chunks, [0, 1], 10, 10000
+        dataset="fixture",
+        num_sites=10,
+        haplotypes=haplotypes,
+        offsets=np.array([0, 5, 6, 6], dtype=np.int64),
+        focal_ac=np.array([6, 2, 3, 2, 1, 2], dtype=np.int64),
+        left_site_index=np.array([[5, 4], [0, 0], [3, 2], [0, 0], [0, 0], [0, 0]]),
+        right_site_index=np.array(
+            [[10, 10], [4, 5], [5, 7], [4, 5], [10, 10], [10, 10]]
+        ),
+        max_ac=200,
+        mismatch_budgets=[0, 1],
+        first_position=10,
+        last_position=10000,
     )
 
 
@@ -45,14 +48,14 @@ class TestCoverageSweep:
                 & (pl.col("ploidy_index") == row["ploidy_index"])
             )
             index = sample["haplotype_index"].item()
-            chunks = coverage_data.chunks.filter(
-                (pl.col("haplotype_index") == index)
-                & (pl.col("max_mismatches") == budget)
-                & (pl.col("focal_ac") <= row["focal_ac"])
-            )
+            start = coverage_data.offsets[index]
+            stop = coverage_data.offsets[index + 1]
             oracle = np.zeros(coverage_data.num_sites, dtype=int)
-            for chunk in chunks.iter_rows(named=True):
-                oracle[chunk["left_site_index"] : chunk["right_site_index"]] += 1
+            for association in range(start, stop):
+                if 2 <= coverage_data.focal_ac[association] <= row["focal_ac"]:
+                    left = coverage_data.left_site_index[association, budget]
+                    right = coverage_data.right_site_index[association, budget]
+                    oracle[left:right] += 1
             assert row["mean_coverage"] == oracle.mean()
             assert row["min_coverage"] == oracle.min()
             assert row["max_coverage"] == oracle.max()
@@ -68,8 +71,11 @@ class TestCoverageSweep:
         parallel = ch5_analysis.summarise_coverage(coverage_data, cutoffs, workers=2)
         assert serial.equals(parallel)
 
-    def test_all_empty_chunks_preserve_haplotypes(self, coverage_data):
-        coverage_data.chunks = coverage_data.chunks.head(0)
+    def test_all_empty_associations_preserve_haplotypes(self, coverage_data):
+        coverage_data.offsets[:] = 0
+        coverage_data.focal_ac = np.empty(0, dtype=np.int64)
+        coverage_data.left_site_index = np.empty((0, 2), dtype=np.int64)
+        coverage_data.right_site_index = np.empty((0, 2), dtype=np.int64)
         actual = ch5_analysis.summarise_coverage(
             coverage_data, np.array([2, 200]), workers=1
         )
@@ -102,7 +108,12 @@ class TestCoverageSweep:
 @pytest.fixture
 def dataset_dir(tmp_path):
     dataset = "fixture"
-    for directory in ["ancestors", "focal_ancestors", "dataframes"]:
+    for directory in [
+        "ancestors",
+        "focal_ancestors",
+        "dataframes",
+        "haplotype_intervals",
+    ]:
         (tmp_path / directory).mkdir()
     panel_path = tmp_path / "ancestors" / f"{dataset}_inferred_ancestors.zarr"
     panel = zarr.open_group(panel_path, mode="w")
@@ -119,38 +130,74 @@ def dataset_dir(tmp_path):
     stats.write_csv(
         tmp_path / "dataframes" / f"{dataset}_inferred_focal_ancestor_stats.csv"
     )
-    chunks = pl.DataFrame(
-        {
-            "sample_id": ["s0"] * 5,
-            "ploidy_index": [0] * 5,
-            "ancestor_index": [0, 0, 0, 0, 1],
-            "focal_site_index": [2, 0, 2, 0, 1],
-            "focal_ac": [2, 2, 2, 2, 3],
-            "max_mismatches": [0, 0, 1, 1, 0],
-            "left_site_index": [2, 0, 1, 0, 1],
-            "right_site_index": [4, 1, 4, 2, 3],
-        }
-    )
-    chunks.write_csv(
-        tmp_path / "dataframes" / f"{dataset}_inferred_focal_ancestor_chunks.csv"
+    np.savez_compressed(
+        tmp_path
+        / "haplotype_intervals"
+        / f"{dataset}_inferred_focal_ancestor_intervals.npz",
+        sample_id=np.array(["s0", "s0", "s1"]),
+        ploidy_index=np.array([0, 1, 0], dtype=np.int64),
+        offsets=np.array([0, 2, 2, 2], dtype=np.int64),
+        focal_ac=np.array([2, 3], dtype=np.int64),
+        left_site_index=np.array([[0, 0], [1, 1]], dtype=np.int64),
+        right_site_index=np.array([[1, 2], [3, 3]], dtype=np.int64),
+        num_sites=np.int64(4),
+        max_ac_cutoff=np.int64(200),
+        max_mismatches=np.int64(1),
     )
     return tmp_path
 
 
 class TestLoadCoverageData:
-    def test_one_consistent_focal_per_ancestor_and_budget(self, dataset_dir):
+    def test_raw_associations_and_budget_columns(self, dataset_dir):
         data = ch5_analysis.load_coverage_data(dataset_dir, "fixture", 200, [0, 1])
         assert data.num_sites == 4
         assert data.haplotypes.height == 3
-        assert data.chunks.height == 3
-        first_ancestor = data.chunks.filter(pl.col("ancestor_index") == 0)
-        assert first_ancestor["focal_site_index"].to_list() == [0, 0]
+        np.testing.assert_array_equal(data.offsets, [0, 2, 2, 2])
+        np.testing.assert_array_equal(data.focal_ac, [2, 3])
+        np.testing.assert_array_equal(data.left_site_index, [[0, 0], [1, 1]])
+        np.testing.assert_array_equal(data.right_site_index, [[1, 2], [3, 3]])
+        assert data.mismatch_budgets == [0, 1]
+        assert data.max_ac == 200
+        subset = ch5_analysis.load_coverage_data(dataset_dir, "fixture", 2, [1])
+        np.testing.assert_array_equal(subset.offsets, data.offsets)
+        np.testing.assert_array_equal(subset.focal_ac, data.focal_ac)
+        np.testing.assert_array_equal(subset.right_site_index, [[2], [3]])
+        assert subset.mismatch_budgets == [1]
+        with pytest.raises(ValueError, match="loaded analysis AC limit"):
+            ch5_analysis.summarise_coverage(subset, np.array([2, 3]), 1, workers=1)
         actual = ch5_analysis.summarise_coverage(data, np.array([2, 3]), workers=1)
         sample = actual.filter(
             (pl.col("sample_id") == "s0") & (pl.col("ploidy_index") == 0)
         )
         assert sample["fraction_covered"].to_list() == [0.25, 0.75]
         assert sample["max_coverage"].to_list() == [1, 1]
+
+    def test_excess_ac_is_reported(self, dataset_dir):
+        with pytest.raises(ValueError, match="generation limit"):
+            ch5_analysis.load_coverage_data(dataset_dir, "fixture", 201, [0])
+
+    @pytest.mark.parametrize(
+        "field,value,message",
+        [
+            ("offsets", np.array([0, 2, 1, 2]), "ragged offsets"),
+            ("sample_id", np.array(["wrong", "s0", "s1"]), "roster"),
+            ("num_sites", np.int64(5), "site count"),
+            ("left_site_index", np.array([[-1, 0], [1, 1]]), "bounds must satisfy"),
+            ("right_site_index", np.array([[1], [3]]), "dimensions"),
+        ],
+    )
+    def test_invalid_archive_is_reported(self, dataset_dir, field, value, message):
+        path = (
+            dataset_dir
+            / "haplotype_intervals"
+            / "fixture_inferred_focal_ancestor_intervals.npz"
+        )
+        with np.load(path, allow_pickle=False) as archive:
+            arrays = dict(archive)
+        arrays[field] = value
+        np.savez_compressed(path, **arrays)
+        with pytest.raises(ValueError, match=message):
+            ch5_analysis.load_coverage_data(dataset_dir, "fixture", 200, [0])
 
     def test_missing_budget_is_reported(self, dataset_dir):
         with pytest.raises(ValueError, match="lacks mismatch budgets"):

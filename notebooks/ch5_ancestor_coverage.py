@@ -52,8 +52,11 @@ cutoffs = np.union1d(cutoffs, histogram_ac_cutoffs)
 print("Maximum focal AC thresholds:", cutoffs)
 
 # %% [markdown]
-# ## Prepare one chunk per ancestor and sample haplotype
+# ## Load raw focal-ancestor intervals
 #
+# Generation anchors each association at its ancestor's leftmost non-padding
+# focal position, before comparison. Load exact AC and ragged interval arrays;
+# the analysis applies inclusive AC cutoffs without choosing focal seeds.
 
 # %%
 coverage_inputs = {}
@@ -72,7 +75,7 @@ for label, dataset in dataset_names.items():
     timings.append(
         {
             "dataset": label,
-            "stage": "load_and_select",
+            "stage": "load_intervals",
             "seconds": time.perf_counter() - started,
         }
     )
@@ -80,7 +83,7 @@ for label, dataset in dataset_names.items():
         f"{label}: {data.num_sites:,} inference sites, "
         f"{data.haplotypes.height} haplotypes, "
         f"positions {data.first_position:,}–{data.last_position:,}, "
-        f"{data.chunks.height:,} selected chunks across budgets"
+        f"{len(data.focal_ac):,} associations; budgets {data.mismatch_budgets}"
     )
     print(data.haplotypes.group_by("population").len().sort("population"))
 
@@ -89,9 +92,10 @@ for label, dataset in dataset_names.items():
 #
 # Half-open site intervals `[left_site_index, right_site_index)` contribute +1
 # at their left endpoint and −1 at their right endpoint. The sweep groups equal
-# endpoints and incrementally adds chunks with `2 ≤ focal_ac ≤ cutoff`. Constant
+# endpoints and incrementally adds associations with `2 ≤ focal_ac ≤ cutoff`,
+# retaining the existing chapter 5 AC minimum. Constant
 # coverage segments are weighted by their number of sites, including zero
-# coverage outside chunks. Each independent haplotype is a multiprocessing task.
+# coverage outside intervals. Each independent haplotype is a multiprocessing task.
 #
 # The result records mean, minimum, maximum, 5th and 95th percentiles, and the
 # fraction of sites with coverage > 0 for every haplotype, AC cutoff and budget.
@@ -185,8 +189,8 @@ def plot_population_coverage(budget):
 # %% [markdown]
 # ## max_mismatches = 0
 #
-# Exact-match chunks: fraction covered above, mean of each haplotype's minimum
-# coverage below. Coverage includes every inference site in the denominator.
+# Exact-match intervals: fraction covered above, mean site coverage below.
+# Coverage includes every inference site in the denominator.
 
 # %%
 figure_k0 = plot_population_coverage(0)
