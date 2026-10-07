@@ -1,0 +1,39 @@
+experiment_config: chunk_matching_config.yaml
+datasets:
+  - name: out_of_africa_n300_1mbp
+    label: Simulation, 300 individuals, 1 Mb
+    deep_dive:
+      sample_id: tsk_0
+      ploidy_index: 0
+  - name: tgp_chr20_n100
+    label: 1KGP chromosome 20, 100 individuals, 10 Mb
+    deep_dive:
+      sample_id: NA18582
+      ploidy_index: 0
+detail:
+  context_sites: 25
+  max_sites: 240
+  min_agreement_gap_sites: 5
+distance_bin_edges: [0, 1, 2, 5, 10, 20, 50, 100, 250, 500, 1000, 5000, 100000]
+plot:
+  dpi: 120
+  font_size: 10
+  genome_unit_bp: 1000000
+  genome_unit_label: Mb
+  detail_unit_bp: 1000
+  detail_unit_label: kb
+  terminal_site_width_bp: 1
+  cohort_figsize: [16, 8]
+  tracks_figsize: [16, 7]
+  overview_figsize: [16, 7]
+  detail_figsize: [16, 7]
+  parent_row_height_in: 0.24
+  distance_figsize: [16, 4]
+  category_labels: [Focal / agree, Focal / differ, Gap fill / agree, Gap fill / differ]
+  category_colors: ['#009E73', '#CC79A7', '#56B4E9', '#D55E00']
+  source_labels: [Retained focal, Full-reference gap fill]
+  source_colors: ['#B8DED4', '#FFE3A3']
+  switch_labels: [Within focal coverage, Within gaps, At focal/gap seams]
+  switch_colors: ['#009E73', '#E69F00', '#7B61A8']
+  full_color: '#222222'
+  stitched_color: '#6A3D9A'
