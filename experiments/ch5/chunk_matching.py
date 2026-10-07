@@ -1,6 +1,6 @@
-"""Compare independently stitched focal/gap matches with whole-reference matches.
+"""Compare zero-coverage gap stitching with whole-reference HMM matches.
 
-Run with the tsinfer-match-eval environment and --config chunk_matching_config.yaml.
+Run with PYTHONPATH=src in the tsinfer-match-eval environment; see README.md.
 Inputs are local copies of existing pipeline products; TOML paths are never followed.
 Canonical alleles in the JSONL mutation records are integers (0 ancestral, 1 derived),
 as in tsinfer's native match records. All interval diagnostics use site indices.
@@ -21,6 +21,8 @@ import tsinfer
 import tskit
 import yaml
 
+import ch5_stitching
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,8 +32,20 @@ class DatasetSettings:
 
     name: str
     input_dir: pathlib.Path
+    coverage_input_dir: pathlib.Path
     ac_cutoff: int
+    min_focal_ac: int
     score_tolerance: float
+
+
+@dataclasses.dataclass
+class FocalIntervals:
+    """AC-filtered anchored associations in canonical haplotype/ancestor order."""
+
+    offsets: np.ndarray
+    left: np.ndarray
+    right: np.ndarray
+    nodes: np.ndarray
 
 
 @dataclasses.dataclass
@@ -41,14 +55,10 @@ class WorkerContext:
     settings: DatasetSettings
     reference: tskit.TreeSequence
     positions: np.ndarray
-    ancestral: np.ndarray
     haplotypes: np.ndarray
     focal: dict[str, np.ndarray]
-    column_nodes: np.ndarray
-    node_columns: np.ndarray
-    support_start: np.ndarray
-    support_end: np.ndarray
-    num_alleles: np.ndarray
+    intervals: FocalIntervals
+    populations: list[str]
     rho: np.ndarray
     mu: np.ndarray
     indexes: tsinfer.matching.MatcherIndexes
@@ -65,8 +75,8 @@ class MatchArrays:
 
 
 @dataclasses.dataclass
-class AcceptedMatch:
-    """Transient stitched arrays and the sites retained from the reduced match."""
+class FocalMatch:
+    """Transient focal arrays and the anchored interval union."""
 
     arrays: MatchArrays
     mask: np.ndarray
@@ -119,6 +129,69 @@ def select_rows(focal: dict, requested: list[dict] | None) -> list[int]:
     return rows
 
 
+def load_focal_intervals(
+    settings: DatasetSettings,
+    focal: dict,
+    panel,
+    positions: np.ndarray,
+    column_nodes: np.ndarray,
+) -> FocalIntervals:
+    """Join budget-zero bounds to original nodes and apply the configured AC range.
+
+    The upstream archive stores associations in increasing ancestor-column order,
+    excluding ancestors without focal seeds and those above its generation AC
+    limit. Reconstruct that ordering before applying the analysis cutoff.
+    """
+    interval_path = settings.coverage_input_dir / "haplotype_intervals"
+    interval_path /= f"{settings.name}_inferred_focal_ancestor_intervals.npz"
+    with np.load(interval_path, allow_pickle=False) as archive:
+        interval_offsets = archive["offsets"]
+        interval_ac = archive["focal_ac"]
+        interval_left = archive["left_site_index"][:, 0]
+        interval_right = archive["right_site_index"][:, 0]
+        generated_ac = int(archive["max_ac_cutoff"])
+        assert settings.ac_cutoff <= generated_ac
+        assert int(archive["num_sites"]) == len(positions)
+        for field in ("sample_id", "ploidy_index"):
+            assert np.array_equal(archive[field], focal[field])
+    coverage_panel = tsinfer.vcz.open_store(
+        settings.coverage_input_dir
+        / "ancestors"
+        / f"{settings.name}_inferred_ancestors.zarr"
+    )
+    assert np.array_equal(coverage_panel["variant_position"][:], positions)
+    assert np.array_equal(coverage_panel["sample_id"][:], panel["sample_id"][:])
+    focal_positions = panel["sample_focal_positions"][:]
+    has_anchor = np.any(focal_positions >= 0, axis=1)
+    association_columns = []
+    for row in range(len(focal["sample_id"])):
+        columns = focal["ancestor_index"][
+            focal["offsets"][row] : focal["offsets"][row + 1]
+        ]
+        eligible = (focal["derived_ac"][columns] <= generated_ac) & has_anchor[columns]
+        columns = columns[eligible]
+        assert np.all(np.diff(columns) > 0), (
+            "Interval associations require canonical ancestor order"
+        )
+        assert len(columns) == interval_offsets[row + 1] - interval_offsets[row]
+        association_columns.extend(columns)
+    association_columns = np.asarray(association_columns, dtype=np.int64)
+    assert np.array_equal(focal["derived_ac"][association_columns], interval_ac)
+    interval_nodes = column_nodes[association_columns]
+    eligible = (interval_ac >= settings.min_focal_ac) & (
+        interval_ac <= settings.ac_cutoff
+    )
+    # Preserve ragged row boundaries while applying the analysis AC range once.
+    cumulative = np.concatenate(([0], np.cumsum(eligible)))
+    interval_offsets = cumulative[interval_offsets]
+    interval_left = interval_left[eligible]
+    interval_right = interval_right[eligible]
+    interval_nodes = interval_nodes[eligible]
+    return FocalIntervals(
+        interval_offsets, interval_left, interval_right, interval_nodes
+    )
+
+
 def load_context(settings: DatasetSettings) -> WorkerContext:
     """Validate local inputs and prepare the common model once per worker.
 
@@ -132,7 +205,9 @@ def load_context(settings: DatasetSettings) -> WorkerContext:
         base / "ancestors" / f"{name}_inferred_ancestors.zarr"
     )
     samples = tsinfer.vcz.open_store(base / "samples" / f"{name}_samples_masked.zarr")
-    focal = load_focal(base / "focal_ancestors" / f"{name}_inferred_focal_ancestors.npz")
+    focal = load_focal(
+        base / "focal_ancestors" / f"{name}_inferred_focal_ancestors.npz"
+    )
     with (base / "configs" / f"{name}_ancestor_inference.toml").open("rb") as file:
         native_config = tomllib.load(file)
     assert native_config["match"]["path_compression"] is False
@@ -155,7 +230,6 @@ def load_context(settings: DatasetSettings) -> WorkerContext:
     assert np.array_equal(panel_ids, focal["ancestor_id"])
     ancestor_columns = {sample_id: column for column, sample_id in enumerate(panel_ids)}
     column_nodes = np.full(len(panel_ids), tskit.NULL, dtype=np.int32)
-    node_columns = np.full(reference.num_nodes, -1, dtype=np.int32)
     assert reference.num_nodes == len(panel_ids) + 2
     assert reference.node(0).metadata == reference.node(1).metadata == {}
     assert reference.node(0).time > reference.node(1).time
@@ -167,12 +241,9 @@ def load_context(settings: DatasetSettings) -> WorkerContext:
         column = ancestor_columns[str(metadata["sample_id"])]
         assert column_nodes[column] == tskit.NULL, "Duplicate ancestor metadata join"
         column_nodes[column] = node.id
-        node_columns[node.id] = column
     assert np.all(column_nodes >= 2), "An ancestor is absent from the reference"
-    support_start = panel["sample_start_position"][:]
-    support_end = panel["sample_end_position"][:]
-    assert support_start.shape == support_end.shape == panel_ids.shape
-    assert np.all(support_start < support_end)
+    intervals = load_focal_intervals(settings, focal, panel, positions, column_nodes)
+    populations = load_populations(settings, focal)
 
     source = next(item for item in native_config["source"] if item["name"] == "samples")
     sample_columns = tsinfer.vcz.resolve_samples_selection(
@@ -212,7 +283,9 @@ def load_context(settings: DatasetSettings) -> WorkerContext:
     recombination = parameters["recombination"]
     mismatch = parameters["mismatch"]
     if not 0 < recombination < 1 or not 0 < mismatch < 1:
-        raise ValueError("Sample recombination and mismatch must lie strictly in (0, 1)")
+        raise ValueError(
+            "Sample recombination and mismatch must lie strictly in (0, 1)"
+        )
     rho = np.full(len(positions), recombination)
     mu = np.full(len(positions), mismatch)
     num_alleles = np.full(len(positions), 2, dtype=np.uint32)
@@ -227,14 +300,10 @@ def load_context(settings: DatasetSettings) -> WorkerContext:
         settings=settings,
         reference=reference,
         positions=positions,
-        ancestral=ancestral,
         haplotypes=haplotypes,
         focal=focal,
-        column_nodes=column_nodes,
-        node_columns=node_columns,
-        support_start=support_start,
-        support_end=support_end,
-        num_alleles=num_alleles,
+        intervals=intervals,
+        populations=populations,
         rho=rho,
         mu=mu,
         indexes=indexes,
@@ -291,61 +360,50 @@ def run_match(
     return MatchArrays(site_path, copied)
 
 
-def site_intervals(mask: np.ndarray) -> np.ndarray:
-    """Find every maximal true run, including leading and trailing intervals."""
-    padded = np.pad(mask, (1, 1), constant_values=False)
-    transitions = np.flatnonzero(padded[1:] != padded[:-1])
-    return transitions.reshape(-1, 2)
+def focal_match(context: WorkerContext, haplotype: np.ndarray, row: int) -> FocalMatch:
+    """Fix an interval-supported focal path; gaps are exactly its uncovered sites.
+
+    Parent selection uses :func:`ch5_stitching.focal_parent_path`. Copied alleles
+    are read from the inferred reference, rather than assumed from the interval
+    generator, so any inferred/generated difference remains visible as a mutation.
+    """
+    start = context.intervals.offsets[row]
+    end = context.intervals.offsets[row + 1]
+    parents = ch5_stitching.focal_parent_path(
+        len(haplotype),
+        context.intervals.left[start:end],
+        context.intervals.right[start:end],
+        context.intervals.nodes[start:end],
+    )
+    covered = parents >= 0
+    copied = np.full(len(haplotype), -1, dtype=np.int8)
+    nodes = np.unique(parents[covered])
+    if len(nodes) > 0:
+        genotypes = context.reference.genotype_matrix(
+            samples=nodes, isolated_as_missing=False
+        )
+        sites = np.flatnonzero(covered)
+        columns = np.searchsorted(nodes, parents[covered])
+        copied[covered] = genotypes[sites, columns]
+        assert np.all((copied[covered] == 0) | (copied[covered] == 1))
+    return FocalMatch(MatchArrays(parents, copied), covered)
 
 
-def accepted_focal_match(
-    context: WorkerContext,
-    haplotype: np.ndarray,
-    focal_nodes: np.ndarray,
-) -> AcceptedMatch:
-    """Immediately match a simplified reference and retain only exact focal evidence."""
-    num_sites = len(haplotype)
-    stitched = MatchArrays(
-        np.full(num_sites, tskit.NULL, dtype=np.int32),
-        np.full(num_sites, -1, dtype=np.int8),
-    )
-    accepted = np.zeros(num_sites, dtype=bool)
-    if len(focal_nodes) == 0:
-        return AcceptedMatch(stitched, accepted)
-    assert len(np.unique(focal_nodes)) == len(focal_nodes)
-    retained_nodes = np.concatenate(([0, 1], focal_nodes))
-    reduced, old_to_new = context.reference.simplify(
-        retained_nodes, map_nodes=True, filter_sites=False
-    )
-    assert np.array_equal(old_to_new[retained_nodes], np.arange(len(retained_nodes)))
-    assert np.array_equal(reduced.sites_position, context.positions)
-    reduced_ancestral = np.asarray([site.ancestral_state for site in reduced.sites()])
-    assert np.array_equal(reduced_ancestral, context.ancestral)
-    new_to_old = np.full(reduced.num_nodes, tskit.NULL, dtype=np.int32)
-    surviving = np.flatnonzero(old_to_new != tskit.NULL)
-    new_to_old[old_to_new[surviving]] = surviving
-    assert np.all(new_to_old >= 0)
-    indexes = tsinfer.matching.MatcherIndexes(
-        reduced, vestigial_root=False, num_alleles=context.num_alleles
-    )
-    matcher = tsinfer.matching.AncestorMatcher(indexes, context.rho, context.mu)
-    buffer = np.empty(num_sites, dtype=np.int8)
-    reduced_match = run_match(
-        matcher, haplotype, 0, num_sites, buffer, context.positions
-    )
-    original_parents = new_to_old[reduced_match.parents]
-    eligible = np.isin(original_parents, focal_nodes)
-    eligible_sites = np.flatnonzero(eligible)
-    columns = context.node_columns[original_parents[eligible_sites]]
-    in_support = context.positions[eligible_sites] >= context.support_start[columns]
-    in_support &= context.positions[eligible_sites] < context.support_end[columns]
-    exact = (haplotype >= 0) & (reduced_match.copied == haplotype)
-    accepted[eligible_sites] = exact[eligible_sites] & in_support
-    stitched.parents[accepted] = original_parents[accepted]
-    stitched.copied[accepted] = reduced_match.copied[accepted]
-    assert np.all(eligible[accepted] & exact[accepted])
-    assert np.all(in_support[accepted[eligible_sites]])
-    return AcceptedMatch(stitched, accepted)
+def load_populations(settings: DatasetSettings, focal: dict) -> list[str]:
+    """Join the upstream population metadata by haplotype identity."""
+    path = settings.coverage_input_dir / "dataframes"
+    path /= f"{settings.name}_inferred_focal_ancestor_stats.csv"
+    labels = {}
+    with path.open() as file:
+        for record in csv.DictReader(file):
+            key = (record["sample_id"], int(record["ploidy_index"]))
+            population = record["population"]
+            assert population != ""
+            if key in labels:
+                assert labels[key] == population
+            labels[key] = population
+    keys = zip(focal["sample_id"], focal["ploidy_index"], strict=True)
+    return [labels[(str(sample), int(ploidy))] for sample, ploidy in keys]
 
 
 def match_record(
@@ -360,7 +418,9 @@ def match_record(
     whole-sequence convention. Reconstructing this saved path must recover every site.
     """
     assert result.parents.shape == result.copied.shape == haplotype.shape
-    assert np.all((result.parents >= 0) & (result.parents < context.reference.num_nodes))
+    assert np.all(
+        (result.parents >= 0) & (result.parents < context.reference.num_nodes)
+    )
     assert np.all((result.copied == 0) | (result.copied == 1))
     changes = np.flatnonzero(result.parents[1:] != result.parents[:-1]) + 1
     starts = np.concatenate(([0], changes))
@@ -403,20 +463,20 @@ def compare_matches(
     stitched: dict,
     full_arrays: MatchArrays,
     stitched_arrays: MatchArrays,
-    accepted: np.ndarray,
+    covered: np.ndarray,
     num_focal: int,
     context: WorkerContext,
 ) -> dict:
     """Compare both complete paths and score them with the original full model."""
-    disagreement = full_arrays.parents != stitched_arrays.parents
+    metrics = ch5_stitching.comparison_metrics(
+        full_arrays.parents, stitched_arrays.parents, covered
+    )
     full_mismatches = len(full["mutations"])
     stitched_mismatches = len(stitched["mutations"])
     full_switches = len(full["path"]) - 1
     stitched_switches = len(stitched["path"]) - 1
-    num_extra_switches = stitched_switches - full_switches
-    extra_switch_fraction = (
-        num_extra_switches / stitched_switches if stitched_switches > 0 else None
-    )
+    assert full_switches == metrics["full_switches"]
+    assert stitched_switches == metrics["stitched_switches"]
     full_score = full_mismatches * context.log_mismatch_penalty
     full_score += full_switches * context.log_switch_penalty
     stitched_score = stitched_mismatches * context.log_mismatch_penalty
@@ -424,26 +484,24 @@ def compare_matches(
     score_delta = stitched_score - full_score
     key = {
         name: full[name]
-        for name in ("dataset", "source", "sample_id", "ploidy_index", "ac_cutoff")
+        for name in (
+            "dataset",
+            "source",
+            "sample_id",
+            "ploidy_index",
+            "ac_cutoff",
+            "population",
+        )
     }
     comparison = {
         **key,
         "num_focal_ancestors": num_focal,
-        "num_sites": len(accepted),
-        "accepted_sites": int(np.count_nonzero(accepted)),
-        "gap_sites": int(np.count_nonzero(~accepted)),
+        "num_sites": len(covered),
+        **metrics,
         "num_gaps": len(stitched["gap_site_intervals"]),
-        "parents_identical": bool(not np.any(disagreement)),
-        "fraction_parent_agreement": float(np.mean(~disagreement)),
-        "accepted_disagreement_sites": int(np.count_nonzero(disagreement & accepted)),
-        "gap_disagreement_sites": int(np.count_nonzero(disagreement & ~accepted)),
         "mutations_identical": full["mutations"] == stitched["mutations"],
         "full_mismatches": full_mismatches,
         "stitched_mismatches": stitched_mismatches,
-        "full_switches": full_switches,
-        "stitched_switches": stitched_switches,
-        "num_extra_switches": num_extra_switches,
-        "extra_switch_fraction": extra_switch_fraction,
         "full_score": full_score,
         "stitched_score": stitched_score,
         "score_delta": score_delta,
@@ -463,27 +521,21 @@ def compare_matches(
 
 
 def match_haplotype(row: int) -> JobResult:
-    """Run the complete simplify → reduced match → gaps → full comparison job."""
+    """Cover anchored focal intervals, fill zero-coverage gaps, and run the full HMM."""
     context = worker_context
     focal = context.focal
     haplotype = np.ascontiguousarray(context.haplotypes[:, row])
-    candidates = focal["ancestor_index"][
-        focal["offsets"][row] : focal["offsets"][row + 1]
-    ]
-    candidates = candidates[
-        focal["derived_ac"][candidates] <= context.settings.ac_cutoff
-    ]
-    focal_nodes = context.column_nodes[candidates]
-    reduced_result = accepted_focal_match(context, haplotype, focal_nodes)
-    stitched_arrays = reduced_result.arrays
-    accepted = reduced_result.mask
-    accepted_intervals = site_intervals(accepted)
-    gaps = site_intervals(~accepted)
+    focal_result = focal_match(context, haplotype, row)
+    stitched_arrays = focal_result.arrays
+    covered = focal_result.mask
+    num_focal = context.intervals.offsets[row + 1] - context.intervals.offsets[row]
+    focal_intervals = ch5_stitching.site_intervals(covered)
+    gaps = ch5_stitching.site_intervals(~covered)
     coverage = np.zeros(len(haplotype), dtype=np.int8)
-    for intervals in (accepted_intervals, gaps):
+    for intervals in (focal_intervals, gaps):
         for start, end in intervals:
             coverage[start:end] += 1
-    assert np.all(coverage == 1), "Accepted pieces and gaps must partition all sites"
+    assert np.all(coverage == 1), "Focal coverage and gaps must partition all sites"
     buffer = np.empty(len(haplotype), dtype=np.int8)
     gap_matcher = tsinfer.matching.AncestorMatcher(
         context.indexes, context.rho, context.mu
@@ -494,16 +546,16 @@ def match_haplotype(row: int) -> JobResult:
         )
         stitched_arrays.parents[start:end] = gap.parents
         stitched_arrays.copied[start:end] = gap.copied
-    assert np.all(stitched_arrays.copied[accepted] == haplotype[accepted])
     key = {
         "dataset": context.settings.name,
         "source": "samples",
         "sample_id": str(focal["sample_id"][row]),
         "ploidy_index": int(focal["ploidy_index"][row]),
         "ac_cutoff": context.settings.ac_cutoff,
+        "population": context.populations[row],
     }
     stitched = match_record(key, stitched_arrays, haplotype, context)
-    stitched["accepted_site_intervals"] = accepted_intervals.tolist()
+    stitched["focal_site_intervals"] = focal_intervals.tolist()
     stitched["gap_site_intervals"] = gaps.tolist()
     full_matcher = tsinfer.matching.AncestorMatcher(
         context.indexes, context.rho, context.mu
@@ -513,13 +565,13 @@ def match_haplotype(row: int) -> JobResult:
     )
     full = match_record(key, full_arrays, haplotype, context)
     comparison = compare_matches(
-        full, stitched, full_arrays, stitched_arrays, accepted, len(focal_nodes), context
+        full, stitched, full_arrays, stitched_arrays, covered, int(num_focal), context
     )
     return JobResult(full, stitched, comparison)
 
 
 def write_results(results, output_dir: pathlib.Path) -> None:
-    """Stream only the two JSONL records and comparison CSV, in selected NPZ order."""
+    """Stream paths and scalar cohort diagnostics in canonical NPZ order."""
     output_dir.mkdir(parents=True, exist_ok=True)
     with (
         (output_dir / "full_matches.jsonl").open("w") as full_file,
@@ -538,11 +590,11 @@ def write_results(results, output_dir: pathlib.Path) -> None:
             writer.writerow(result.comparison)
             comparison = result.comparison
             logger.info(
-                "%s %s/%s: accepted=%s gaps=%s agreement=%.4f extra_switch_fraction=%s",
+                "%s %s/%s: covered=%s gaps=%s agreement=%.4f extra_switch_fraction=%s",
                 comparison["dataset"],
                 comparison["sample_id"],
                 comparison["ploidy_index"],
-                comparison["accepted_sites"],
+                comparison["focal_sites"],
                 comparison["num_gaps"],
                 comparison["fraction_parent_agreement"],
                 comparison["extra_switch_fraction"],
@@ -593,9 +645,13 @@ def main() -> None:
         config = yaml.safe_load(file)
     input_dir = resolve_path(config["input_dir"], config_path.parent)
     output_dir = resolve_path(config["output_dir"], config_path.parent)
+    coverage_input_dir = resolve_path(config["coverage_input_dir"], config_path.parent)
     cutoff = config["ac_cutoff"]
+    minimum_ac = config["min_focal_ac"]
     if type(cutoff) is not int or cutoff <= 0:
         raise ValueError("ac_cutoff must be a positive integer")
+    if type(minimum_ac) is not int or not 1 <= minimum_ac <= cutoff:
+        raise ValueError("min_focal_ac must lie between 1 and ac_cutoff")
     workers = config["workers"]
     if workers is not None and (type(workers) is not int or workers <= 0):
         raise ValueError("workers must be a positive integer or null")
@@ -607,8 +663,17 @@ def main() -> None:
         raise ValueError("Dataset names must be unique")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     for dataset in config["datasets"]:
-        settings = DatasetSettings(dataset["name"], input_dir, cutoff, tolerance)
-        run_dataset(settings, dataset["haplotypes"], workers, output_dir / settings.name)
+        settings = DatasetSettings(
+            dataset["name"],
+            input_dir,
+            coverage_input_dir,
+            cutoff,
+            minimum_ac,
+            tolerance,
+        )
+        run_dataset(
+            settings, dataset["haplotypes"], workers, output_dir / settings.name
+        )
 
 
 if __name__ == "__main__":

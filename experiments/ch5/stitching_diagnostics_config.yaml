@@ -1,25 +1,55 @@
 experiment_config: chunk_matching_config.yaml
-coverage_input_dir: ~/work/tsinfer-match-eval/data/match_eval
-gap_comparison_dir: ../../data/ch5_stitching_gap_diagnostics
-coverage:
-  mismatch_budget: 0
-  min_focal_ac: 2
 datasets:
-  - name: out_of_africa_n300_1mbp
-    label: Simulation, 300 individuals, 1 Mb
-    deep_dive:
-      sample_id: tsk_0
-      ploidy_index: 0
-  - name: tgp_chr20_n100
-    label: 1KGP chromosome 20, 100 individuals, 10 Mb
-    deep_dive:
-      sample_id: NA18582
-      ploidy_index: 0
+- name: out_of_africa_n100_10mbp
+  label: Simulation, 100 individuals, 10 Mb
+  deep_dive:
+    sample_id: tsk_18
+    ploidy_index: 0
+  haplotypes:
+  - sample_id: tsk_18
+    ploidy_index: 0
+  - sample_id: tsk_40
+    ploidy_index: 1
+  - sample_id: tsk_96
+    ploidy_index: 1
+  populations:
+  - YRI
+  - CEU
+  - CHB
+- name: tgp_chr20_n100
+  label: 1KGP chromosome 20, 100 individuals, 10 Mb
+  deep_dive:
+    sample_id: NA18582
+    ploidy_index: 0
+  haplotypes:
+  - sample_id: NA07019
+    ploidy_index: 1
+  - sample_id: NA18582
+    ploidy_index: 0
+  - sample_id: NA19150
+    ploidy_index: 0
+  populations:
+  - AFR
+  - EUR
+  - EAS
 detail:
   context_sites: 25
   max_sites: 240
   min_agreement_gap_sites: 5
-distance_bin_edges: [0, 1, 2, 5, 10, 20, 50, 100, 250, 500, 1000, 5000, 100000]
+distance_bin_edges:
+- 0
+- 1
+- 2
+- 5
+- 10
+- 20
+- 50
+- 100
+- 250
+- 500
+- 1000
+- 5000
+- 100000
 plot:
   dpi: 120
   font_size: 10
@@ -28,25 +58,57 @@ plot:
   detail_unit_bp: 1000
   detail_unit_label: kb
   terminal_site_width_bp: 1
-  cohort_figsize: [16, 8]
-  tracks_figsize: [16, 7]
-  overview_figsize: [16, 7]
-  detail_figsize: [16, 7]
+  cohort_figsize:
+  - 16
+  - 8
+  tracks_figsize:
+  - 16
+  - 7
+  overview_figsize:
+  - 16
+  - 7
+  detail_figsize:
+  - 16
+  - 7
   parent_row_height_in: 0.24
-  distance_figsize: [16, 4]
-  extra_switch_figsize: [16, 4]
-  gap_counts_figsize: [16, 4]
-  gap_overlap_figsize: [16, 4]
-  gap_bounds_figsize: [16, 5]
-  gap_method_labels: [HMM-extracted gaps, Zero-coverage gaps]
-  gap_method_colors: ['#E69F00', '#0072B2']
-  gap_overlap_labels: [Gap in both, HMM gap only, Zero-coverage gap only, Gap in neither]
-  gap_overlap_colors: ['#7B61A8', '#E69F00', '#0072B2', '#E5E5E5']
-  category_labels: [Focal / agree, Focal / differ, Gap fill / agree, Gap fill / differ]
-  category_colors: ['#009E73', '#CC79A7', '#56B4E9', '#D55E00']
-  source_labels: [Retained focal, Full-reference gap fill]
-  source_colors: ['#B8DED4', '#FFE3A3']
-  switch_labels: [Within focal coverage, Within gaps, At focal/gap seams]
-  switch_colors: ['#009E73', '#E69F00', '#7B61A8']
+  distance_figsize:
+  - 16
+  - 4
+  extra_switch_figsize:
+  - 16
+  - 4
+  category_labels:
+  - Focal / agree
+  - Focal / differ
+  - Gap fill / agree
+  - Gap fill / differ
+  category_colors:
+  - '#009E73'
+  - '#CC79A7'
+  - '#56B4E9'
+  - '#D55E00'
+  source_labels:
+  - Focal coverage
+  - Full-reference gap fill
+  source_colors:
+  - '#B8DED4'
+  - '#FFE3A3'
+  switch_labels:
+  - Within focal coverage
+  - Within gaps
+  - At focal/gap seams
+  switch_colors:
+  - '#009E73'
+  - '#E69F00'
+  - '#7B61A8'
   full_color: '#222222'
   stitched_color: '#6A3D9A'
+  population_figsize:
+  - 16
+  - 9
+  bar_group_width: 0.8
+  error_bar_capsize: 3
+cohort:
+  num_haplotypes: 200
+  num_individuals: 100
+  output_dir: ../../data/ch5_stitching_cohort

@@ -1,34 +1,12 @@
 input_dir: data/match_eval
-output_dir: data/chunk_matching_experiment
+coverage_input_dir: ~/work/tsinfer-match-eval/data/match_eval
+output_dir: data/chunk_matching_zero_coverage
 ac_cutoff: 10
-workers: 2
+min_focal_ac: 2
+workers: null
 score_tolerance: 1.0e-8
 datasets:
-  - name: out_of_africa_n300_1mbp
-    haplotypes:
-      - sample_id: tsk_0
-        ploidy_index: 0
-      - sample_id: tsk_0
-        ploidy_index: 1
-      - sample_id: tsk_91
-        ploidy_index: 1
-      - sample_id: tsk_125
-        ploidy_index: 0
-      - sample_id: tsk_228
-        ploidy_index: 1
   - name: out_of_africa_n100_10mbp
-    haplotypes:
-      - sample_id: tsk_18
-        ploidy_index: 0
-      - sample_id: tsk_40
-        ploidy_index: 1
-      - sample_id: tsk_96
-        ploidy_index: 1
+    haplotypes: null
   - name: tgp_chr20_n100
-    haplotypes:
-      - sample_id: NA07019
-        ploidy_index: 1
-      - sample_id: NA18582
-        ploidy_index: 0
-      - sample_id: NA19150
-        ploidy_index: 0
+    haplotypes: null
