@@ -1,4 +1,9 @@
 experiment_config: chunk_matching_config.yaml
+coverage_input_dir: ~/work/tsinfer-match-eval/data/match_eval
+gap_comparison_dir: ../../data/ch5_stitching_gap_diagnostics
+coverage:
+  mismatch_budget: 0
+  min_focal_ac: 2
 datasets:
   - name: out_of_africa_n300_1mbp
     label: Simulation, 300 individuals, 1 Mb
@@ -29,6 +34,14 @@ plot:
   detail_figsize: [16, 7]
   parent_row_height_in: 0.24
   distance_figsize: [16, 4]
+  extra_switch_figsize: [16, 4]
+  gap_counts_figsize: [16, 4]
+  gap_overlap_figsize: [16, 4]
+  gap_bounds_figsize: [16, 5]
+  gap_method_labels: [HMM-extracted gaps, Zero-coverage gaps]
+  gap_method_colors: ['#E69F00', '#0072B2']
+  gap_overlap_labels: [Gap in both, HMM gap only, Zero-coverage gap only, Gap in neither]
+  gap_overlap_colors: ['#7B61A8', '#E69F00', '#0072B2', '#E5E5E5']
   category_labels: [Focal / agree, Focal / differ, Gap fill / agree, Gap fill / differ]
   category_colors: ['#009E73', '#CC79A7', '#56B4E9', '#D55E00']
   source_labels: [Retained focal, Full-reference gap fill]

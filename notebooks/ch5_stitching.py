@@ -49,6 +49,7 @@ import numpy as np
 import pandas as pd
 import tskit
 import yaml
+import zarr
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,12 @@ if not input_dir.is_absolute():
     input_dir = experiment_config_path.parent / input_dir
 if not output_dir.is_absolute():
     output_dir = experiment_config_path.parent / output_dir
+coverage_input_dir = pathlib.Path(config["coverage_input_dir"]).expanduser()
+gap_comparison_dir = pathlib.Path(config["gap_comparison_dir"]).expanduser()
+if not coverage_input_dir.is_absolute():
+    coverage_input_dir = diagnostic_config_path.parent / coverage_input_dir
+if not gap_comparison_dir.is_absolute():
+    gap_comparison_dir = diagnostic_config_path.parent / gap_comparison_dir
 style = config["plot"]
 plt.rcParams.update({"figure.dpi": style["dpi"], "font.size": style["font_size"]})
 category_cmap = mcolors.ListedColormap(style["category_colors"])
@@ -164,6 +171,14 @@ def load_dataset(settings: dict) -> DatasetDiagnostics:
     assert len(summaries) == len(full_records) == len(stitched_records)
     cases = []
     for summary in summaries:
+        summary["num_extra_switches"] = (
+            summary["stitched_switches"] - summary["full_switches"]
+        )
+        summary["extra_switch_fraction"] = (
+            summary["num_extra_switches"] / summary["stitched_switches"]
+            if summary["stitched_switches"] > 0
+            else np.nan
+        )
         key = (summary["sample_id"], summary["ploidy_index"])
         full = full_records[key]
         stitched = stitched_records[key]
@@ -225,7 +240,6 @@ summary["focal_agreement_fraction"] = (
 summary["gap_agreement_fraction"] = (
     1 - summary.gap_disagreement_sites / summary.gap_sites
 )
-summary["extra_switches"] = summary.stitched_switches - summary.full_switches
 ipython_display.display(
     summary[
         [
@@ -241,10 +255,10 @@ ipython_display.display(
             "gap_agreement_fraction",
             "full_switches",
             "stitched_switches",
-            "extra_switches",
+            "num_extra_switches",
+            "extra_switch_fraction",
             "full_mismatches",
             "stitched_mismatches",
-            "score_delta",
         ]
     ].round(4)
 )
@@ -355,6 +369,38 @@ fig.suptitle(f"Saved haplotypes at focal AC ≤ {experiment_config['ac_cutoff']}
 plt.show()
 switch_table = pd.DataFrame(switch_rows)
 ipython_display.display(switch_table)
+
+# %% [markdown]
+# ## Extra switch fraction
+#
+# `num_extra_switches = stitched_switches - full_switches`, and
+# `extra_switch_fraction = num_extra_switches / stitched_switches`.
+# This reports the net extra switches as a proportion of all stitched switches,
+# using the stitched count as the denominator. It is undefined when the stitched
+# path has no switches, and can be negative if stitching reduces the count.
+# The count alone does not identify which individual switches are unnecessary.
+
+# %%
+fig, axes = plt.subplots(
+    1,
+    len(datasets),
+    figsize=style["extra_switch_figsize"],
+    layout="constrained",
+    squeeze=False,
+    sharey=True,
+)
+for ax, dataset in zip(axes[0], datasets, strict=True):
+    fractions = [case.summary["extra_switch_fraction"] for case in dataset.cases]
+    bars = ax.bar(np.arange(len(fractions)), fractions, color=style["stitched_color"])
+    ax.bar_label(bars, labels=[f"{value:.1%}" for value in fractions], padding=3)
+    ax.set(
+        xticks=np.arange(len(fractions)),
+        xticklabels=[case.label for case in dataset.cases],
+        ylim=(0, 1),
+        title=dataset.label,
+    )
+axes[0, 0].set_ylabel("Net extra switches / stitched switches")
+plt.show()
 
 # %% [markdown]
 # ## Where retained focal pieces and gap fills agree with the full path
@@ -482,7 +528,7 @@ def plot_overview(dataset: DatasetDiagnostics) -> None:
         f"agreement {case.summary['fraction_parent_agreement']:.1%} | "
         f"switches {case.summary['full_switches']} → "
         f"{case.summary['stitched_switches']} | "
-        f"score Δ {case.summary['score_delta']:.1f}"
+        f"extra switch prop. {case.summary['extra_switch_fraction']:.1%}"
     )
     fig.legend(handles=coverage_handles, loc="outside lower center", ncol=3)
     plt.show()
@@ -873,11 +919,431 @@ distance_table = pd.DataFrame(distance_rows)
 ipython_display.display(distance_table.loc[distance_table.num_sites > 0].round(4))
 
 # %% [markdown]
+# ## Gap determination
+#
+# The latest match-eval commit (`cbb7b57`) writes compact focal-ancestor **interval
+# NPZs**, replacing the old chunk CSV generation. The corresponding analysis
+# commit (`294486b`) sweeps those intervals for coverage. We use these new archives
+# and export coverage segments and both sets of gap bounds as CSVs below.
+# Older `*_focal_ancestor_chunks.csv` files are not inputs to this comparison.
+#
+# The two definitions differ:
+# - **HMM-extracted gaps** are maximal runs not accepted from the reduced HMM
+#   path. Acceptance is checked independently at each site: the observed call
+#   must equal the copied allele, the parent must be an eligible focal candidate,
+#   and the site must lie inside that ancestor's support. A mismatch is rejected
+#   at that site, but the same parent can be accepted again beyond the mismatch.
+#   An accepted piece need not contain that ancestor's focal seed.
+# - **Zero-coverage gaps** are maximal runs outside the union of zero-mismatch
+#   intervals for all eligible ancestors. Each interval extends from the
+#   ancestor's **leftmost focal seed** and stops at the first mismatch or missing
+#   call in each direction, or at support/inference-interval bounds. It does not
+#   restart on a later exact island. This terminates the anchored extension;
+#   it does not globally remove the ancestor from all haplotypes.
+#
+# Both methods use the same saved haplotypes, reference-site axis, and inclusive
+# upper AC cutoff. The coverage analysis also excludes AC=1, as its current
+# `summarise_coverage` implementation does. We check that no saved focal candidate
+# falls below that minimum here, so the eligibility sets agree for these runs.
+# Coverage uses generated ancestor calls; the HMM uses the inferred reference.
+# Their inferred/imputed alleles may also differ at missing ancestor calls.
+#
+# Overlap is measured in **inference sites**. Report the intersection, each
+# method's exclusive sites, the fraction of each gap mask overlapped, and gap
+# intersection/union (IoU). Counts of maximal intervals are separate: fragmented
+# HMM gaps can overlap a much smaller number of long zero-coverage gaps. We also
+# count gaps with any overlap and exactly equal half-open bounds. No HMM path is
+# changed in this diagnostic comparison.
+
+
+# %%
+@dataclasses.dataclass
+class GapComparison:
+    """Coverage counts, zero-coverage intervals, and overlap with one saved gap mask."""
+
+    case: HaplotypeDiagnostics
+    coverage: np.ndarray
+    zero_gaps: np.ndarray
+    categories: np.ndarray
+    summary: dict
+
+
+def mask_intervals(mask: np.ndarray) -> np.ndarray:
+    """Find maximal true runs including leading, trailing, empty, and complete masks."""
+    padded = np.pad(mask, (1, 1), constant_values=False)
+    transitions = np.flatnonzero(padded[1:] != padded[:-1])
+    return transitions.reshape(-1, 2)
+
+
+def gaps_with_overlap(intervals: np.ndarray, other_gap_mask: np.ndarray) -> int:
+    """Count intersecting intervals in linear time using site-mask prefix sums."""
+    prefix = np.concatenate(([0], np.cumsum(other_gap_mask)))
+    overlap_sites = prefix[intervals[:, 1]] - prefix[intervals[:, 0]]
+    return int(np.count_nonzero(overlap_sites > 0))
+
+
+def gap_bound_rows(
+    key: dict,
+    intervals: np.ndarray,
+    dataset: DatasetDiagnostics,
+) -> list[dict]:
+    """Export exact site bounds; positions use the plotting convention above."""
+    return [
+        {
+            **key,
+            "gap_index": index,
+            "left_site_index": int(start),
+            "right_site_index": int(end),
+            "num_sites": int(end - start),
+            "left_position": float(dataset.positions[start]),
+            "right_position": float(dataset.site_edges[end]),
+        }
+        for index, (start, end) in enumerate(intervals)
+    ]
+
+
+def compare_gap_determination(dataset: DatasetDiagnostics) -> list[GapComparison]:
+    """Sweep new budget-zero intervals and compare every saved haplotype's gap bounds."""
+    name = dataset.name
+    archive_path = coverage_input_dir / "haplotype_intervals"
+    archive_path /= f"{name}_inferred_focal_ancestor_intervals.npz"
+    with np.load(archive_path, allow_pickle=False) as archive:
+        intervals = {key: archive[key] for key in archive.files}
+    num_sites = len(dataset.positions)
+    assert int(intervals["num_sites"]) == num_sites
+    cutoff = experiment_config["ac_cutoff"]
+    assert int(intervals["max_ac_cutoff"]) >= cutoff
+    budget = config["coverage"]["mismatch_budget"]
+    assert budget == 0
+    assert int(intervals["max_mismatches"]) >= budget
+    panel = zarr.open_group(
+        coverage_input_dir / "ancestors" / f"{name}_inferred_ancestors.zarr", mode="r"
+    )
+    assert np.array_equal(panel["variant_position"][:], dataset.positions)
+    with np.load(
+        input_dir / "focal_ancestors" / f"{name}_inferred_focal_ancestors.npz",
+        allow_pickle=False,
+    ) as focal:
+        for field in ("sample_id", "ploidy_index"):
+            assert np.array_equal(intervals[field], focal[field])
+        minimum_ac = config["coverage"]["min_focal_ac"]
+        for case in dataset.cases:
+            row = np.flatnonzero(
+                (focal["sample_id"] == case.summary["sample_id"])
+                & (focal["ploidy_index"] == case.summary["ploidy_index"])
+            )[0]
+            candidates = focal["ancestor_index"][
+                focal["offsets"][row] : focal["offsets"][row + 1]
+            ]
+            counts = focal["derived_ac"][candidates]
+            assert not np.any((counts < minimum_ac) & (counts <= cutoff))
+    keys = list(zip(intervals["sample_id"], intervals["ploidy_index"], strict=True))
+    assert len(set(keys)) == len(keys)
+    row_by_identity = {key: row for row, key in enumerate(keys)}
+    results = []
+    zero_gap_rows = []
+    hmm_gap_rows = []
+    coverage_rows = []
+    for case in dataset.cases:
+        row = row_by_identity[(case.summary["sample_id"], case.summary["ploidy_index"])]
+        start, end = intervals["offsets"][row : row + 2]
+        counts = intervals["focal_ac"][start:end]
+        eligible = (counts >= minimum_ac) & (counts <= cutoff)
+        left = intervals["left_site_index"][start:end, budget][eligible]
+        right = intervals["right_site_index"][start:end, budget][eligible]
+        assert np.all((left >= 0) & (left < right) & (right <= num_sites))
+        delta = np.zeros(num_sites + 1, dtype=np.int64)
+        np.add.at(delta, left, 1)
+        np.add.at(delta, right, -1)
+        cumulative = np.cumsum(delta)
+        assert cumulative[-1] == 0 and np.all(cumulative >= 0)
+        coverage = cumulative[:-1]
+        zero_mask = coverage == 0
+        zero_gaps = mask_intervals(zero_mask)
+        assert np.array_equal(interval_mask(zero_gaps.tolist(), num_sites), zero_mask)
+        hmm_mask = ~case.accepted
+        hmm_gaps = np.asarray(case.stitched["gap_site_intervals"], dtype=int).reshape(
+            -1, 2
+        )
+        assert np.array_equal(mask_intervals(hmm_mask), hmm_gaps)
+        intersection = int(np.count_nonzero(hmm_mask & zero_mask))
+        hmm_only = int(np.count_nonzero(hmm_mask & ~zero_mask))
+        zero_only = int(np.count_nonzero(zero_mask & ~hmm_mask))
+        neither = int(np.count_nonzero(~hmm_mask & ~zero_mask))
+        assert intersection + hmm_only + zero_only + neither == num_sites
+        union = intersection + hmm_only + zero_only
+        hmm_sites = intersection + hmm_only
+        zero_sites = intersection + zero_only
+        assert hmm_sites == case.summary["gap_sites"]
+        zero_bounds = {tuple(bound) for bound in zero_gaps}
+        key = {
+            field: case.summary[field]
+            for field in (
+                "dataset",
+                "source",
+                "sample_id",
+                "ploidy_index",
+                "ac_cutoff",
+            )
+        }
+        key["max_mismatches"] = budget
+        metrics = {
+            **key,
+            "num_sites": num_sites,
+            "num_coverage_intervals": int(eligible.sum()),
+            "hmm_num_gaps": len(hmm_gaps),
+            "zero_coverage_num_gaps": len(zero_gaps),
+            "hmm_gap_sites": hmm_sites,
+            "zero_coverage_gap_sites": zero_sites,
+            "overlap_sites": intersection,
+            "hmm_only_gap_sites": hmm_only,
+            "zero_only_gap_sites": zero_only,
+            "neither_gap_sites": neither,
+            "gap_site_iou": intersection / union if union > 0 else np.nan,
+            "hmm_gap_overlap_fraction": intersection / hmm_sites
+            if hmm_sites > 0
+            else np.nan,
+            "zero_coverage_gap_overlap_fraction": intersection / zero_sites
+            if zero_sites > 0
+            else np.nan,
+            "hmm_gaps_with_overlap": gaps_with_overlap(hmm_gaps, zero_mask),
+            "zero_coverage_gaps_with_overlap": gaps_with_overlap(zero_gaps, hmm_mask),
+            "exact_gap_bound_matches": sum(
+                tuple(bound) in zero_bounds for bound in hmm_gaps
+            ),
+        }
+        categories = np.full(num_sites, 3, dtype=np.int8)
+        categories[hmm_mask & zero_mask] = 0
+        categories[hmm_mask & ~zero_mask] = 1
+        categories[zero_mask & ~hmm_mask] = 2
+        results.append(GapComparison(case, coverage, zero_gaps, categories, metrics))
+        zero_gap_rows.extend(gap_bound_rows(key, zero_gaps, dataset))
+        hmm_gap_rows.extend(gap_bound_rows(key, hmm_gaps, dataset))
+        changes = np.flatnonzero(coverage[1:] != coverage[:-1]) + 1
+        bounds = np.concatenate(([0], changes, [num_sites]))
+        for lo, hi in zip(bounds[:-1], bounds[1:], strict=True):
+            coverage_rows.append(
+                {
+                    **key,
+                    "left_site_index": int(lo),
+                    "right_site_index": int(hi),
+                    "num_sites": int(hi - lo),
+                    "coverage": int(coverage[lo]),
+                }
+            )
+    directory = gap_comparison_dir / name
+    directory.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(coverage_rows).to_csv(directory / "coverage_segments.csv", index=False)
+    pd.DataFrame(zero_gap_rows).to_csv(directory / "zero_coverage_gaps.csv", index=False)
+    pd.DataFrame(hmm_gap_rows).to_csv(directory / "hmm_extracted_gaps.csv", index=False)
+    pd.DataFrame([result.summary for result in results]).to_csv(
+        directory / "gap_comparison.csv", index=False
+    )
+    return results
+
+
+gap_comparisons = {
+    dataset.name: compare_gap_determination(dataset) for dataset in datasets
+}
+gap_summary = pd.DataFrame(
+    [result.summary for results in gap_comparisons.values() for result in results]
+)
+ipython_display.display(gap_summary.round(4))
+
+# %%
+fig, axes = plt.subplots(
+    1,
+    len(datasets),
+    figsize=style["gap_counts_figsize"],
+    layout="constrained",
+    squeeze=False,
+)
+for ax, dataset in zip(axes[0], datasets, strict=True):
+    results = gap_comparisons[dataset.name]
+    x = np.arange(len(results))
+    for offset, field, label, color in zip(
+        (-0.2, 0.2),
+        ("hmm_num_gaps", "zero_coverage_num_gaps"),
+        style["gap_method_labels"],
+        style["gap_method_colors"],
+        strict=True,
+    ):
+        counts = [result.summary[field] for result in results]
+        bars = ax.bar(x + offset, counts, width=0.35, color=color, label=label)
+        ax.bar_label(bars, padding=3)
+    ax.set(
+        xticks=x,
+        xticklabels=[result.case.label for result in results],
+        title=dataset.label,
+        ylabel="Number of maximal gap intervals",
+    )
+    ax.margins(y=0.15)
+    ax.legend()
+fig.suptitle(
+    f"Gap counts for the same haplotypes, AC ≤ {experiment_config['ac_cutoff']}, "
+    "zero mismatches"
+)
+plt.show()
+
+# %%
+fig, ax = plt.subplots(figsize=style["gap_counts_figsize"], layout="constrained")
+x = np.arange(len(datasets))
+for offset, field, label, color in zip(
+    (-0.2, 0.2),
+    ("hmm_num_gaps", "zero_coverage_num_gaps"),
+    style["gap_method_labels"],
+    style["gap_method_colors"],
+    strict=True,
+):
+    counts = [
+        sum(result.summary[field] for result in gap_comparisons[dataset.name])
+        for dataset in datasets
+    ]
+    bars = ax.bar(x + offset, counts, width=0.35, label=label, color=color)
+    ax.bar_label(bars, padding=3)
+ax.set(
+    xticks=x,
+    xticklabels=[
+        f"{dataset.label}\n{len(dataset.cases)} saved haplotypes" for dataset in datasets
+    ],
+    ylabel="Total number of gap intervals across saved haplotypes",
+    title="Total gaps: HMM extraction versus zero-mismatch coverage",
+)
+ax.margins(y=0.15)
+ax.legend()
+plt.show()
+
+# %%
+fig, axes = plt.subplots(
+    1,
+    len(datasets),
+    figsize=style["gap_overlap_figsize"],
+    layout="constrained",
+    squeeze=False,
+    sharex=True,
+)
+for ax, dataset in zip(axes[0], datasets, strict=True):
+    results = gap_comparisons[dataset.name]
+    y = np.arange(len(results))
+    left = np.zeros(len(y))
+    for field, label, color in zip(
+        (
+            "overlap_sites",
+            "hmm_only_gap_sites",
+            "zero_only_gap_sites",
+            "neither_gap_sites",
+        ),
+        style["gap_overlap_labels"],
+        style["gap_overlap_colors"],
+        strict=True,
+    ):
+        fractions = [
+            result.summary[field] / result.summary["num_sites"] for result in results
+        ]
+        ax.barh(y, fractions, left=left, label=label, color=color)
+        left += fractions
+    ax.set(
+        yticks=y,
+        yticklabels=[result.case.label for result in results],
+        xlim=(0, 1),
+        xlabel="Fraction of inference sites",
+        title=dataset.label,
+    )
+    ax.invert_yaxis()
+handles = [
+    mpatches.Patch(color=color, label=label)
+    for color, label in zip(
+        style["gap_overlap_colors"],
+        style["gap_overlap_labels"],
+        strict=True,
+    )
+]
+fig.legend(handles=handles, loc="outside lower center", ncol=4)
+plt.show()
+
+# %%
+overlap_cmap = mcolors.ListedColormap(style["gap_overlap_colors"])
+overlap_norm = mcolors.BoundaryNorm(np.arange(5) - 0.5, overlap_cmap.N)
+for dataset in datasets:
+    result = next(
+        item for item in gap_comparisons[dataset.name] if item.case is dataset.primary
+    )
+    edges = dataset.site_edges / style["genome_unit_bp"]
+    fig, axes = plt.subplots(
+        3,
+        1,
+        sharex=True,
+        figsize=style["gap_bounds_figsize"],
+        layout="constrained",
+    )
+    for ax, mask, label, color in zip(
+        axes[:2],
+        (~result.case.accepted, result.coverage == 0),
+        style["gap_method_labels"],
+        style["gap_method_colors"],
+        strict=True,
+    ):
+        cmap = mcolors.ListedColormap([style["gap_overlap_colors"][-1], color])
+        ax.pcolormesh(
+            edges, [0, 1], mask[None, :], cmap=cmap, vmin=0, vmax=1, rasterized=True
+        )
+        ax.set_yticks([])
+        ax.set_ylabel(label, rotation=0, ha="right", va="center")
+    axes[2].pcolormesh(
+        edges,
+        [0, 1],
+        result.categories[None, :],
+        cmap=overlap_cmap,
+        norm=overlap_norm,
+        rasterized=True,
+    )
+    axes[2].set(
+        yticks=[],
+        xlim=(edges[0], edges[-1]),
+        xlabel=f"Genomic position ({style['genome_unit_label']})",
+    )
+    axes[2].set_ylabel("Overlap", rotation=0, ha="right", va="center")
+    fig.suptitle(
+        f"{dataset.label}: {result.case.label} | "
+        f"gap-site IoU {result.summary['gap_site_iou']:.1%} | "
+        f"{result.summary['exact_gap_bound_matches']} exactly matching gap bounds"
+    )
+    fig.legend(handles=handles, loc="outside lower center", ncol=4)
+    fig.canvas.draw()
+    plt.show()
+
+# %% [markdown]
+# HMM-only gap sites have at least one zero-mismatch focal interval available,
+# but the reduced HMM's selected parent was not accepted there. Zero-coverage-only
+# gap sites were accepted by the original stitching calculation despite lying
+# outside every focal-anchored zero-mismatch interval. These are direct evidence
+# that the two acceptance definitions differ, rather than an endpoint plotting
+# convention. The comparison keeps their original definitions intact.
+
+# %%
+for dataset in datasets:
+    results = gap_comparisons[dataset.name]
+    hmm_count = sum(result.summary["hmm_num_gaps"] for result in results)
+    zero_count = sum(result.summary["zero_coverage_num_gaps"] for result in results)
+    intersection = sum(result.summary["overlap_sites"] for result in results)
+    hmm_only = sum(result.summary["hmm_only_gap_sites"] for result in results)
+    zero_only = sum(result.summary["zero_only_gap_sites"] for result in results)
+    iou = intersection / (intersection + hmm_only + zero_only)
+    print(
+        f"{dataset.label}: {hmm_count} HMM gaps versus {zero_count} zero-coverage gaps; "
+        f"site-weighted gap IoU {iou:.1%}; "
+        f"{zero_only:,} accepted sites outside all anchored exact intervals."
+    )
+print("CSV directory (relative to diagnostics YAML):", config["gap_comparison_dir"])
+
+# %% [markdown]
 # ## Interpretation and next diagnostic questions
 #
 # The saved comparison tables report identical mutation records for these runs:
 # both paths have zero called mismatches. Their score differences therefore come
-# entirely from extra switches in the stitched paths. Parent disagreement remains
+# entirely from extra switches in the stitched paths. Report their net count as
+# a proportion of stitched switches rather than the raw score difference.
+# Parent disagreement remains
 # meaningful even when the observed alleles are equally well explained.
 #
 # Use the switch decomposition and gap zooms to identify seams worth a boundary-
@@ -892,8 +1358,7 @@ ipython_display.display(distance_table.loc[distance_table.num_sites > 0].round(4
 assert summary.mutations_identical.all()
 assert (summary.full_mismatches == 0).all()
 assert (summary.stitched_mismatches == 0).all()
-assert (summary.score_delta < 0).all()
-assert (summary.extra_switches > 0).all()
+assert (summary.num_extra_switches > 0).all()
 for dataset in datasets:
     case = dataset.primary
     full_counts = switch_breakdown(case, case.full_parents)
@@ -904,5 +1369,5 @@ for dataset in datasets:
         f"parent agreement {case.summary['fraction_parent_agreement']:.1%}; "
         f"extra switches {int(extra.sum())} = "
         f"focal {extra[0]} + gaps {extra[1]} + seams {extra[2]}; "
-        f"score Δ {case.summary['score_delta']:.3f}"
+        f"extra switch prop. {case.summary['extra_switch_fraction']:.1%}"
     )

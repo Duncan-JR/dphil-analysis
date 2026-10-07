@@ -413,6 +413,10 @@ def compare_matches(
     stitched_mismatches = len(stitched["mutations"])
     full_switches = len(full["path"]) - 1
     stitched_switches = len(stitched["path"]) - 1
+    num_extra_switches = stitched_switches - full_switches
+    extra_switch_fraction = (
+        num_extra_switches / stitched_switches if stitched_switches > 0 else None
+    )
     full_score = full_mismatches * context.log_mismatch_penalty
     full_score += full_switches * context.log_switch_penalty
     stitched_score = stitched_mismatches * context.log_mismatch_penalty
@@ -438,6 +442,8 @@ def compare_matches(
         "stitched_mismatches": stitched_mismatches,
         "full_switches": full_switches,
         "stitched_switches": stitched_switches,
+        "num_extra_switches": num_extra_switches,
+        "extra_switch_fraction": extra_switch_fraction,
         "full_score": full_score,
         "stitched_score": stitched_score,
         "score_delta": score_delta,
@@ -532,14 +538,14 @@ def write_results(results, output_dir: pathlib.Path) -> None:
             writer.writerow(result.comparison)
             comparison = result.comparison
             logger.info(
-                "%s %s/%s: accepted=%s gaps=%s agreement=%.4f score_delta=%.6f",
+                "%s %s/%s: accepted=%s gaps=%s agreement=%.4f extra_switch_fraction=%s",
                 comparison["dataset"],
                 comparison["sample_id"],
                 comparison["ploidy_index"],
                 comparison["accepted_sites"],
                 comparison["num_gaps"],
                 comparison["fraction_parent_agreement"],
-                comparison["score_delta"],
+                comparison["extra_switch_fraction"],
             )
 
 
