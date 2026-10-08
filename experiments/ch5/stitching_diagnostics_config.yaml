@@ -36,6 +36,34 @@ detail:
   context_sites: 25
   max_sites: 240
   min_agreement_gap_sites: 5
+outliers:
+  output_dir: ../../data/ch5_stitching_outliers
+  criteria:
+  - metric: num_extra_switches
+    label: Most extra switches
+    ascending: false
+  - metric: focal_agreement_percentage
+    label: Lowest focal agreement
+    ascending: true
+  - metric: gap_agreement_percentage
+    label: Lowest gap agreement
+    ascending: true
+  short_gap_max_sites: 10
+  short_gap_site_axis: true
+  gaps_to_display: 8
+  divergences_to_display: 8
+  max_windows_per_haplotype: 5
+  plot:
+    genome_figsize: [16, 8]
+    gap_figsize: [16, 6]
+    transition_figsize: [16, 8]
+    distance_figsize: [16, 9]
+    transition_kinds:
+    - Identical switch
+    - Shifted parent sequence
+    - Changed parent sequence
+    - Unanchored difference
+    transition_colors: [tab:gray, tab:blue, tab:orange, tab:red]
 distance_bin_edges:
 - 0
 - 1
@@ -108,6 +136,47 @@ plot:
   - 9
   bar_group_width: 0.8
   error_bar_capsize: 3
+  population_results:
+    population_colors:
+      YRI: tab:blue
+      AFR: tab:blue
+      CEU: tab:orange
+      EUR: tab:orange
+      CHB: tab:gray
+      EAS: tab:gray
+    ternary_method_markers:
+      full: o
+      stitched: ^
+    histogram_figsize: [14, 10]
+    gap_histogram_figsize: [14, 5]
+    gap_scatter_figsize: [14, 9]
+    extra_switch_scatter_figsize: [16, 8]
+    scatter_dataset_row_labels: [Simulation, 1KGP chr20]
+    gap_histogram_color: tab:gray
+    composition_figsize: [14, 6]
+    ternary_figsize: [14, 7]
+    histogram_bins: 30
+    density_tick_count: 5
+    count_bin_width: 1
+    range_padding: 0.05
+    histogram_alpha: 0.3
+    kde_bandwidth: scott
+    kde_grid_size: 512
+    line_width: 2
+    point_size: 12
+    point_alpha: 0.6
+    point_strip_depth: 0.15
+    random_seed: 42
+    bar_height: 0.32
+    bar_offset: 0.2
+    percentage_ticks: [0, 20, 40, 60, 80, 100]
+    ternary_grid_fractions: [0.2, 0.4, 0.6, 0.8]
+    ternary_point_size: 14
+    ternary_point_alpha: 0.2
+    ternary_mean_size: 90
+    ternary_mean_label_offsets: [[-24, -18], [0, 20], [26, -18]]
+    agreement_labels: [Focal / agree, Focal / disagree, Gaps / agree, Gaps / disagree]
+    switch_labels: [Within focal coverage, Within gaps, At focal/gap seams]
 cohort:
   num_haplotypes: 200
   num_individuals: 100
