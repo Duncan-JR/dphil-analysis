@@ -1,0 +1,287 @@
+experiment_config: ../../../tsinfer-match-eval/config.yaml
+datasets:
+- name: out_of_africa_n100_10mbp
+  label: Simulation, 100 individuals, 10 Mb
+  deep_dive:
+    sample_id: tsk_18
+    ploidy_index: 0
+  haplotypes:
+  - sample_id: tsk_18
+    ploidy_index: 0
+  - sample_id: tsk_40
+    ploidy_index: 1
+  - sample_id: tsk_96
+    ploidy_index: 1
+  populations:
+  - YRI
+  - CEU
+  - CHB
+  population_source: simulation
+  saved_greedy_name: out_of_africa_n100_10mbp
+- name: tgp_chr20_n100_10mbp
+  label: 1KGP chromosome 20, 100 individuals, 10 Mb
+  deep_dive:
+    sample_id: NA18582
+    ploidy_index: 0
+  haplotypes:
+  - sample_id: NA07019
+    ploidy_index: 1
+  - sample_id: NA18582
+    ploidy_index: 0
+  - sample_id: NA19150
+    ploidy_index: 0
+  populations:
+  - AFR
+  - EUR
+  - EAS
+  population_source: pedigree
+  population_metadata: ../../data/misc/tgp_3202_pedigree.csv
+  saved_greedy_name: tgp_chr20_n100
+detail:
+  context_sites: 25
+  max_sites: 240
+  min_agreement_gap_sites: 5
+distance_bin_edges:
+- 0
+- 1
+- 2
+- 5
+- 10
+- 20
+- 50
+- 100
+- 250
+- 500
+- 1000
+- 5000
+- 100000
+plot:
+  dpi: 120
+  font_size: 10
+  genome_unit_bp: 1000000
+  genome_unit_label: Mb
+  detail_unit_bp: 1000
+  detail_unit_label: kb
+  terminal_site_width_bp: 1
+  cohort_figsize:
+  - 16
+  - 8
+  tracks_figsize:
+  - 16
+  - 7
+  overview_figsize:
+  - 16
+  - 7
+  detail_figsize:
+  - 16
+  - 7
+  parent_row_height_in: 0.24
+  distance_figsize:
+  - 16
+  - 4
+  extra_switch_figsize:
+  - 16
+  - 4
+  category_labels:
+  - Focal / agree
+  - Focal / differ
+  - Gap fill / agree
+  - Gap fill / differ
+  category_colors:
+  - '#009E73'
+  - '#CC79A7'
+  - '#56B4E9'
+  - '#D55E00'
+  source_labels:
+  - Focal coverage
+  - Full-reference gap fill
+  source_colors:
+  - '#B8DED4'
+  - '#FFE3A3'
+  switch_labels:
+  - Within focal coverage
+  - Within gaps
+  - At focal/gap seams
+  switch_colors:
+  - '#009E73'
+  - '#E69F00'
+  - '#7B61A8'
+  full_color: '#222222'
+  stitched_color: '#6A3D9A'
+  population_figsize:
+  - 16
+  - 9
+  bar_group_width: 0.8
+  error_bar_capsize: 3
+  population_results:
+    population_colors:
+      YRI: tab:blue
+      AFR: tab:blue
+      CEU: tab:orange
+      EUR: tab:orange
+      CHB: tab:gray
+      EAS: tab:gray
+    ternary_method_markers:
+      full: o
+      stitched: ^
+    histogram_figsize:
+    - 14
+    - 10
+    gap_histogram_figsize:
+    - 14
+    - 5
+    gap_scatter_figsize:
+    - 14
+    - 9
+    extra_switch_scatter_figsize:
+    - 16
+    - 8
+    hyperparameter_figsize:
+    - 12
+    - 8
+    current_config_figsize:
+    - 12
+    - 5
+    scatter_dataset_row_labels:
+    - Simulation
+    - 1KGP chr20
+    gap_histogram_color: tab:gray
+    composition_figsize:
+    - 14
+    - 6
+    ternary_figsize:
+    - 14
+    - 7
+    histogram_bins: 30
+    density_tick_count: 5
+    count_bin_width: 1
+    range_padding: 0.05
+    histogram_alpha: 0.3
+    kde_bandwidth: scott
+    kde_grid_size: 512
+    line_width: 2
+    point_size: 12
+    point_alpha: 0.6
+    point_strip_depth: 0.15
+    random_seed: 42
+    bar_height: 0.32
+    bar_offset: 0.2
+    percentage_ticks:
+    - 0
+    - 20
+    - 40
+    - 60
+    - 80
+    - 100
+    ternary_grid_fractions:
+    - 0.2
+    - 0.4
+    - 0.6
+    - 0.8
+    ternary_point_size: 14
+    ternary_point_alpha: 0.2
+    ternary_mean_size: 90
+    ternary_mean_label_offsets:
+    - - -24
+      - -18
+    - - 0
+      - 20
+    - - 26
+      - -18
+    agreement_labels:
+    - Focal / agree
+    - Focal / disagree
+    - Gaps / agree
+    - Gaps / disagree
+    switch_labels:
+    - Within focal coverage
+    - Within gaps
+    - At focal/gap seams
+cohort:
+  num_haplotypes: 200
+  num_individuals: 100
+  output_dir: ../../data/ch5_stitching_pt3
+comparison:
+  ac_cutoff: 10
+  max_mismatches: 0
+  method: hmm
+method_comparison:
+  saved_greedy_config: chunk_matching_config.yaml
+  output_dir: ../../data/ch5_stitching_pt3/method_comparison
+  workers: null
+  progress_every: 20
+  distance_bin_edges:
+  - 0
+  - 1
+  - 2
+  - 5
+  - 10
+  - 20
+  - 50
+  - 100
+  - 250
+  - 500
+  - 1000
+  - 5000
+  - 100000
+  switch_rate_scale: 1000
+  topology_methods:
+  - full
+  - saved_greedy
+  - greedy
+  - reduced_hmm
+  - independent_hmm
+  implementation_labels:
+    full: Full HMM
+    saved_greedy: Greedy (pt2 saved)
+    greedy: Greedy (same gap fills)
+    reduced_hmm: Reduced HMM (pipeline)
+    independent_hmm: Reduced HMM (independent focal runs)
+  implementation_colors:
+    full: '#222222'
+    saved_greedy: '#E69F00'
+    greedy: '#D55E00'
+    reduced_hmm: '#6A3D9A'
+    independent_hmm: '#009E73'
+  saved_methods:
+  - full
+  - saved_greedy
+  - reduced_hmm
+  controlled_methods:
+  - greedy
+  - reduced_hmm
+  - independent_hmm
+  switch_figsize:
+  - 16
+  - 9
+  control_figsize:
+  - 16
+  - 8
+  distance_figsize:
+  - 16
+  - 9
+  parameter_figsize:
+  - 16
+  - 9
+  topology_figsize:
+  - 12
+  - 5
+  mismatch_line_styles:
+    0: '-'
+    1: --
+  short_labels:
+    full: Full HMM
+    saved_greedy: Greedy (pt2)
+    greedy: Greedy
+    reduced_hmm: Whole-span reduced
+    independent_hmm: Focal-only reduced
+  window_figsize:
+  - 16
+  - 8
+  component_figsize:
+  - 16
+  - 8
+  archive_fields:
+    greedy: greedy
+    reduced_hmm: reduced_stitched
+    independent_hmm: independent

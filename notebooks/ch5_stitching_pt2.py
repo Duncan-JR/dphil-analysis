@@ -61,6 +61,101 @@ category_norm = mcolors.BoundaryNorm(np.arange(5) - 0.5, category_cmap.N)
 source_cmap = mcolors.ListedColormap(style["source_colors"])
 source_norm = mcolors.BoundaryNorm(np.arange(3) - 0.5, source_cmap.N)
 
+# %% [markdown]
+# # Extra switches vs hyperparameters
+#
+# The saved cohort contains only AC cutoff 10, and its outputs do not record
+# whether zero or one mismatches per side were allowed. The requested mismatch
+# panels are therefore marked unavailable. The final row shows the aggregate
+# for the current saved configuration without assigning it to either setting.
+
+# %%
+hyperparameter_output_dir = pathlib.Path(config["cohort"]["output_dir"]).expanduser()
+if not hyperparameter_output_dir.is_absolute():
+    hyperparameter_output_dir = diagnostic_config_path.parent / hyperparameter_output_dir
+hyperparameter_results = pd.read_csv(
+    hyperparameter_output_dir / "haplotype_results.csv"
+)
+switch_counts = hyperparameter_results.pivot(
+    index=["dataset", "sample_id", "ploidy_index", "population", "ac_cutoff"],
+    columns="method",
+    values="num_switches",
+).reset_index()
+switch_counts["num_extra_switches"] = switch_counts.stitched - switch_counts.full
+full_switch_counts = switch_counts.full.replace(0, np.nan)
+switch_counts["switch_increase_percentage"] = (
+    100 * switch_counts.num_extra_switches / full_switch_counts
+)
+hyperparameter_metrics = [
+    ("num_extra_switches", "Mean extra switches"),
+    ("switch_increase_percentage", "Mean percentage increase"),
+]
+requested_mismatch_settings = [0, 1]
+fig, axes = plt.subplots(
+    nrows=2,
+    ncols=2,
+    figsize=style["population_results"]["hyperparameter_figsize"],
+    sharex=True,
+)
+available_cutoffs = sorted(switch_counts.ac_cutoff.unique())
+for column, mismatch_count in enumerate(requested_mismatch_settings):
+    for row, (metric, ylabel) in enumerate(hyperparameter_metrics):
+        ax = axes[row, column]
+        ax.text(
+            0.5,
+            0.5,
+            "No results with a recorded\nmismatch allowance",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+        )
+        ax.set_title(f"{mismatch_count} mismatches allowed per side")
+        ax.set_ylabel(ylabel)
+        ax.set_xticks(available_cutoffs)
+for ax in axes[-1]:
+    ax.set_xlabel("AC cutoff")
+fig.suptitle("Extra switches by mismatch allowance")
+fig.tight_layout()
+plt.show()
+
+# %% [markdown]
+# The saved cohort has one AC cutoff. These means and standard errors describe
+# the current configuration across all populations; the mismatch allowance is
+# not recorded in its output metadata.
+
+# %%
+fig, axes = plt.subplots(
+    nrows=1,
+    ncols=2,
+    figsize=style["population_results"]["current_config_figsize"],
+)
+for ax, (metric, ylabel) in zip(axes, hyperparameter_metrics, strict=True):
+    summary = switch_counts.groupby("ac_cutoff")[metric].agg(["mean", "sem"])
+    ax.errorbar(
+        summary.index,
+        summary["mean"],
+        yerr=summary["sem"],
+        marker="o",
+        capsize=style["error_bar_capsize"],
+    )
+    ax.set_xlabel("AC cutoff")
+    ax.set_ylabel(ylabel)
+    ax.set_xticks(summary.index)
+    if metric == "switch_increase_percentage":
+        undefined_count = switch_counts[metric].isna().sum()
+        ax.text(
+            0.98,
+            0.96,
+            f"{undefined_count} undefined increases excluded",
+            ha="right",
+            va="top",
+            transform=ax.transAxes,
+            fontsize="small",
+        )
+fig.suptitle("Current saved configuration (mean ± SEM)")
+fig.tight_layout()
+plt.show()
+
 
 # %%
 @dataclasses.dataclass
@@ -714,7 +809,6 @@ for region in ("focal", "gap"):
     population_comparisons[f"{region}_agreement_percentage"] = (
         100 * (1 - disagreeing_sites / region_sites)
     )
-
 
 def plot_population_histograms(
     metric: str,
@@ -2394,221 +2488,3 @@ axes[0, 0].set_ylabel("Fraction of sites with different parents")
 plt.show()
 distance_table = pd.DataFrame(distance_rows)
 ipython_display.display(distance_table.loc[distance_table.num_sites > 0].round(4))
-
-# %% [markdown]
-# ## Interpretation and next diagnostic questions
-#
-# Parent agreement, allele mismatches, and switch counts measure different
-# aspects of the copying paths. Focal coverage is determined from anchored
-# generated-ancestor intervals; copied alleles are read from the inferred
-# reference so any differences between these representations are reported.
-# Extra switch fraction measures the net count relative to stitched switches.
-# Gap and focal zooms show where the paths differ. They do not establish which
-# copying genealogy is biologically correct or rule out equivalent paths.
-#
-# %%
-assert summary.num_sites.gt(0).all()
-for dataset in datasets:
-    case = dataset.primary
-    full_counts = switch_breakdown(case, case.full_parents)
-    stitched_counts = switch_breakdown(case, case.stitched_parents)
-    extra = stitched_counts - full_counts
-    print(
-        f"{dataset.label}, {case.label}: "
-        f"parent agreement {case.summary['fraction_parent_agreement']:.1%}; "
-        f"extra switches {int(extra.sum())} = "
-        f"focal {extra[0]} + gaps {extra[1]} + seams {extra[2]}; "
-        f"extra switch prop. {case.summary['extra_switch_fraction']:.1%}"
-    )
-
-# %% [markdown]
-# ## Dataset-wide testing
-#
-# Evaluate all 200 haplotypes (100 diploid individuals) in each dataset. The
-# experiment distributes independent haplotype jobs across all available CPUs,
-# reuses full-reference HMM indexes within each worker, and records scalar
-# diagnostics while the parent arrays are already in memory. This section reads
-# those compact summaries; it does not rerun matching or reconstruct cohort-wide
-# site arrays. Population labels are joined upstream by sample ID and ploidy.
-#
-# Each result row describes one haplotype and method. Switches use the same
-# focal/gap partition for both methods: adjacent covered sites, adjacent gap
-# sites, or a seam between them. Total extra switch fraction is
-# `(stitched_switches - full_switches) / stitched_switches` and is undefined
-# when the stitched count is zero. The four agree/disagree fractions compare
-# the full and stitched parent IDs and divide by **all inference sites**.
-# They sum to one and are shared comparison measurements, so they appear in
-# both method rows but are plotted once per haplotype.
-#
-# Bars show population means with **± one sample standard deviation** across
-# haplotypes. These error bars describe variation, rather than uncertainty in
-# the mean. Population tables report haplotype and individual counts.
-
-# %%
-cohort_output_dir = pathlib.Path(config["cohort"]["output_dir"]).expanduser()
-if not cohort_output_dir.is_absolute():
-    cohort_output_dir = diagnostic_config_path.parent / cohort_output_dir
-cohort_output_dir.mkdir(parents=True, exist_ok=True)
-cohort_tables = []
-for settings in config["datasets"]:
-    table = pd.read_csv(output_dir / settings["name"] / "comparison.csv")
-    keys = ["sample_id", "ploidy_index"]
-    assert not table.duplicated(keys).any()
-    assert len(table) == config["cohort"]["num_haplotypes"]
-    assert table.sample_id.nunique() == config["cohort"]["num_individuals"]
-    assert table.groupby("sample_id").ploidy_index.apply(set).eq({0, 1}).all()
-    assert table.population.notna().all()
-    assert set(table.population) == set(settings["populations"])
-    assert table.dataset.eq(settings["name"]).all()
-    cohort_tables.append(table)
-cohort_comparisons = pd.concat(cohort_tables, ignore_index=True)
-fraction_columns = [
-    "focal_agree_fraction",
-    "focal_disagree_fraction",
-    "gap_agree_fraction",
-    "gap_disagree_fraction",
-]
-assert np.allclose(cohort_comparisons[fraction_columns].sum(axis=1), 1)
-shared_columns = [
-    "dataset",
-    "sample_id",
-    "ploidy_index",
-    "population",
-    "ac_cutoff",
-    "num_sites",
-    "focal_sites",
-    "gap_sites",
-    "num_gaps",
-    "num_extra_switches",
-    "extra_switch_fraction",
-    *fraction_columns,
-]
-method_tables = []
-for method in ("full", "stitched"):
-    table = cohort_comparisons[shared_columns].copy()
-    table["method"] = method
-    table["num_switches"] = cohort_comparisons[f"{method}_switches"]
-    for category in ("focal", "gap", "seam"):
-        table[f"num_switches_{category}"] = cohort_comparisons[
-            f"{method}_{category}_switches"
-        ]
-    components = table[["num_switches_focal", "num_switches_gap", "num_switches_seam"]]
-    assert components.sum(axis=1).eq(table.num_switches).all()
-    method_tables.append(table)
-cohort_results = pd.concat(method_tables, ignore_index=True)
-cohort_results.to_csv(cohort_output_dir / "haplotype_results.csv", index=False)
-ipython_display.display(cohort_results.head())
-population_sizes = (
-    cohort_comparisons.groupby(["dataset", "population"])
-    .agg(
-        num_haplotypes=("sample_id", "size"),
-        num_individuals=("sample_id", "nunique"),
-    )
-    .reset_index()
-)
-population_sizes.to_csv(cohort_output_dir / "population_sizes.csv", index=False)
-ipython_display.display(population_sizes)
-
-# %%
-switch_columns = ["num_switches_focal", "num_switches_gap", "num_switches_seam"]
-switch_population_summary = cohort_results.groupby(["dataset", "population", "method"])[
-    ["num_switches", *switch_columns, "extra_switch_fraction"]
-].agg(["mean", "std", "count"])
-fraction_population_summary = cohort_comparisons.groupby(["dataset", "population"])[
-    fraction_columns
-].agg(["mean", "std", "count"])
-switch_population_summary.to_csv(cohort_output_dir / "population_switch_summary.csv")
-fraction_population_summary.to_csv(
-    cohort_output_dir / "population_fraction_summary.csv"
-)
-ipython_display.display(switch_population_summary.round(4))
-ipython_display.display(fraction_population_summary.round(4))
-
-# %%
-fig, axes = plt.subplots(
-    len(switch_columns),
-    len(config["datasets"]),
-    figsize=style["population_figsize"],
-    layout="constrained",
-    squeeze=False,
-    sharey="row",
-)
-width = style["bar_group_width"] / 2
-for column, settings in enumerate(config["datasets"]):
-    populations = settings["populations"]
-    x = np.arange(len(populations))
-    for row, (metric, label) in enumerate(
-        zip(switch_columns, style["switch_labels"], strict=True)
-    ):
-        ax = axes[row, column]
-        for method_index, (method, color) in enumerate(
-            (("full", style["full_color"]), ("stitched", style["stitched_color"]))
-        ):
-            keys = [
-                (settings["name"], population, method) for population in populations
-            ]
-            values = switch_population_summary.loc[keys, metric]
-            centers = x + (method_index - 0.5) * width
-            ax.bar(
-                centers,
-                values["mean"],
-                width=width,
-                yerr=values["std"],
-                capsize=style["error_bar_capsize"],
-                color=color,
-                label="Full HMM" if method == "full" else "Stitched",
-            )
-        ax.set(xticks=x, xticklabels=populations, ylabel=f"Mean switches\n{label}")
-        ax.grid(axis="y", alpha=0.2)
-        if row == 0:
-            ax.set_title(settings["label"])
-            ax.legend()
-        if row == len(switch_columns) - 1:
-            ax.set_xlabel("Population")
-fig.suptitle("Parent switches by population: mean ± SD across haplotypes")
-fig.savefig(cohort_output_dir / "population_switches.png")
-plt.show()
-
-# %%
-fig, axes = plt.subplots(
-    1,
-    len(config["datasets"]),
-    figsize=style["extra_switch_figsize"],
-    layout="constrained",
-    squeeze=False,
-    sharey=True,
-)
-width = style["bar_group_width"] / len(fraction_columns)
-for ax, settings in zip(axes[0], config["datasets"], strict=True):
-    populations = settings["populations"]
-    x = np.arange(len(populations))
-    keys = [(settings["name"], population) for population in populations]
-    for index, (metric, label, color) in enumerate(
-        zip(
-            fraction_columns,
-            style["category_labels"],
-            style["category_colors"],
-            strict=True,
-        )
-    ):
-        values = fraction_population_summary.loc[keys, metric]
-        centers = x + (index - (len(fraction_columns) - 1) / 2) * width
-        ax.bar(
-            centers,
-            values["mean"],
-            width=width,
-            yerr=values["std"],
-            capsize=style["error_bar_capsize"],
-            label=label,
-            color=color,
-        )
-    ax.set(
-        xticks=x, xticklabels=populations, xlabel="Population", title=settings["label"]
-    )
-    ax.grid(axis="y", alpha=0.2)
-    ax.legend(fontsize="small")
-axes[0, 0].set_ylabel("Mean fraction of all inference sites")
-fig.suptitle("Focal/gap parent agreement by population: mean ± SD across haplotypes")
-fig.savefig(cohort_output_dir / "population_agreement_fractions.png")
-plt.show()
-print("Dataset-wide tables and plots:", cohort_output_dir.resolve())

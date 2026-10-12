@@ -151,6 +151,8 @@ plot:
     gap_histogram_figsize: [14, 5]
     gap_scatter_figsize: [14, 9]
     extra_switch_scatter_figsize: [16, 8]
+    hyperparameter_figsize: [12, 8]
+    current_config_figsize: [12, 5]
     scatter_dataset_row_labels: [Simulation, 1KGP chr20]
     gap_histogram_color: tab:gray
     composition_figsize: [14, 6]
