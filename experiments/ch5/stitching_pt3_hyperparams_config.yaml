@@ -1,0 +1,112 @@
+experiment_config: stitching_pt3_experiment_config.yaml
+output_dir: ../../data/ch5_stitching_pt3_hyperparams
+method: hmm
+workers: null
+baseline_partition_ac_cutoff: 10
+truth_comparison:
+  full_hmm_cutoff: 1
+datasets:
+- name: sim_n300_10mbp_error
+  label: Simulation
+  population_metadata: sim_n300_10mbp_error_populations.csv
+  population_column: population
+  african_population: YRI
+  analysis_span_bp:
+  - 0
+  - 10000000
+  mutation_rate: 2.35e-08
+- name: tgp_n300_10mbp
+  label: 1KGP
+  population_metadata: ../../data/misc/tgp_3202_pedigree.csv
+  population_column: superpopulation
+  african_population: AFR
+  analysis_span_bp:
+  - 1000000
+  - 11000000
+  mutation_rate: 1.29e-08
+plot:
+  dpi: 120
+  font_size: 10
+  panel_width: 7
+  panel_height: 4
+  mismatch_colors:
+  - '#0072B2'
+  - '#D55E00'
+  ac_colors:
+  - '#0072B2'
+  - '#009E73'
+  - '#E69F00'
+  - '#CC79A7'
+  - '#D55E00'
+  - '#56B4E9'
+  population_colors:
+    African: '#0072B2'
+    Non-African: '#E69F00'
+  switch_categories:
+  - focal
+  - gap
+  - seam
+  switch_labels:
+  - Within focal coverage
+  - Within gaps
+  - At gap seams
+  switch_colors:
+  - '#009E73'
+  - '#E69F00'
+  - '#7B61A8'
+  line_width: 1.5
+  marker_size: 4
+  hourglass_width: 0.12
+  hourglass_alpha: 0.3
+  histogram_bins: 40
+  length_display_quantile: 0.99
+  histogram_alpha: 0.16
+  kde_grid_size: 512
+  kde_bandwidth: scott
+  bar_width: 0.65
+  full_stitched_gap_bar_widths: 1
+  group_label_y: -0.2
+dating:
+  output_subdir: dated_args
+  workers: null
+  helper_threads: 1
+  post_process:
+    split_ultimate: true
+    erase_flanks: true
+  preprocess:
+    delete_intervals: []
+    split_disjoint: true
+  estimation:
+    method: variational_gamma
+    time_units: generations
+    set_metadata: true
+    progress: false
+    singletons_phased: true
+  compare_full_datasets:
+  - sim_n300_10mbp_error
+  - tgp_n300_10mbp
+  dataset_linestyles:
+    sim_n300_10mbp_error: '-'
+    tgp_n300_10mbp: --
+  frequency_bins:
+    cutoffs:
+    - 0.01
+    - 0.5
+    labels:
+    - DAF < 0.01
+    - "0.01 \u2264 DAF < 0.5"
+    - "DAF \u2265 0.5"
+  plot:
+    x_parameter: ac_cutoff
+    x_label: AC cutoff
+    curve_parameter: max_mismatches
+    curve_colors: mismatch_colors
+    curve_label: '{value} mismatches allowed'
+  age_density:
+    panel_size: 3.6
+    bins: 80
+    age_scale: log
+    cmap: viridis
+    identity_color: '#D55E00'
+    colorbar_shrink: 0.7
+    column_label: AC {value:g}

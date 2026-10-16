@@ -1,0 +1,36 @@
+data_dir: ../../../tsinfer-match-eval/data/stitching_eval
+progress_dir: ../../../tsinfer-match-eval/.progress
+focal_choice: left
+ac_cutoff:
+- 3
+- 5
+- 7
+- 10
+- 20
+- 40
+max_mismatches:
+- 0
+- 1
+focal_methods:
+- hmm
+hmm:
+  recombination: 0.01
+  mismatch: 1.0e-20
+datasets:
+- name: sim_n300_10mbp_error
+  zarr_path: ../../../tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-geno-1.0-phase3e-4-mispol0.zarr
+  ts_path: ../../../tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees
+  ancestral_state:
+    field: variant_ancestral_state
+- name: tgp_n300_10mbp
+  zarr_path: ../../data/zarr_vcfs/tgp/chr20/data.zarr
+  ts_path: null
+  ancestral_state:
+    field: variant_ancestral_allele
+  include: POS >= 1000000 & POS < 11000000
+  matching_cache_size: 1024
+  sample_list: ../../../tsinfer-match-eval/data/sample_lists/tgp_chr20_n300.csv
+ancestor_chunk_size: 5000
+inference_threads: 1
+matching_threads: 1
+haplotype_batch_size: 64

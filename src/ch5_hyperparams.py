@@ -73,7 +73,7 @@ class ArgComparison:
     """An aligned pair and method labels for one worker's ARG calculation."""
 
     dataset: str
-    ac_cutoff: int
+    ac_cutoff: int | None
     max_mismatches: int | None
     comparison: tskit.TreeSequence
     reference: tskit.TreeSequence
@@ -145,8 +145,12 @@ def coverage_percentage(left: np.ndarray, right: np.ndarray, is_gap: np.ndarray,
     return float(100 * widths[~is_gap].sum() / (span[1] - span[0]))
 
 
-def summarise_run(inputs: RunInputs) -> Results:
-    """Validate a run and derive counts, within-region agreement and lengths."""
+def summarise_run(inputs: RunInputs, min_focal_region_size: int | None = None) -> Results:
+    """Validate a saved run, optionally selecting a minimum-size focal mask.
+
+    Derive counts, within-region agreement and lengths with the same metric
+    definitions for the hyperparameter and minimum-size analyses.
+    """
     name = inputs.dataset
     reference = tskit.load(inputs.data_dir / 'ancestors' / f'{name}_inferred_ancestors.trees')
     positions = reference.sites_position
@@ -154,6 +158,8 @@ def summarise_run(inputs: RunInputs) -> Results:
     assert positions[-1] < inputs.analysis_span_bp[1]
     full = read_matches(inputs.data_dir / 'matches' / f'{name}_inferred_samples_matches.jsonl')
     prefix = f'{name}_inferred_ac{inputs.ac_cutoff}_k{inputs.max_mismatches}'
+    if min_focal_region_size is not None:
+        prefix += f'_min{min_focal_region_size}'
     stitched_path = inputs.data_dir / 'matches' / f'{prefix}_{inputs.method}_stitched_samples_matches.jsonl'
     stitched = read_matches(stitched_path)
     mask_path = inputs.data_dir / 'focal_masks' / f'{prefix}_focal_mask.npz'
@@ -163,6 +169,8 @@ def summarise_run(inputs: RunInputs) -> Results:
     assert int(mask['ac_cutoff']) == inputs.ac_cutoff
     assert int(mask['max_mismatches']) == inputs.max_mismatches
     assert str(mask['focal_choice']) == inputs.focal_choice
+    if min_focal_region_size is not None:
+        assert int(mask['min_focal_region_size']) == min_focal_region_size
     roster = list(zip(mask['sample_id'].tolist(), mask['ploidy_index'].tolist(), strict=True))
     assert len(roster) == len(set(roster))
     assert set(roster) == set(full) == set(stitched)
@@ -205,6 +213,8 @@ def summarise_run(inputs: RunInputs) -> Results:
             'ac_cutoff': inputs.ac_cutoff, 'max_mismatches': inputs.max_mismatches,
             'method': inputs.method,
         }
+        if min_focal_region_size is not None:
+            identity['min_focal_region_size'] = min_focal_region_size
         population = inputs.labels[key]
         assert population is not None and population != ''
         group = 'African' if population == inputs.african_population else 'Non-African'

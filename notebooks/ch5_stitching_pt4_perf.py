@@ -31,6 +31,7 @@ import IPython.display as ipython_display
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy.stats as stats
 import yaml
 
@@ -97,14 +98,14 @@ def save_figure(fig, name):
 
 
 def phase_legend(ax, settings, title=None, order=None, **kwargs):
-    """Use opaque, dark patterns and optional top-to-bottom stack ordering."""
+    """List stack phases top to bottom, with optional phase-specific colours."""
     legend_style = style['phase_legend']
     if order is None:
-        order = list(settings)
+        order = list(reversed(settings))
     handles = []
     for phase in order:
         values = settings[phase]
-        handle = mpatches.Patch(facecolor=legend_style['facecolor'],
+        handle = mpatches.Patch(facecolor=values.get('legend_facecolor', legend_style['facecolor']),
                                edgecolor=legend_style['edgecolor'], hatch=values['hatch'],
                                label=values['label'])
         handles.append(handle)
@@ -315,7 +316,7 @@ if __name__ == '__main__':
     ax.set(title='Peak process memory', ylabel='Whole-trial peak RSS (GiB)',
            xticks=np.arange(len(methods)), xticklabels=[labels[method] for method in methods])
     ax.set_ylim(0, ax.get_ylim()[1] * 1.12)
-    phase_legend(ax, style['memory_modes'])
+    phase_legend(ax, style['memory_modes'], order=list(style['memory_modes']))
 
     ax = axes[0, 1]
     workers = resident.actual_workers.iloc[0]
@@ -332,3 +333,79 @@ if __name__ == '__main__':
            ylim=(0, max(workers, resident.effective_cores.max()) * 1.2))
     ax.legend(loc='lower right')
     save_figure(fig, 'memory_and_cpu')
+
+# %% [markdown]
+# ## Per-sample data
+#
+# Each point represents one diploid sample. Focal coverage is the mean physical
+# coverage of its two haplotypes over the analysed 1–31 Mb interval. Recorded
+# worker time sums all instrumented stages, averages across trials for each
+# haplotype, then averages the two haplotypes. Colours identify populations;
+# marginal histograms show sample counts using the same population colours.
+# Full HMM has no recorded worker-stage timings.
+
+# %%
+if __name__ == '__main__':
+    sample_settings = config['per_sample']
+    sample_runs = resident.loc[resident.method.isin(stitched_methods)]
+    worker_tables = []
+    for run in sample_runs.itertuples():
+        worker_times_path = pathlib.Path(run.output_matches).parent / sample_settings['worker_times_filename']
+        if worker_times_path.exists():
+            worker_table = pd.read_csv(worker_times_path)
+            worker_table['method'] = run.method
+            worker_table['repeat'] = run.repeat
+            worker_tables.append(worker_table)
+    if len(worker_tables) != len(sample_runs):
+        ipython_display.display(ipython_display.Markdown(
+            '**Per-sample timings unavailable:** the saved benchmark retains only '
+            'worker-stage totals across all haplotypes. Per-haplotype timings '
+            'must be collected before these plots can be drawn.'))
+    else:
+        inputs = results.manifest['datasets'][config['dataset']]['inputs']
+        population_path = ch5_hyperparams.resolve_path(
+            sample_settings['population_metadata'], config_path.parent)
+        sample_data = ch5_perf.per_sample_data(
+            pd.concat(worker_tables, ignore_index=True), pathlib.Path(inputs['mask']),
+            pathlib.Path(inputs['reference']), population_path, sample_settings, resident)
+        sample_data.to_csv(output_dir / 'per_sample_matching_performance.csv', index=False)
+        sample_style = style['per_sample']
+        fig = plt.figure(figsize=(sample_style['figure_width'], sample_style['figure_height']),
+                         layout='constrained')
+        fig.suptitle('Per-sample matching performance')
+        subfigures = fig.subfigures(1, len(stitched_methods))
+        population_handles = []
+        for method, subfigure in zip(stitched_methods, subfigures, strict=True):
+            subfigure.suptitle(labels[method])
+            ratio = sample_style['marginal_ratio']
+            grid = subfigure.add_gridspec(2, 2, width_ratios=[ratio, 1],
+                                         height_ratios=[1, ratio])
+            ax = subfigure.add_subplot(grid[1, 0])
+            top = subfigure.add_subplot(grid[0, 0], sharex=ax)
+            right = subfigure.add_subplot(grid[1, 1], sharey=ax)
+            table = sample_data.loc[sample_data.method.eq(method)]
+            assert set(table.population) <= set(sample_style['population_colors'])
+            x_bins = np.linspace(0, 100, sample_style['histogram_bins'] + 1)
+            y_bins = np.linspace(0, table.worker_time_ms.max(),
+                                 sample_style['histogram_bins'] + 1)
+            for population, color in sample_style['population_colors'].items():
+                group = table.loc[table.population.eq(population)]
+                points = ax.scatter(group.focal_coverage_percentage, group.worker_time_ms,
+                                    color=color, s=sample_style['marker_size'],
+                                    alpha=sample_style['alpha'], label=population)
+                top.hist(group.focal_coverage_percentage, bins=x_bins, color=color,
+                         alpha=sample_style['alpha'])
+                right.hist(group.worker_time_ms, bins=y_bins, orientation='horizontal',
+                           color=color, alpha=sample_style['alpha'])
+                if method == stitched_methods[0]:
+                    population_handles.append(points)
+            ax.set(xlabel='Focal coverage of sample (%)',
+                   ylabel='Recorded worker time per haplotype (ms)',
+                   xlim=(0, 100), ylim=(0, None))
+            top.set(ylabel='Samples')
+            right.set(xlabel='Samples')
+            top.tick_params(labelbottom=False)
+            right.tick_params(labelleft=False)
+        fig.legend(handles=population_handles, title='Population',
+                   loc='outside lower center', ncol=len(population_handles))
+        save_figure(fig, 'per_sample_matching_performance')

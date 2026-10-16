@@ -18,7 +18,8 @@
 # %% [markdown]
 # # Stitching hyperparameters: full versus reduced HMM
 #
-# Read the fixed pipeline's current `match-eval/config.yaml` parameter grid.
+# Read the saved pt3 experiment grid (AC 3, 5, 7, 10, 20, 40; mismatches 0/1).
+# This snapshot keeps pt3 independent of later minimum-size experiments.
 # Simulation is on the left and 1KGP on the right. Both diploid
 # haplotypes are included; each mean gives equal weight to each haplotype.
 # African means YRI in simulation and AFR in 1KGP; Non-African pools all
@@ -30,6 +31,8 @@ import logging
 import pathlib
 
 import ch5_hyperparams
+import ch5_dating
+import ch5_dating_plots
 import IPython.display as ipython_display
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -507,7 +510,7 @@ def truth_arg_metric_lines():
                     markersize=style['marker_size'], linewidth=style['line_width'],
                     label=f'{allowance} mismatches allowed')
         ticks = [full_cutoff, *cutoffs]
-        tick_labels = [f'{full_cutoff} (Full HMM)', *[str(cutoff) for cutoff in cutoffs]]
+        tick_labels = [f'{full_cutoff}\n(Full HMM)', *[str(cutoff) for cutoff in cutoffs]]
         ax.set(xlabel='AC cutoff', ylabel=ylabel, xticks=ticks, xticklabels=tick_labels,
                title='Simulation vs true ARG')
         ax.legend()
@@ -520,3 +523,96 @@ if __name__ == '__main__':
     save_figure(fig, 'arg_metrics_against_truth')
 
 # %%
+
+# %% [markdown]
+# ## Mutation-age correlations after dating
+#
+# All 26 inferred ARGs (Full HMM and twelve reduced-HMM cases per dataset) are
+# post-processed with the updated local tsinfer. Singleton and other omitted
+# sites are restored from the observed sample VCZ, retaining the inferred
+# topology and observed alleles. The analysed window is retained, then
+# `tsdate.preprocess_ts` splits disjoint nodes before `tsdate.date` uses the
+# variational-gamma method. Dated ARGs and input/settings manifests are saved
+# under `dated_args`; unchanged results are reused on subsequent runs.
+#
+# Mutation rates are 2.35 × 10⁻⁸ per bp per generation for the simulation
+# (from its mutation provenance), and a configured 1.29 × 10⁻⁸ for 1KGP.
+# Singletons retain their observed phase. See the
+# [tsdate dating and preprocessing documentation](https://tskit.dev/tsdate/docs/stable/usage.html).
+#
+# **These plots compare mutation ages, not node ages.** Inferred ages are
+# tsdate's posterior mutation means (`mutation.metadata['mn']`), rather than
+# branch-midpoint times in the mutation table. Truth uses the simulated
+# mutation event times. Mutations are paired by genomic position and identical
+# ancestral/derived states. Sites with zero or multiple mutations, or nonfinite
+# ages, are excluded. Each panel/dataset uses one common set across all its
+# cases, so the plotted correlations are directly comparable. The CSV reports
+# the number of matched mutations. Correlations are unweighted Pearson r on
+# ages in generations, conditional on this common unambiguous mutation set.
+#
+# Left: simulation Full HMM and all reduced-HMM cases against true ages.
+# Right: reduced HMM against the dated Full HMM. Colour indicates mismatch
+# allowance; line style indicates dataset. AC cutoff varies on the x-axis;
+# the left panel adds a separate Full HMM category.
+
+# %%
+if __name__ == '__main__':
+    dated_runs = ch5_dating.date_all(config_path)
+    dated_runs.to_csv(output_dir / 'dated_arg_summary.csv', index=False)
+    mutation_age_results = ch5_dating.mutation_correlations(dated_runs, config_path)
+    mutation_age_results.to_csv(output_dir / 'mutation_age_correlations.csv', index=False)
+    ipython_display.display(mutation_age_results.loc[mutation_age_results.frequency_bin.eq('all')])
+
+
+# %%
+def mutation_age_correlation_plots(table):
+    """Use the same paired panels for the overall and frequency-bin analyses."""
+    return ch5_dating_plots.correlation_figure(table, config, experiment)
+
+
+if __name__ == '__main__':
+    fig = mutation_age_correlation_plots(mutation_age_results)
+    save_figure(fig, 'mutation_age_correlations')
+
+# %%
+
+# %% [markdown]
+# ## Mutation-age correlations by derived allele frequency
+#
+# The three rows split observed derived allele frequency (DAF) into
+# **DAF < 0.01**, **0.01 ≤ DAF < 0.5**, and **DAF ≥ 0.5**. Boundaries enter
+# the upper bin. Frequencies are measured among the 600 sample haplotypes in
+# the dated Full HMM, and that bin assignment is held fixed for every case in
+# both panels. These are derived frequencies, rather than minor frequencies.
+# Each row repeats the overall truth and Full HMM comparisons on that subset;
+# the same shared-mutation and posterior-mean rules apply. Within-bin Pearson r
+# can be lower simply because conditioning on frequency restricts the age range.
+
+# %%
+if __name__ == '__main__':
+    fig = ch5_dating_plots.correlation_figure(
+        mutation_age_results, config, experiment, split_frequency=True)
+    save_figure(fig, 'mutation_age_correlations_by_frequency')
+
+# %% [markdown]
+# ## Full HMM versus stitched mutation-age densities
+#
+# These density scatterplots compare **Full HMM posterior mutation ages on the
+# x-axis** with **stitched posterior mutation ages on the y-axis**, across
+# **all allele frequencies**. Simulation and 1KGP each have a separate grid.
+# Columns follow the parameter on the line plots' x-axis; rows follow their
+# coloured curves. Every panel within a dataset uses the same common mutation
+# set as the overall Full HMM correlation panel, with identical axes, bins and
+# colour scale. Ages and mutation counts both use logarithmic scales; the
+# dashed line marks equal ages. Annotated Pearson r uses ages in generations
+# before log transformation. No simulation truth or frequency filtering enters
+# these comparisons.
+
+# %%
+if __name__ == '__main__':
+    stitched_age_pairs = ch5_dating.stitched_mutation_age_pairs(dated_runs, config_path)
+    for dataset in config['datasets']:
+        if dataset['name'] in config['dating']['compare_full_datasets']:
+            fig = ch5_dating_plots.stitched_age_density_figure(
+                stitched_age_pairs, config, experiment, dataset)
+            save_figure(fig, f"mutation_age_density_{dataset['name']}")

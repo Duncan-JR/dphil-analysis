@@ -1,0 +1,112 @@
+benchmark_dir: ../../../tsinfer-match-eval/data/performance/first_perf_benchmark
+output_dir: ../../data/ch5_stitching_pt4_perf
+dataset: tgp_chr20_n300_30mbp
+workers: null
+per_sample:
+  worker_times_filename: per_haplotype_worker_times.csv
+  population_metadata: ../../data/misc/tgp_3202_pedigree.csv
+  population_column: population
+  analysis_span_bp: [1000000, 31000000]
+correctness:
+  mode: from_reference
+  repeat: 0
+methods:
+  full_hmm:
+    label: Full HMM
+    color: '#0072B2'
+  reduced_hmm:
+    label: Reduced HMM
+    color: '#D55E00'
+  greedy:
+    label: Greedy
+    color: '#009E73'
+plot:
+  dpi: 120
+  export_dpi: 200
+  font_size: 10
+  panel_width: 7
+  panel_height: 4.7
+  reference_figure_width: 10
+  per_sample:
+    figure_width: 14
+    figure_height: 6
+    marginal_ratio: 4
+    histogram_bins: 25
+    marker_size: 18
+    alpha: 0.6
+    population_colors:
+      CEU: '#0072B2'
+      CHB: '#D55E00'
+      YRI: '#009E73'
+  histogram_bins: 80
+  histogram_alpha: 0.16
+  kde_grid_size: 512
+  kde_bandwidth: scott
+  line_width: 1.7
+  bar_width: 0.65
+  grouped_bar_width: 0.3
+  repeat_offsets: [-0.08, 0, 0.08]
+  repeat_marker_size: 20
+  legend_color: '#777777'
+  phase_legend:
+    facecolor: '#F5F5F5'
+    edgecolor: '#333333'
+    font_size: 11
+    handlelength: 2.4
+    handleheight: 1.2
+    labelspacing: 0.6
+  reference_legend_order: [full_pipeline, other, focal_preparation, matching]
+  worker_legend_order: [overhead, gap_match, focal_match]
+  switch_categories:
+    focal:
+      label: Within focal coverage
+      alpha: 1
+      hatch: ''
+    gap:
+      label: Within gaps
+      alpha: 0.65
+      hatch: '//'
+    seam:
+      label: At gap seams
+      alpha: 0.35
+      hatch: 'xx'
+  reference_phases:
+    full_pipeline:
+      label: Full pipeline (Full HMM)
+      legend_facecolor: '#0072B2'
+      alpha: 1
+      hatch: ''
+    matching:
+      label: Matching
+      alpha: 1
+      hatch: ''
+    focal_preparation:
+      label: Focal preparation
+      alpha: 0.65
+      hatch: '//'
+    other:
+      label: Loading, setup and output
+      alpha: 0.35
+      hatch: 'xx'
+  worker_phases:
+    focal_match:
+      label: Focal matching / greedy mapping
+      alpha: 1
+      hatch: ''
+    gap_match:
+      label: Gap HMM
+      alpha: 0.65
+      hatch: '//'
+    overhead:
+      label: Simplification, setup and stitching
+      alpha: 0.35
+      hatch: 'xx'
+  memory_modes:
+    from_reference:
+      label: From reference
+      alpha: 1
+      hatch: ''
+    resident_match:
+      label: Resident matching
+      alpha: 0.45
+      hatch: '//'

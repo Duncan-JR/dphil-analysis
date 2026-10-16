@@ -127,6 +127,56 @@ def reference_phases(runs: pd.DataFrame, stages: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def per_sample_data(worker_times: pd.DataFrame, mask_path: pathlib.Path,
+                    reference_path: pathlib.Path, population_path: pathlib.Path,
+                    settings: dict, resident_runs: pd.DataFrame) -> pd.DataFrame:
+    """Average recorded stages over trials and both haplotypes of each sample.
+
+    Input rows contain one summed worker-stage elapsed time per haplotype and
+    trial, in seconds. Physical focal coverage uses the same clipped mask-edge
+    convention as :func:`ch5_hyperparams.coverage_percentage`.
+    """
+    keys = ['method', 'repeat', 'sample_id', 'ploidy_index']
+    assert not worker_times.duplicated(keys).any()
+    assert worker_times.service_s.ge(0).all()
+    positions = tskit.load(reference_path).sites_position
+    coverage_rows = []
+    with np.load(mask_path, allow_pickle=False) as mask:
+        for index, sample_id in enumerate(mask['sample_id']):
+            first, last = mask['offsets'][index:index + 2]
+            percentage = ch5_hyperparams.coverage_percentage(
+                mask['left_site_index'][first:last],
+                mask['right_site_index'][first:last], mask['is_gap'][first:last],
+                positions, settings['analysis_span_bp'],
+            )
+            coverage_rows.append({'sample_id': str(sample_id),
+                                  'ploidy_index': int(mask['ploidy_index'][index]),
+                                  'focal_coverage_percentage': percentage})
+    coverage = pd.DataFrame(coverage_rows)
+    trials = resident_runs.loc[resident_runs.method.ne('full_hmm'), ['method', 'repeat']]
+    expected = trials.merge(coverage, how='cross')
+    measured = expected.merge(worker_times, on=keys, how='outer',
+                              validate='one_to_one', indicator=True)
+    assert measured['_merge'].eq('both').all()
+    per_haplotype = measured.groupby(['method', 'sample_id', 'ploidy_index']).agg(
+        worker_time_ms=('service_s', 'mean'),
+        focal_coverage_percentage=('focal_coverage_percentage', 'first'),
+    ).reset_index()
+    per_haplotype['worker_time_ms'] *= 1000
+    samples = per_haplotype.groupby(['method', 'sample_id']).agg(
+        worker_time_ms=('worker_time_ms', 'mean'),
+        focal_coverage_percentage=('focal_coverage_percentage', 'mean'),
+        haplotypes=('ploidy_index', 'nunique'),
+    ).reset_index()
+    assert samples.haplotypes.eq(2).all()
+    populations = pd.read_csv(population_path)
+    populations = populations[['sample_id', settings['population_column']]]
+    populations = populations.rename(columns={settings['population_column']: 'population'})
+    samples = samples.merge(populations, on='sample_id', how='left', validate='many_to_one')
+    assert samples.population.notna().all()
+    return samples
+
+
 def load_results(config_path: pathlib.Path) -> Results:
     """Load the saved suite, verify repeat invariance, and derive correctness."""
     with config_path.open() as source:
