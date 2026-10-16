@@ -83,11 +83,6 @@ plot_intervals(intervals_chain, "Overlapping chain")
 # %%
 import numpy as np 
 
-def update_regions(regions, region_left, region_right, min_width):
-    region_width = region_right - region_left - 1
-    if region_right > 0 and region_width >= min_width:
-        regions.append((region_left, region_right))
-
 def make_focal_regions(intervals, min_width=5):
     regions = []
     region_left = 0
@@ -160,6 +155,56 @@ make_focal_regions(intervals_chain)
     
 
 # %%
+# attempt 2
+def make_focal_regions(intervals, min_width):
+    regions = []
+    paths = []
+    i = 0
+
+    # Outer loop (1) only advances when a focal region finishes
+    while i < len(intervals):
+        region_left = intervals[i][0]
+        cursor = region_left
+        paths_buffer = []
+
+        # Middle loop (2): moves cursor forward through the region
+        while True:
+            parent = None
+            max_right = cursor
+
+            # Inner loop (3): for fixed cursor, find parent with longest reach
+            while i < len(intervals):
+                left, right = intervals[i]
+
+                if left > cursor:
+                    break  # Exit loop 3 - either no parent or found the best
+
+                if right > max_right:
+                    parent = i
+                    max_right = right
+
+                i += 1
+
+            if parent is None:
+                break  # Exit Loop 2 because we have hit a gap
+
+            paths_buffer.append(((cursor, max_right), parent))
+            # Move cursor forward to where the next path starts
+            cursor = max_right
+
+        # Still inside outer loop: decide whether to retain this region.
+        region_right = cursor
+        region_width = region_right - region_left
+
+        if region_width >= min_width:
+            regions.append((region_left, region_right))
+            paths.extend(paths_buffer)
+        # Outer loop repeats as long as there are intervals untouched
+
+    return regions, paths
+
+
+# %%
 
 # %% [markdown]
 # ## 2. Containment and ties
@@ -191,7 +236,7 @@ plot_intervals(intervals_touching, "Touching endpoints and a one-site gap")
 
 # %%
 
-make_focal_regions(intervals_touching)
+make_focal_regions(intervals_touching, min_width=1)
 
 # %% [markdown]
 # ## 4. Multiple components and boundary gaps
@@ -204,7 +249,7 @@ intervals_gaps = [(3, 9), (7, 12), (17, 23), (22, 27), (32, 35)]
 plot_intervals(intervals_gaps, "Separated components with leading and trailing gaps")
 
 # %%
-make_focal_regions(intervals_gaps, min_width=0)
+make_focal_regions(intervals_gaps, min_width=10)
 
 # %% [markdown]
 # ## 5. Total length and remaining reach
