@@ -60,7 +60,7 @@ notebook_dir = (
     else pathlib.Path.cwd()
 )
 diagnostic_config_path = (
-    notebook_dir.parent / "experiments/ch5/stitching_diagnostics_config.yaml"
+    notebook_dir.parent.parent / "experiments/ch5/stitching_diagnostics_config.yaml"
 )
 with diagnostic_config_path.open() as file:
     config = yaml.safe_load(file)

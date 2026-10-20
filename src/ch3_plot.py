@@ -2,7 +2,7 @@
 
 The mirrored overshoot histograms adapt the layout in tsinfer-paper's
 ``lib/visualisation.py``. All data access and plotting here are independent of
-that repository. See ``notebooks/ch3_figure_gen.py`` for the figure sequence.
+that repository. See ``notebooks/ch3/figure_gen.py`` for the figure sequence.
 """
 
 import dataclasses

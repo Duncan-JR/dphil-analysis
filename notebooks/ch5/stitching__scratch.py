@@ -152,7 +152,7 @@ def make_focal_regions(intervals, min_width=5):
     return regions, paths
 
 make_focal_regions(intervals_chain)
-    
+
 
 # %%
 # attempt 2

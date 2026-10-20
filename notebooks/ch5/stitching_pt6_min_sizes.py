@@ -52,7 +52,7 @@ notebook_dir = (
 )
 repository_dir = notebook_dir
 if not (repository_dir / 'experiments').is_dir():
-    repository_dir = notebook_dir.parent
+    repository_dir = notebook_dir.parent.parent
 config_path = repository_dir / 'experiments/ch5/stitching_pt6_min_sizes_config.yaml'
 with config_path.open() as file:
     config = yaml.safe_load(file)

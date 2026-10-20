@@ -10,13 +10,13 @@ The development dependencies include JupyterLab and Jupytext. Open the paired
 notebook with:
 
 ```sh
-uv run jupyter lab notebooks/ch4_initial_testing.ipynb
+uv run jupyter lab notebooks/ch4/initial_testing.ipynb
 ```
 
 Keep the Python and notebook forms synchronized with:
 
 ```sh
-uv run jupytext --sync notebooks/ch4_initial_testing.py
+uv run jupytext --sync notebooks/ch4/initial_testing.py
 ```
 
 The estimator assumes complete, phased, fixed-ploidy, biallelic 0/1 genotypes

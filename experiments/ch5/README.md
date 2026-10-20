@@ -35,10 +35,10 @@ switches within focal coverage, within gaps and at seams, total extra switch
 fraction, and four site-weighted parent-agreement fractions. Agreement fractions
 use all inference sites; extra switch fraction uses stitched switches.
 
-Open `notebooks/ch5_stitching_pt2.ipynb`, or generate it from the tracked source:
+Open `notebooks/ch5/stitching_pt2.ipynb`, or generate it from the tracked source:
 
 ```sh
-uv run jupytext --to notebook notebooks/ch5_stitching_pt2.py
+uv run jupytext --to notebook notebooks/ch5/stitching_pt2.py
 ```
 
 The notebook reads the existing results, displays selected-haplotype diagnostics,
@@ -50,7 +50,7 @@ included, with three population groups per dataset.
 
 ## Fixed-pipeline hyperparameter analysis
 
-`notebooks/ch5_stitching_pt3_hyperparams.py` (paired with `.ipynb`) reads the
+`notebooks/ch5/stitching_pt3_hyperparams.py` (paired with `.ipynb`) reads the
 current `tsinfer-match-eval/config.yaml` through
 `stitching_pt3_hyperparams_config.yaml`. It compares all configured AC cutoffs
 and mismatch allowances using saved full and stitched HMM paths and focal
@@ -95,8 +95,8 @@ remain in `sim_n300_10mbp_error_populations.csv`.
 Run and export all twelve figures and the underlying CSV tables with:
 
 ```sh
-uv run python notebooks/ch5_stitching_pt3_hyperparams.py
-uv run jupytext --sync notebooks/ch5_stitching_pt3_hyperparams.py
+uv run python notebooks/ch5/stitching_pt3_hyperparams.py
+uv run jupytext --sync notebooks/ch5/stitching_pt3_hyperparams.py
 ```
 
 Outputs go to `data/ch5_stitching_pt3_hyperparams/`. Independent parameter runs

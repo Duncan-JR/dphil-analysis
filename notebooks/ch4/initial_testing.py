@@ -88,7 +88,7 @@ true_doubletons = error_validation.sample_doubletons(
     zero_error_zarr_path,
     true_doubletons_config,
 )
-true_doubletons_path = Path("../data/tmp/true_doubletons.csv")
+true_doubletons_path = Path("../../data/tmp/true_doubletons.csv")
 true_doubletons_path.parent.mkdir(parents=True, exist_ok=True)
 error_validation.write_doubletons_csv(true_doubletons, true_doubletons_path)
 
@@ -137,7 +137,7 @@ fit_df
 # %%
 
 # %%
-fit_df.to_csv("../data/tmp/dphil-analysis-results.csv", index=None)
+fit_df.to_csv("../../data/tmp/dphil-analysis-results.csv", index=None)
 
 # %%
 def plot_error_estimates(frame, estimate_label, *, baseline_frame=None, title=None):
@@ -892,9 +892,9 @@ fig
 # the Zarr; the map README records this assumption.
 
 # %%
-tgp_zarr_path = Path("../data/zarr_vcfs/tgp/chr17/data.zarr")
+tgp_zarr_path = Path("../../data/zarr_vcfs/tgp/chr17/data.zarr")
 tgp_recombination = Path(
-    "../data/HapMapII_GRCh38/genetic_map_Hg38_chr17_for_tgp_zarr.txt"
+    "../../data/HapMapII_GRCh38/genetic_map_Hg38_chr17_for_tgp_zarr.txt"
 )
 tgp_variant_masks = [
     (
@@ -930,9 +930,9 @@ config2 = error_estimation.EstimationConfig(
     L_mismatch_trim=pig_window_sizes[-1],
 )
 
-pig_zarr_path = Path("../data/zarr_vcfs/pigs/chr18/data.zarr")
+pig_zarr_path = Path("../../data/zarr_vcfs/pigs/chr18/data.zarr")
 pig_recombination = Path(
-    "../data/pig_recombination_map/"
+    "../../data/pig_recombination_map/"
     "Johnsson_2021_sex_averaged_chr18_for_data_zarr.txt"
 )
 pig_variant_mask = (

@@ -6,7 +6,7 @@ Implement the final 2026-09-23 14:24:32 message in
 `/Users/duncan/exo/documents/chat_threads/2026-09-23-refactor-error-estimation.md`.
 Use the existing chr17 simulation estimates and zero-error Zarr truth labels.
 Classifier fitting belongs in `src/error_validation.py`; plots and analysis
-belong in `notebooks/ch4_initial_testing.py`. Leave the production estimator,
+belong in `notebooks/ch4/initial_testing.py`. Leave the production estimator,
 real-data cells, and an independent simulation replicate untouched. Exclude the
 suggested shallow decision tree and larger model families.
 

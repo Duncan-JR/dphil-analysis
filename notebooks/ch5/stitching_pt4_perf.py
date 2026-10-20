@@ -45,7 +45,7 @@ notebook_dir = (
 )
 repository_dir = notebook_dir
 if not (repository_dir / 'experiments').is_dir():
-    repository_dir = notebook_dir.parent
+    repository_dir = notebook_dir.parent.parent
 config_path = repository_dir / 'experiments/ch5/stitching_pt4_perf_config.yaml'
 with config_path.open() as source:
     config = yaml.safe_load(source)
