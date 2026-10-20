@@ -30,6 +30,7 @@ class PlotConfig:
     versions: tuple[str, str] = ("0.4.1", "0.5.1")
     version_colors: tuple[str, str] = ("#1a80bb", "#ea801c")
     genotype_scaling_cmap: str = "PRGn"
+    genotype_scaling_reference_color: str = "gray"
     genotype_transition_cmap: str = "RdYlBu"
     genotype_color_positions: tuple[float, float] = (0.1, 0.9)
     true_color: str = "#b8b8b8"
@@ -48,6 +49,7 @@ class PlotConfig:
     histogram_size: tuple[float, float] = (7, 4.5)
     overshoot_box_size: tuple[float, float] = (8.5, 3.5)
     overshoot_tail_size: tuple[float, float] = (8.5, 4.5)
+    tail_legend_locations: tuple[str, str] = ("outside right upper", "outside right lower")
     overshoot_cmaps: tuple[str, str] = ("Blues", "Oranges")
     version_line_styles: tuple[str, str] = ("-", "--")
     zero_color: str = "#555555"
@@ -63,6 +65,7 @@ class PlotConfig:
     jitter_width: float = 0.32
     jitter_alpha: float = 0.15
     jitter_size: float = 5
+    mean_bar_group_width: float = 0.8
     curve_size: tuple[float, float] = (6, 3.5)
     transition_size: tuple[float, float] = (7, 3.5)
     phase_size: tuple[float, float] = (8, 2.8)
@@ -292,12 +295,13 @@ def load_data(data_folder, data_prefix, config=None):
 
 
 def save_figure(fig, figure_folder, name, config):
-    """Save a 300-dpi PNG by default, display it in the notebook, and close it."""
-    folder = pathlib.Path(figure_folder).expanduser()
-    folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{name}.png"
-    fig.savefig(path, dpi=config.dpi, bbox_inches="tight", facecolor="white")
-    logger.info("Saved %s", path)
+    """Display and close a figure; save a PNG only when a folder is supplied."""
+    if figure_folder is not None:
+        folder = pathlib.Path(figure_folder).expanduser()
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{name}.png"
+        fig.savefig(path, dpi=config.dpi, bbox_inches="tight", facecolor="white")
+        logger.info("Saved %s", path)
     plt.show()
     plt.close(fig)
 
@@ -343,7 +347,7 @@ def _frequency_bin_edges(frequencies, num_bins=5, cutoffs=None):
     return edges
 
 
-def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=None, alpha=None):
+def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=None, alpha=None, figsize=None):
     config = data.config
     spans = _no_errors(data.spans)
     true_spans = spans.drop_duplicates(["replicate", "inferred_node"])
@@ -358,8 +362,10 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
     cut_edges = edges.copy()
     cut_edges[-1] = np.nextafter(edges[-1], np.inf)
     labels = [f"{left:g}–{right:g}" for left, right in zip(edges[:-1], edges[1:])]
+    if figsize is None:
+        figsize = config.box_size
     fig, axes = plt.subplots(
-        2, 1, figsize=config.box_size, sharex=True,
+        2, 1, figsize=figsize, sharex=True,
         gridspec_kw={"height_ratios": [4, 1], "hspace": 0.08},
     )
     groups = []
@@ -427,14 +433,14 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
     return save_figure(fig, figure_folder, f"ancestor_{variable}_boxplot", config)
 
 
-def plot_ancestor_spans(data, figure_folder, num_bins=5, cutoffs=None):
+def plot_ancestor_spans(data, figure_folder=None, num_bins=5, cutoffs=None, figsize=None):
     """One inferred span and minimum true span per ancestor in DAF bins."""
-    return _ancestor_boxplot(data, figure_folder, "span", num_bins, cutoffs)
+    return _ancestor_boxplot(data, figure_folder, "span", num_bins, cutoffs, figsize=figsize)
 
 
-def plot_ancestor_overshoot(data, figure_folder, num_bins=5, cutoffs=None, conf=0.01, alpha=None):
+def plot_ancestor_overshoot(data, figure_folder=None, num_bins=5, cutoffs=None, conf=0.01, alpha=None, figsize=None):
     """Minimum left/right overshoots per ancestor, using the span figure DAF bins."""
-    return _ancestor_boxplot(data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha)
+    return _ancestor_boxplot(data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha, figsize=figsize)
 
 
 def _genotype_counts(task):
@@ -525,20 +531,22 @@ def summarise_genotype_errors(data):
     return GenotypeSummary(pd.DataFrame(rate_rows), pd.DataFrame(transition_rows))
 
 
-def plot_genotype_error_scaling(summary, figure_folder, config=None):
+def plot_genotype_error_scaling(summary, figure_folder=None, config=None, figsize=None):
     """Observed diploid genotype error rate versus linear scaling from 1×."""
     if config is None:
         config = PlotConfig()
     rates = summary.rates.sort_values("multiplier")
     base = rates.loc[rates.multiplier == 1, "error_rate"].item()
-    fig, ax = plt.subplots(figsize=config.curve_size, layout="constrained")
+    if figsize is None:
+        figsize = config.curve_size
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
     colors = plt.get_cmap(config.genotype_scaling_cmap)(config.genotype_color_positions)
     ax.plot(rates.multiplier, rates.error_rate, "o-", color=colors[0],
             label="Observed")
     linear_x = np.geomspace(rates.multiplier.min(), rates.multiplier.max(), config.curve_points)
     linear_y = base * linear_x
     ax.plot(linear_x, linear_y, "--",
-            color=colors[1], label="Linear scaling from 1×")
+            color=config.genotype_scaling_reference_color, label="Linear scaling from 1×")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xticks(rates.multiplier, [f"{value:g}×" for value in rates.multiplier])
@@ -550,12 +558,14 @@ def plot_genotype_error_scaling(summary, figure_folder, config=None):
     return save_figure(fig, figure_folder, "genotype_error_scaling", config)
 
 
-def plot_genotype_error_transitions(summary, figure_folder, config=None):
+def plot_genotype_error_transitions(summary, figure_folder=None, config=None, figsize=None):
     """Conditional homozygote-to-heterozygote rates by true DAF at 1× and 10×."""
     if config is None:
         config = PlotConfig()
+    if figsize is None:
+        figsize = config.transition_size
     fig, axes = plt.subplots(1, len(config.transition_multipliers),
-                             figsize=config.transition_size, sharey=True,
+                             figsize=figsize, sharey=True,
                              squeeze=False, layout="constrained")
     colors = plt.get_cmap(config.genotype_transition_cmap)(config.genotype_color_positions)
     for ax, multiplier in zip(axes[0], config.transition_multipliers):
@@ -585,7 +595,7 @@ def _overshoot_colors(rates, cmap_name):
 
 
 def _overshoot_histogram(data, frame, by, rates, legend_title,
-                         name, figure_folder, reverse_order=False):
+                         name, figure_folder, reverse_order=False, figsize=None):
     config = data.config
     frame = frame.loc[frame[by].isin(rates)].copy()
     values = frame.overshoot.to_numpy() / config.bp_per_mb
@@ -601,7 +611,9 @@ def _overshoot_histogram(data, frame, by, rates, legend_title,
             histogram = np.histogram(selected.overshoot / config.bp_per_mb, bin_edges)[0]
             counts[version, rate] = histogram
             max_count = max(max_count, histogram.max())
-    fig, axes = plt.subplots(2, 1, figsize=config.histogram_size, sharex=True,
+    if figsize is None:
+        figsize = config.histogram_size
+    fig, axes = plt.subplots(2, 1, figsize=figsize, sharex=True,
                              gridspec_kw={"hspace": 0})
     centers = (bin_edges[:-1] + bin_edges[1:]) / 2
     for row, (ax, version, cmap_name) in enumerate(zip(axes, config.versions,
@@ -683,7 +695,7 @@ def _overshoot_legends(fig, config, conf, alpha):
     fig.legend(handles=handles, frameon=False, loc="outside right center")
 
 
-def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf, alpha):
+def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf, alpha, figsize=None):
     """Grouped boxes of reduced ancestor sides; see `_draw_overshoot_group`."""
     if not 0 < conf < 0.5:
         raise ValueError("conf must be between 0 and 0.5")
@@ -691,7 +703,9 @@ def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf,
     if alpha is None:
         alpha = config.jitter_alpha
     rng = np.random.default_rng(config.jitter_seed)
-    fig, ax = plt.subplots(figsize=config.overshoot_box_size, layout="constrained")
+    if figsize is None:
+        figsize = config.overshoot_box_size
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
     group_width = 0.8 / len(config.versions)
     box_width = config.jitter_width * config.overshoot_box_width_ratio
     for version_index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
@@ -719,39 +733,36 @@ class TailSteps:
     fractions: np.ndarray
 
 
-def _tail_steps(magnitudes, num_ancestors):
-    """Strict exceedance on intervals between observed positive magnitudes.
-
-    The denominator includes every ancestor, including those with no overshoot
-    of this sign. The zero fraction beyond the largest value is not drawn on
-    the log axis and is not replaced with an artificial nonzero value.
-    """
-    positive = magnitudes[magnitudes > 0]
-    positions, counts = np.unique(positive, return_counts=True)
-    if len(positions) == 0:
-        return TailSteps(np.array([0]), np.array([]))
-    counts_below = np.concatenate(([0], np.cumsum(counts)[:-1]))
-    fractions = (len(positive) - counts_below) / num_ancestors
-    edges = np.concatenate(([0], positions))
-    return TailSteps(edges, fractions)
+def _tail_steps(values):
+    """Empirical fraction at or below each magnitude cutoff, counting ancestors once."""
+    positions, counts = np.unique(values, return_counts=True)
+    fractions = np.cumsum(counts) / len(values)
+    return TailSteps(positions, fractions)
 
 
-def _overshoot_tails(data, frame, by, rates, label, name, figure_folder):
-    """Fraction of ancestors whose retained left or right side exceeds a magnitude.
+def _overshoot_tails(
+    data, frame, by, rates, label, name, figure_folder, figsize=None, fraction_above=True
+):
+    """Overshoot magnitude fractions with independent panel x ranges.
 
-    Panels show negative and positive overshoot separately. Each ancestor is
-    counted once in each panel, even when both retained sides exceed the bound.
+    The negative panel uses the magnitude of each ancestor's minimum side;
+    the positive panel uses its maximum side, both floored at zero. All ancestors
+    supply the denominator, including those with no overshoot of that sign.
+    With ``fraction_above=True``, count ancestors strictly above the magnitude
+    cutoff; False counts ancestors at or below it (see `_tail_steps`).
     """
     config = data.config
-    fig, axes = plt.subplots(1, 2, figsize=config.overshoot_tail_size,
-                             sharex=True, sharey=True, layout="constrained")
-    handles = []
-    max_magnitude = 0
+    if figsize is None:
+        figsize = config.overshoot_tail_size
+    fig, axes = plt.subplots(1, 2, figsize=figsize,
+                             sharey=True, layout="constrained")
+    version_handles = []
     min_fraction = 1
     keys = ["replicate", "inferred_node"]
     for version, cmap_name, line_style in zip(config.versions, config.overshoot_cmaps,
                                              config.version_line_styles):
         palette = _overshoot_colors(rates, cmap_name)
+        handles = []
         for rate in rates:
             subset = frame.loc[(frame.version == version) & (frame[by] == rate)]
             if subset.empty:
@@ -759,27 +770,38 @@ def _overshoot_tails(data, frame, by, rates, label, name, figure_folder):
             ancestors = subset.groupby(keys).overshoot.agg(["min", "max"])
             num_ancestors = len(ancestors)
             min_fraction = min(min_fraction, 1 / num_ancestors)
-            magnitudes = [-ancestors["min"].to_numpy(), ancestors["max"].to_numpy()]
-            for ax, values in zip(axes, magnitudes):
-                steps = _tail_steps(values / config.bp_per_mb, num_ancestors)
-                if len(steps.fractions) > 0:
-                    ax.stairs(steps.fractions, steps.edges, baseline=None,
-                              color=palette[rate], linestyle=line_style)
-                    max_magnitude = max(max_magnitude, steps.edges[-1])
+            negative = -ancestors["min"].clip(upper=0).to_numpy() / config.bp_per_mb
+            positive = ancestors["max"].clip(lower=0).to_numpy() / config.bp_per_mb
+            for ax, values in zip(axes, (negative, positive)):
+                steps = _tail_steps(values)
+                # Include zero so both magnitude curves start at the common origin.
+                cutoffs = np.union1d(steps.edges, [0])
+                indexes = np.searchsorted(steps.edges, cutoffs, side="right")
+                fractions = np.concatenate(([0], steps.fractions))[indexes]
+                if fraction_above:
+                    fractions = 1 - fractions
+                ax.step(cutoffs, fractions, where="post",
+                        color=palette[rate], linestyle=line_style)
             category = f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}"
             handles.append(mlines.Line2D([], [], color=palette[rate], linestyle=line_style,
-                                         label=f"{version}: {category}"))
+                                         label=category))
+        version_handles.append(handles)
     for ax, sign in zip(axes, ("Negative", "Positive")):
-        ax.set_xlabel(f"{sign} overshoot magnitude (Mb)")
+        ax.set_xlabel(f"{sign} overshoot (Mb)")
         ax.set_yscale("log")
-        ax.set_xlim(0, max_magnitude)
+        ax.margins(x=0.02)
         ax.set_ylim(min_fraction * 0.8, 1)
         ax.yaxis.set_major_formatter(mticker.FuncFormatter(
             lambda value, position: f"{value * 100:g}%"
         ))
         ax.grid(axis="y", alpha=0.15)
-    axes[0].set_ylabel("Fraction of ancestors beyond magnitude")
-    fig.legend(handles=handles, title=label, loc="outside right center", frameon=False)
+    direction = "above" if fraction_above else "below"
+    axes[0].set_ylabel(f"Fraction of ancestors {direction} cutoff")
+    for version, handles, location in zip(
+        config.versions, version_handles, config.tail_legend_locations
+    ):
+        fig.legend(handles=handles, title=f"{label} ({version})",
+                   loc=location, frameon=False)
     return save_figure(fig, figure_folder, f"{name}_tails", config)
 
 
@@ -788,32 +810,65 @@ def _genotype_overshoots(data):
     return frame.loc[(frame.phase_ser == 0) & (frame.mispol_rate == 0)]
 
 
-def plot_genotype_overshoot_hist(data, figure_folder):
+def plot_genotype_overshoot_mean(data, figure_folder=None, figsize=None):
+    """Grouped mean signed overshoot by genotype error, coloured by version.
+
+    Each ancestor contributes its mean retained left/right overshoot. Ancestors
+    are pooled across replicates, as in the genotype overshoot histograms.
+    """
+    config = data.config
+    frame = _genotype_overshoots(data)
+    frame = frame.loc[frame.geno_multiplier.isin(config.genotype_multipliers)]
+    group_keys = ["version", "geno_multiplier"]
+    ancestor_keys = group_keys + ["replicate", "inferred_node"]
+    ancestor_means = frame.groupby(ancestor_keys).overshoot.mean()
+    means = ancestor_means.groupby(level=group_keys).mean()
+    if figsize is None:
+        figsize = config.curve_size
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    positions = np.arange(len(config.genotype_multipliers))
+    width = config.mean_bar_group_width / len(config.versions)
+    for index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
+        values = means.loc[version].reindex(config.genotype_multipliers)
+        offsets = positions - config.mean_bar_group_width / 2 + width * (index + 0.5)
+        ax.bar(offsets, values / config.bp_per_mb, width=width,
+               color=color, label=f"tsinfer {version}")
+    ax.set_xticks(positions, [f"{value:g}×" for value in config.genotype_multipliers])
+    ax.set_xlabel("Genotype-error multiplier")
+    ax.set_ylabel("Mean overshoot (Mb)")
+    ax.legend(frameon=False)
+    return save_figure(fig, figure_folder, "genotype_error_overshoot_mean", config)
+
+
+def plot_genotype_overshoot_hist(data, figure_folder=None, figsize=None):
     """Mirrored histograms for pure genotype-error profiles."""
     return _overshoot_histogram(
         data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
         "Genotype-error multiplier", "genotype_error_overshoot", figure_folder,
         reverse_order=True,
+        figsize=figsize,
     )
 
 
-def plot_genotype_overshoot_box(data, figure_folder, conf=0.01, alpha=None):
+def plot_genotype_overshoot_box(data, figure_folder=None, conf=0.01, alpha=None, figsize=None):
     """Grouped boxplots for pure genotype-error profiles; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
         data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
         "Genotype-error multiplier", "genotype_error_overshoot", figure_folder, conf, alpha,
+        figsize=figsize,
     )
 
 
-def plot_genotype_overshoot_tails(data, figure_folder):
-    """Signed exceedance fractions by genotype-error multiplier; see `_overshoot_tails`."""
+def plot_genotype_overshoot_tails(data, figure_folder=None, figsize=None, fraction_above=True):
+    """Above/below magnitude cutoff fractions by genotype-error multiplier; see `_overshoot_tails`."""
     return _overshoot_tails(
         data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
         "Genotype-error multiplier", "genotype_error_overshoot", figure_folder,
+        figsize=figsize, fraction_above=fraction_above,
     )
 
 
-def plot_mispolarisation_daf(data, figure_folder):
+def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
     """Overlay smoothed DAF densities after flipping mispolarised sites.
 
     The stored allele counts precede mispolarisation. The mask is True for
@@ -826,7 +881,9 @@ def plot_mispolarisation_daf(data, figure_folder):
     edges = np.linspace(0, 1, config.daf_bins + 1)
     centers = (edges[:-1] + edges[1:]) / 2
     colors = plt.get_cmap("viridis")(np.linspace(0.1, 0.85, len(config.mispol_rates)))
-    fig, ax = plt.subplots(figsize=config.curve_size, layout="constrained")
+    if figsize is None:
+        figsize = config.curve_size
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
     for rate, color in zip(config.mispol_rates, colors):
         counts = np.zeros(config.daf_bins, dtype=np.int64)
         for replicate in replicates:
@@ -861,34 +918,37 @@ def _mispolarisation_overshoots(data, frequency):
     raise ValueError('frequency must be "high", "low" or "all"')
 
 
-def plot_mispolarisation_overshoot_hist(data, figure_folder, frequency="all"):
+def plot_mispolarisation_overshoot_hist(data, figure_folder=None, frequency="all", figsize=None):
     """Mirrored histograms at high (≥ 0.5), low (< 0.5), or all true DAFs."""
     return _overshoot_histogram(
         data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
         data.config.mispol_rates, "Mispolarisation rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder,
+        figsize=figsize,
     )
 
 
-def plot_mispolarisation_overshoot_box(data, figure_folder, frequency="all", conf=0.01, alpha=None):
+def plot_mispolarisation_overshoot_box(data, figure_folder=None, frequency="all", conf=0.01, alpha=None, figsize=None):
     """Grouped mispolarisation boxplots; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
         data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
         data.config.mispol_rates, "Mispolarisation rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder, conf, alpha,
+        figsize=figsize,
     )
 
 
-def plot_mispolarisation_overshoot_tails(data, figure_folder, frequency="all"):
-    """Signed exceedance fractions by mispolarisation rate; see `_overshoot_tails`."""
+def plot_mispolarisation_overshoot_tails(data, figure_folder=None, frequency="all", figsize=None, fraction_above=True):
+    """Above/below magnitude cutoff fractions by mispolarisation rate; see `_overshoot_tails`."""
     return _overshoot_tails(
         data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
         data.config.mispol_rates, "Mispolarisation rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder,
+        figsize=figsize, fraction_above=fraction_above,
     )
 
 
-def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder, max_derived_count=5):
+def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder=None, max_derived_count=5, figsize=None):
     """Only mispolarised ancestors with true derived count at most the bound."""
     frame = _mispolarisation_overshoots(data, frequency="all")
     selected = frame.loc[
@@ -898,6 +958,7 @@ def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder, max_deriv
     return _overshoot_histogram(
         data, selected, "mispol_rate", rates, "Mispolarisation rate",
         f"mispolarisation_overshoot_derived_count_le_{max_derived_count}", figure_folder,
+        figsize=figsize,
     )
 
 
@@ -906,27 +967,30 @@ def _phasing_overshoots(data):
     return frame.loc[(frame.geno_multiplier == 0) & (frame.mispol_rate == 0)]
 
 
-def plot_phasing_overshoot_hist(data, figure_folder):
+def plot_phasing_overshoot_hist(data, figure_folder=None, figsize=None):
     """Mirrored histograms for pure phase-switch profiles."""
     return _overshoot_histogram(
         data, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
         "Switch error rate", "phasing_error_overshoot", figure_folder, reverse_order=True,
+        figsize=figsize,
     )
 
 
-def plot_phasing_overshoot_box(data, figure_folder, conf=0.01, alpha=None):
+def plot_phasing_overshoot_box(data, figure_folder=None, conf=0.01, alpha=None, figsize=None):
     """Grouped phase-switch boxplots; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
         data, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
         "Switch error rate", "phasing_error_overshoot", figure_folder, conf, alpha,
+        figsize=figsize,
     )
 
 
-def plot_phasing_overshoot_tails(data, figure_folder):
-    """Signed exceedance fractions by switch error rate; see `_overshoot_tails`."""
+def plot_phasing_overshoot_tails(data, figure_folder=None, figsize=None, fraction_above=True):
+    """Above/below magnitude cutoff fractions by switch error rate; see `_overshoot_tails`."""
     return _overshoot_tails(
         data, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
         "Switch error rate", "phasing_error_overshoot", figure_folder,
+        figsize=figsize, fraction_above=fraction_above,
     )
 
 
@@ -949,7 +1013,7 @@ def _draw_phase_pair(ax, lefts, widths, states, y, config):
                            facecolors=color, edgecolors="none")
 
 
-def plot_phase_switch_illustration(phasing_folder, data_prefix, figure_folder, config=None):
+def plot_phase_switch_illustration(phasing_folder, data_prefix, figure_folder=None, config=None, figsize=None):
     """Aligned true/error haplotype pairs for the first individuals on chr1's p arm.
 
     Colours follow the saved true haplotype identity even at homozygous sites.
@@ -970,7 +1034,9 @@ def plot_phase_switch_illustration(phasing_folder, data_prefix, figure_folder, c
     length = observed["contig_length"][0]
     individuals = min(config.phase_individuals, phase.shape[1])
     right_mb = min(config.phase_right_mb, length / config.bp_per_mb)
-    fig, overview = plt.subplots(1, 2, figsize=config.phase_size, layout="constrained")
+    if figsize is None:
+        figsize = config.phase_size
+    fig, overview = plt.subplots(1, 2, figsize=figsize, layout="constrained")
     for index in range(individuals):
         pair_lefts, pair_widths, pair_states = _phase_runs(positions, phase[:, index], length)
         y = (individuals - index - 1) * config.phase_row_spacing

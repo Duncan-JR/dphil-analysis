@@ -17,7 +17,8 @@
 # # Chapter 3 figures
 #
 # Change the paths, dataset prefixes and settings below to regenerate the chapter.
-# Each call displays its figure here and writes a 300 dpi PNG to `figure_folder`.
+# Each call displays its figure here. Only #include plots save a 300 dpi PNG
+# to the thesis figure_folder; figure_folder=None displays without saving.
 # The plotting module is self-contained and does not import `tsinfer-paper`.
 # Preprocessing writes `data_prefix-overshoot.csv` and `data_prefix-spans.csv`
 # beside the aggregate CSV; plots load these ancestor-level tables.
@@ -36,11 +37,7 @@ data_prefix = "OutOfAfrica_3G09-chr20-L0-R1e7-n3000-s1"
 phasing_folder = pathlib.Path("~/work/tsinfer-anc-eval/data/phasing").expanduser()
 phasing_prefix = "OutOfAfrica_3G09-chr1-L0-R123400000-n20-s1"
 
-# Works when Jupyter starts in either the repository or its notebooks directory.
-repo_folder = pathlib.Path.cwd()
-if repo_folder.name == "notebooks":
-    repo_folder = repo_folder.parent
-figure_folder = repo_folder / "figures" / "ch3"
+figure_folder = pathlib.Path("~/work/dphil-thesis/figures/ch3").expanduser()
 
 config = ch3_plot.PlotConfig(
     genotype_multipliers=(1, 2, 5, 10, 100),
@@ -78,10 +75,21 @@ config.phase_rates = tuple(phase_rates)
 # inferred ancestor's frequency, including polarisation in error profiles.
 
 # %%
-ch3_plot.plot_ancestor_spans(data, figure_folder, cutoffs=[0,0.001,0.003,0.02,0.5,1])
+ch3_plot.plot_ancestor_spans(
+    data,
+    figure_folder=None,
+    cutoffs=[0,0.001,0.003,0.02,0.5,1],
+    figsize=(7, 4.5),
+)
 
 # %%
-ch3_plot.plot_ancestor_overshoot(data, figure_folder, cutoffs=[0,0.001,0.003,0.02,0.5,1], conf=0.001)
+ch3_plot.plot_ancestor_overshoot(
+    data,
+    figure_folder=None,
+    cutoffs=[0,0.001,0.003,0.02,0.5,1],
+    conf=0.001,
+    figsize=(7, 4.5),
+)
 
 # %% [markdown]
 # ## Genotype errors
@@ -93,7 +101,12 @@ ch3_plot.plot_ancestor_overshoot(data, figure_folder, cutoffs=[0,0.001,0.003,0.0
 
 # %%
 genotype_summary = ch3_plot.summarise_genotype_errors(data)
-ch3_plot.plot_genotype_error_scaling(genotype_summary, figure_folder, config)
+ch3_plot.plot_genotype_error_scaling(
+    genotype_summary,
+    figure_folder=None,
+    config=config,
+    figsize=(6, 3.5),
+)
 
 # %% [markdown]
 # Transition rates divide 00 → 01/10 and 11 → 01/10 counts by the number of
@@ -101,7 +114,12 @@ ch3_plot.plot_genotype_error_scaling(genotype_summary, figure_folder, config)
 # bins are gaps in the curves. The panels share a logarithmic vertical scale.
 
 # %%
-ch3_plot.plot_genotype_error_transitions(genotype_summary, figure_folder, config)
+ch3_plot.plot_genotype_error_transitions(
+    genotype_summary,
+    figure_folder=None,
+    config=config,
+    figsize=(7, 3.5),
+)
 
 # %% [markdown]
 # Confirmation histogram layout: tsinfer 0.4.1 above, 0.5.1 below, mirrored
@@ -111,18 +129,50 @@ ch3_plot.plot_genotype_error_transitions(genotype_summary, figure_folder, config
 # black borders and whiskers overlay sampled central jitter and all tail points.
 # Every point has the same opacity, coloured by version. Dashed caps show the
 # conf and 1-conf quantiles; the solid black line marks zero. Each comparison
-# also has two tail-probability panels: negative and positive overshoot magnitude.
-# Fractions count each ancestor once if either retained side exceeds the bound;
-# all ancestors in the group supply the denominator, including zero overshoots.
+# also has two tail panels with separate x ranges for negative and positive
+# overshoot magnitudes. Each ancestor contributes its minimum side's magnitude
+# to the negative panel and maximum side to the positive panel, floored at zero.
+# Fractions count ancestors strictly above the magnitude cutoff by default.
+# Set fraction_above=False for fractions at or below the cutoff. All ancestors,
+# including those with zero overshoots, supply the denominator.
+
+# %% [markdown]
+# Bars show mean signed overshoot by genotype error, coloured by version,
+# after averaging each ancestor's two sides.
 
 # %%
-ch3_plot.plot_genotype_overshoot_hist(data, figure_folder)
+# include: right of plot
+ch3_plot.plot_genotype_overshoot_mean(
+    data,
+    figure_folder=figure_folder,
+    figsize=(5, 4.5),
+)
 
 # %%
-ch3_plot.plot_genotype_overshoot_box(data, figure_folder, conf=0.0001, alpha=0.3)
+#include: left of plot
+#mak
+ch3_plot.plot_genotype_overshoot_hist(
+    data,
+    figure_folder=figure_folder,
+    figsize=(5, 4.5),
+)
 
 # %%
-ch3_plot.plot_genotype_overshoot_tails(data, figure_folder)
+ch3_plot.plot_genotype_overshoot_box(
+    data,
+    figure_folder=None,
+    conf=0.0001,
+    alpha=0.3,
+    figsize=(8.5, 3.5),
+)
+
+# %%
+ch3_plot.plot_genotype_overshoot_tails(
+    data,
+    figure_folder=None,
+    figsize=(8.5, 4.5),
+    fraction_above=True,
+)
 
 # %% [markdown]
 # ## Mispolarisation errors
@@ -133,7 +183,12 @@ ch3_plot.plot_genotype_overshoot_tails(data, figure_folder)
 # for larger datasets. Each profile has its own unit-area density.
 
 # %%
-ch3_plot.plot_mispolarisation_daf(data, figure_folder)
+#include
+ch3_plot.plot_mispolarisation_daf(
+    data,
+    figure_folder=figure_folder,
+    figsize=(7, 3.5),
+)
 
 # %% [markdown]
 # Overshoot plots use true focal DAF from the error-free variant store, with
@@ -143,34 +198,89 @@ ch3_plot.plot_mispolarisation_daf(data, figure_folder)
 # only ancestors with mispolarised focal sites and true derived count ≤ 5.
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_hist(data, figure_folder, frequency="high")
+ch3_plot.plot_mispolarisation_overshoot_hist(
+    data,
+    figure_folder=None,
+    frequency="high",
+    figsize=(7, 4.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_box(data, figure_folder, frequency="high", conf=0.001)
+ch3_plot.plot_mispolarisation_overshoot_box(
+    data,
+    figure_folder=None,
+    frequency="high",
+    conf=0.001,
+    figsize=(8.5, 3.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_tails(data, figure_folder, frequency="high")
+#include
+ch3_plot.plot_mispolarisation_overshoot_tails(
+    data,
+    figure_folder=figure_folder,
+    frequency="high",
+    figsize=(8.5, 4.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_hist(data, figure_folder, frequency="low")
+ch3_plot.plot_mispolarisation_overshoot_hist(
+    data,
+    figure_folder=None,
+    frequency="low",
+    figsize=(7, 4.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_box(data, figure_folder, frequency="low", conf=0.001)
+ch3_plot.plot_mispolarisation_overshoot_box(
+    data,
+    figure_folder=None,
+    frequency="low",
+    conf=0.001,
+    figsize=(8.5, 3.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_tails(data, figure_folder, frequency="low")
+#include
+ch3_plot.plot_mispolarisation_overshoot_tails(
+    data,
+    figure_folder=figure_folder,
+    frequency="low",
+    figsize=(8.5, 4.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_hist(data, figure_folder, frequency="all")
+ch3_plot.plot_mispolarisation_overshoot_hist(
+    data,
+    figure_folder=None,
+    frequency="all",
+    figsize=(7, 4.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_box(data, figure_folder, frequency="all", conf=0.001)
+ch3_plot.plot_mispolarisation_overshoot_box(
+    data,
+    figure_folder=None,
+    frequency="all",
+    conf=0.001,
+    figsize=(8.5, 3.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_overshoot_tails(data, figure_folder, frequency="all")
+ch3_plot.plot_mispolarisation_overshoot_tails(
+    data,
+    figure_folder=None,
+    frequency="all",
+    figsize=(8.5, 4.5),
+)
 
 # %%
-ch3_plot.plot_mispolarisation_low_count_overshoot_hist(data, figure_folder)
+#include
+ch3_plot.plot_mispolarisation_low_count_overshoot_hist(
+    data,
+    figure_folder=figure_folder,
+    figsize=(7, 4.5),
+)
 
 # %% [markdown]
 # ## Phase-switch errors
@@ -183,8 +293,12 @@ ch3_plot.plot_mispolarisation_low_count_overshoot_hist(data, figure_folder)
 # individual, as defined by the simulation code.
 
 # %%
+#
 ch3_plot.plot_phase_switch_illustration(
-    phasing_folder, phasing_prefix, figure_folder, config
+    phasing_folder, phasing_prefix,
+    figure_folder=None,
+    config=config,
+    figsize=(8, 2.8),
 )
 
 # %% [markdown]
@@ -193,10 +307,24 @@ ch3_plot.plot_phase_switch_illustration(
 # by separate boxplots and negative/positive tail fractions.
 
 # %%
-ch3_plot.plot_phasing_overshoot_hist(data, figure_folder)
+ch3_plot.plot_phasing_overshoot_hist(
+    data,
+    figure_folder=None,
+    figsize=(7, 4.5),
+)
 
 # %%
-ch3_plot.plot_phasing_overshoot_box(data, figure_folder, conf=0.001)
+#include
+ch3_plot.plot_phasing_overshoot_box(
+    data,
+    figure_folder=figure_folder,
+    conf=0.001,
+    figsize=(8.5, 3.5),
+)
 
 # %%
-ch3_plot.plot_phasing_overshoot_tails(data, figure_folder)
+ch3_plot.plot_phasing_overshoot_tails(
+    data,
+    figure_folder=None,
+    figsize=(8.5, 4.5),
+)
