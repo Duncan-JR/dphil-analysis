@@ -75,10 +75,12 @@ config.phase_rates = tuple(phase_rates)
 # inferred ancestor's frequency, including polarisation in error profiles.
 
 # %%
+# include
+# Ancestor counts use a logarithmic scale.
 ch3_plot.plot_ancestor_spans(
     data,
-    figure_folder=None,
-    cutoffs=[0,0.001,0.003,0.02,0.5,1],
+    figure_folder=figure_folder,
+    cutoffs=[0,0.002,0.02,0.5,0.8,1],
     figsize=(7, 4.5),
 )
 
@@ -100,10 +102,11 @@ ch3_plot.plot_ancestor_overshoot(
 # curve scales the observed 1× rate linearly; both axes are logged.
 
 # %%
+#include
 genotype_summary = ch3_plot.summarise_genotype_errors(data)
 ch3_plot.plot_genotype_error_scaling(
     genotype_summary,
-    figure_folder=None,
+    figure_folder=figure_folder,
     config=config,
     figsize=(6, 3.5),
 )
@@ -114,9 +117,10 @@ ch3_plot.plot_genotype_error_scaling(
 # bins are gaps in the curves. The panels share a logarithmic vertical scale.
 
 # %%
+#include
 ch3_plot.plot_genotype_error_transitions(
     genotype_summary,
-    figure_folder=None,
+    figure_folder=figure_folder,
     config=config,
     figsize=(7, 3.5),
 )
@@ -150,18 +154,19 @@ ch3_plot.plot_genotype_overshoot_mean(
 
 # %%
 #include: left of plot
-#mak
+# Smaller legends keep the narrow histogram panels visible.
 ch3_plot.plot_genotype_overshoot_hist(
     data,
     figure_folder=figure_folder,
     figsize=(5, 4.5),
+    legend_fontsize=7.5,
 )
 
 # %%
 ch3_plot.plot_genotype_overshoot_box(
     data,
     figure_folder=None,
-    conf=0.0001,
+    conf=0.001,
     alpha=0.3,
     figsize=(8.5, 3.5),
 )
@@ -276,6 +281,7 @@ ch3_plot.plot_mispolarisation_overshoot_tails(
 
 # %%
 #include
+# Top rate legend and version label mirror the bottom panel.
 ch3_plot.plot_mispolarisation_low_count_overshoot_hist(
     data,
     figure_folder=figure_folder,
@@ -293,10 +299,10 @@ ch3_plot.plot_mispolarisation_low_count_overshoot_hist(
 # individual, as defined by the simulation code.
 
 # %%
-#
+#include
 ch3_plot.plot_phase_switch_illustration(
     phasing_folder, phasing_prefix,
-    figure_folder=None,
+    figure_folder=figure_folder,
     config=config,
     figsize=(8, 2.8),
 )
@@ -307,17 +313,27 @@ ch3_plot.plot_phase_switch_illustration(
 # by separate boxplots and negative/positive tail fractions.
 
 # %%
+#include left
 ch3_plot.plot_phasing_overshoot_hist(
     data,
-    figure_folder=None,
-    figsize=(7, 4.5),
+    figure_folder=figure_folder,
+    figsize=(5, 4.5),
+    legend_fontsize=7.5,
+)
+
+# %% jupyter={"source_hidden": true}
+#include right
+ch3_plot.plot_phasing_overshoot_mean(
+    data,
+    figure_folder=figure_folder,
+    figsize=(5, 4.5),
 )
 
 # %%
-#include
+# don't include anymore
 ch3_plot.plot_phasing_overshoot_box(
     data,
-    figure_folder=figure_folder,
+    figure_folder=None,
     conf=0.001,
     figsize=(8.5, 3.5),
 )

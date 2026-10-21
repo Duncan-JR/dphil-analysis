@@ -49,7 +49,8 @@ class PlotConfig:
     histogram_size: tuple[float, float] = (7, 4.5)
     overshoot_box_size: tuple[float, float] = (8.5, 3.5)
     overshoot_tail_size: tuple[float, float] = (8.5, 4.5)
-    tail_legend_locations: tuple[str, str] = ("outside right upper", "outside right lower")
+    tail_legend_width_ratio: float = 0.75
+    tail_legend_gap: float = 0.04
     overshoot_cmaps: tuple[str, str] = ("Blues", "Oranges")
     version_line_styles: tuple[str, str] = ("-", "--")
     zero_color: str = "#555555"
@@ -422,8 +423,13 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
         _overshoot_zero_line(axes[0])
         axes[0].set_ylabel("Overshoot (Mb)")
     axes[1].set_ylabel("Ancestors")
-    axes[1].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2, integer=True))
-    axes[1].yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
+    if variable == "span":
+        axes[1].set_yscale("log")
+        axes[1].yaxis.set_major_locator(mticker.LogLocator(numticks=3))
+        axes[1].yaxis.set_major_formatter(mticker.LogFormatterMathtext())
+    else:
+        axes[1].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2, integer=True))
+        axes[1].yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
     axes[1].yaxis.set_minor_formatter(mticker.NullFormatter())
     axes[1].set_xticks(np.arange(num_bins), labels, rotation=25)
     axes[1].set_xlabel("Inferred ancestor frequency")
@@ -552,7 +558,7 @@ def plot_genotype_error_scaling(summary, figure_folder=None, config=None, figsiz
     ax.set_xticks(rates.multiplier, [f"{value:g}×" for value in rates.multiplier])
     ax.xaxis.set_minor_formatter(mticker.NullFormatter())
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda value, position: f"{value * 100:.2g}%"))
-    ax.set_xlabel("Genotype-error multiplier")
+    ax.set_xlabel("Error multiplier")
     ax.set_ylabel("Diploid genotype error rate")
     ax.legend(frameon=False)
     return save_figure(fig, figure_folder, "genotype_error_scaling", config)
@@ -595,7 +601,8 @@ def _overshoot_colors(rates, cmap_name):
 
 
 def _overshoot_histogram(data, frame, by, rates, legend_title,
-                         name, figure_folder, reverse_order=False, figsize=None):
+                         name, figure_folder, reverse_order=False, figsize=None, legend_fontsize=None,
+                         mirror_top_annotations=False):
     config = data.config
     frame = frame.loc[frame[by].isin(rates)].copy()
     values = frame.overshoot.to_numpy() / config.bp_per_mb
@@ -643,10 +650,19 @@ def _overshoot_histogram(data, frame, by, rates, legend_title,
         for rate in rates:
             label = f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}"
             handles.append(mpatches.Patch(color=palette[rate], label=label))
+        legend_location = "upper right" if row == 0 else "lower right"
+        version_x = 0.02
+        version_alignment = "left"
+        if row == 0 and mirror_top_annotations:
+            legend_location = "upper left"
+            version_x = 0.98
+            version_alignment = "right"
         ax.legend(handles=handles, title=legend_title,
-                  loc="upper right" if row == 0 else "lower right")
-        ax.text(0.02, 0.96 if row == 0 else 0.04, f"tsinfer {version}",
+                  fontsize=legend_fontsize, title_fontsize=legend_fontsize,
+                  loc=legend_location)
+        ax.text(version_x, 0.96 if row == 0 else 0.04, f"tsinfer {version}",
                 transform=ax.transAxes, va="top" if row == 0 else "bottom",
+                ha=version_alignment,
                 bbox={"facecolor": "white", "edgecolor": "#cccccc", "pad": 4})
     axes[1].set_xlim(bin_edges[0], bin_edges[-1])
     axes[1].set_xlabel("Overshoot (Mb)")
@@ -754,8 +770,15 @@ def _overshoot_tails(
     config = data.config
     if figsize is None:
         figsize = config.overshoot_tail_size
-    fig, axes = plt.subplots(1, 2, figsize=figsize,
-                             sharey=True, layout="constrained")
+    fig, columns = plt.subplots(
+        1, 3, figsize=figsize, layout="constrained",
+        gridspec_kw={"width_ratios": [1, 1, config.tail_legend_width_ratio]},
+    )
+    axes = columns[:2]
+    axes[1].sharey(axes[0])
+    axes[1].tick_params(labelleft=False)
+    legend_ax = columns[2]
+    legend_ax.set_axis_off()
     version_handles = []
     min_fraction = 1
     keys = ["replicate", "inferred_node"]
@@ -797,11 +820,16 @@ def _overshoot_tails(
         ax.grid(axis="y", alpha=0.15)
     direction = "above" if fraction_above else "below"
     axes[0].set_ylabel(f"Fraction of ancestors {direction} cutoff")
-    for version, handles, location in zip(
-        config.versions, version_handles, config.tail_legend_locations
-    ):
-        fig.legend(handles=handles, title=f"{label} ({version})",
-                   loc=location, frameon=False)
+    for index, (version, handles) in enumerate(zip(config.versions, version_handles)):
+        offset = config.tail_legend_gap / 2
+        anchor_y = 0.5 + offset if index == 0 else 0.5 - offset
+        location = "lower center" if index == 0 else "upper center"
+        legend = legend_ax.legend(
+            handles=handles, title=f"{label} ({version})", loc=location,
+            bbox_to_anchor=(0.5, anchor_y), borderaxespad=0, frameon=True,
+        )
+        if index == 0:
+            legend_ax.add_artist(legend)
     return save_figure(fig, figure_folder, f"{name}_tails", config)
 
 
@@ -810,43 +838,52 @@ def _genotype_overshoots(data):
     return frame.loc[(frame.phase_ser == 0) & (frame.mispol_rate == 0)]
 
 
-def plot_genotype_overshoot_mean(data, figure_folder=None, figsize=None):
-    """Grouped mean signed overshoot by genotype error, coloured by version.
+def _overshoot_mean(data, frame, by, rates, label, name, figure_folder, figsize=None):
+    """Grouped mean signed overshoot by error profile, coloured by version.
 
     Each ancestor contributes its mean retained left/right overshoot. Ancestors
-    are pooled across replicates, as in the genotype overshoot histograms.
+    are pooled across replicates, as in `_overshoot_histogram`.
     """
     config = data.config
-    frame = _genotype_overshoots(data)
-    frame = frame.loc[frame.geno_multiplier.isin(config.genotype_multipliers)]
-    group_keys = ["version", "geno_multiplier"]
+    frame = frame.loc[frame[by].isin(rates)]
+    group_keys = ["version", by]
     ancestor_keys = group_keys + ["replicate", "inferred_node"]
     ancestor_means = frame.groupby(ancestor_keys).overshoot.mean()
     means = ancestor_means.groupby(level=group_keys).mean()
     if figsize is None:
         figsize = config.curve_size
     fig, ax = plt.subplots(figsize=figsize, layout="constrained")
-    positions = np.arange(len(config.genotype_multipliers))
+    positions = np.arange(len(rates))
     width = config.mean_bar_group_width / len(config.versions)
     for index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
-        values = means.loc[version].reindex(config.genotype_multipliers)
+        values = means.loc[version].reindex(rates)
         offsets = positions - config.mean_bar_group_width / 2 + width * (index + 0.5)
         ax.bar(offsets, values / config.bp_per_mb, width=width,
                color=color, label=f"tsinfer {version}")
-    ax.set_xticks(positions, [f"{value:g}×" for value in config.genotype_multipliers])
-    ax.set_xlabel("Genotype-error multiplier")
+    labels = [f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}" for rate in rates]
+    ax.set_xticks(positions, labels)
+    ax.set_xlabel(label)
     ax.set_ylabel("Mean overshoot (Mb)")
     ax.legend(frameon=False)
-    return save_figure(fig, figure_folder, "genotype_error_overshoot_mean", config)
+    return save_figure(fig, figure_folder, f"{name}_mean", config)
 
 
-def plot_genotype_overshoot_hist(data, figure_folder=None, figsize=None):
+def plot_genotype_overshoot_mean(data, figure_folder=None, figsize=None):
+    """Grouped mean overshoot by genotype error; see `_overshoot_mean`."""
+    return _overshoot_mean(
+        data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
+        "Error multiplier", "genotype_error_overshoot", figure_folder,
+        figsize=figsize,
+    )
+
+
+def plot_genotype_overshoot_hist(data, figure_folder=None, figsize=None, legend_fontsize=None):
     """Mirrored histograms for pure genotype-error profiles."""
     return _overshoot_histogram(
         data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
-        "Genotype-error multiplier", "genotype_error_overshoot", figure_folder,
+        "Error multiplier", "genotype_error_overshoot", figure_folder,
         reverse_order=True,
-        figsize=figsize,
+        figsize=figsize, legend_fontsize=legend_fontsize,
     )
 
 
@@ -854,7 +891,7 @@ def plot_genotype_overshoot_box(data, figure_folder=None, conf=0.01, alpha=None,
     """Grouped boxplots for pure genotype-error profiles; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
         data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
-        "Genotype-error multiplier", "genotype_error_overshoot", figure_folder, conf, alpha,
+        "Error multiplier", "genotype_error_overshoot", figure_folder, conf, alpha,
         figsize=figsize,
     )
 
@@ -863,7 +900,7 @@ def plot_genotype_overshoot_tails(data, figure_folder=None, figsize=None, fracti
     """Above/below magnitude cutoff fractions by genotype-error multiplier; see `_overshoot_tails`."""
     return _overshoot_tails(
         data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
-        "Genotype-error multiplier", "genotype_error_overshoot", figure_folder,
+        "Error multiplier", "genotype_error_overshoot", figure_folder,
         figsize=figsize, fraction_above=fraction_above,
     )
 
@@ -901,7 +938,7 @@ def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
     ax.set_yscale("log")
     ax.set_xlabel("Derived allele frequency")
     ax.set_ylabel("Density")
-    ax.legend(title="Mispolarisation rate", frameon=False)
+    ax.legend(title="Mispol. rate", frameon=False)
     return save_figure(fig, figure_folder, "mispolarisation_daf", config)
 
 
@@ -918,13 +955,13 @@ def _mispolarisation_overshoots(data, frequency):
     raise ValueError('frequency must be "high", "low" or "all"')
 
 
-def plot_mispolarisation_overshoot_hist(data, figure_folder=None, frequency="all", figsize=None):
+def plot_mispolarisation_overshoot_hist(data, figure_folder=None, frequency="all", figsize=None, legend_fontsize=None):
     """Mirrored histograms at high (≥ 0.5), low (< 0.5), or all true DAFs."""
     return _overshoot_histogram(
         data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
-        data.config.mispol_rates, "Mispolarisation rate",
+        data.config.mispol_rates, "Mispol. rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder,
-        figsize=figsize,
+        figsize=figsize, legend_fontsize=legend_fontsize,
     )
 
 
@@ -942,13 +979,13 @@ def plot_mispolarisation_overshoot_tails(data, figure_folder=None, frequency="al
     """Above/below magnitude cutoff fractions by mispolarisation rate; see `_overshoot_tails`."""
     return _overshoot_tails(
         data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
-        data.config.mispol_rates, "Mispolarisation rate",
+        data.config.mispol_rates, "Mispol. rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder,
         figsize=figsize, fraction_above=fraction_above,
     )
 
 
-def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder=None, max_derived_count=5, figsize=None):
+def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder=None, max_derived_count=5, figsize=None, legend_fontsize=None):
     """Only mispolarised ancestors with true derived count at most the bound."""
     frame = _mispolarisation_overshoots(data, frequency="all")
     selected = frame.loc[
@@ -956,9 +993,9 @@ def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder=None, max_
     ]
     rates = [rate for rate in data.config.mispol_rates if rate > 0]
     return _overshoot_histogram(
-        data, selected, "mispol_rate", rates, "Mispolarisation rate",
+        data, selected, "mispol_rate", rates, "Mispol. rate",
         f"mispolarisation_overshoot_derived_count_le_{max_derived_count}", figure_folder,
-        figsize=figsize,
+        figsize=figsize, legend_fontsize=legend_fontsize, mirror_top_annotations=True,
     )
 
 
@@ -967,12 +1004,21 @@ def _phasing_overshoots(data):
     return frame.loc[(frame.geno_multiplier == 0) & (frame.mispol_rate == 0)]
 
 
-def plot_phasing_overshoot_hist(data, figure_folder=None, figsize=None):
+def plot_phasing_overshoot_mean(data, figure_folder=None, figsize=None):
+    """Grouped mean overshoot by switch error rate; see `_overshoot_mean`."""
+    return _overshoot_mean(
+        data, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
+        "Switch error rate", "phasing_error_overshoot", figure_folder,
+        figsize=figsize,
+    )
+
+
+def plot_phasing_overshoot_hist(data, figure_folder=None, figsize=None, legend_fontsize=None):
     """Mirrored histograms for pure phase-switch profiles."""
     return _overshoot_histogram(
         data, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
         "Switch error rate", "phasing_error_overshoot", figure_folder, reverse_order=True,
-        figsize=figsize,
+        figsize=figsize, legend_fontsize=legend_fontsize,
     )
 
 
