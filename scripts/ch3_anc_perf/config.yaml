@@ -1,0 +1,26 @@
+# Haploid sample counts.
+datasets: [100, 1000, 10000, 100000]
+zarr_pattern: /well/kelleher/users/uuc395/tsinfer-anc-eval/data/anc_perf/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R2.81e7-n{n}-*-rep0-geno-1.0-phase0-mispol0.zarr
+
+versions:
+  "0.4.1": /well/kelleher/users/uuc395/tsinfer_0_4_1
+  "0.5.1": /well/kelleher/users/uuc395/tsinfer_0_5_1
+# Use the existing Zarr 2 environment, rather than dphil-analysis's Zarr 3 one.
+runtime_project: /well/kelleher/users/uuc395/tsinfer-anc-eval
+output_dir: results
+
+ancestral_state: variant_mispolarised_ancestral_state
+sequence_length: 28100000
+# ONE_BIT: valid for these biallelic inputs without missing genotypes.
+genotype_encoding: 1
+recombination_rate: null
+mismatch_ratio: null
+# Match the paper benchmark: time sample matching without post-processing.
+post_process: false
+log_level: INFO
+sample_matching_log_level: WARNING
+helper_threads: 1
+resources:
+  threads: 196
+  mem_mb: 950000
+  time_min: 2880
