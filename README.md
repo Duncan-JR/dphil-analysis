@@ -62,3 +62,32 @@ Pass `variant_mask_name="variant_mask"` to exclude sites where that boolean
 Zarr array is true. A sequence of mask names excludes the union of their true
 values. Doubleton ascertainment, diversity, region span, mismatch counts and
 recombination summaries all use the resulting included sites.
+
+Chapter 3 plots can use aggregate CSVs and an exported Zarr-summary CSV without
+transferring the variant stores. Copy `src/ch3_extract_data.py` to the HPC and
+run it from the `tsinfer-anc-eval` root (or invoke it by its full path):
+
+```sh
+uv run python ch3_extract_data.py OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1
+```
+
+This reads `data/anc_eval/zarr_vcfs` and writes
+`data/anc_eval/dataframes/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv`.
+The script is standalone and needs only NumPy, pandas and Zarr. It streams
+variant chunks and processes independent profiles across available CPU cores;
+`--workers`, `--chunk-rows`, `--data-folder` and `--output-folder` are optional.
+The output is replaced only after extraction finishes successfully.
+
+Transfer that export to `dphil-analysis/data/ch3/`, together with access to the
+matching `PREFIX-aggregated.csv`. In `notebooks/ch3/figure_gen.py`, set
+`aggregated_folder` to the directory containing the aggregate and `data_prefix`
+to the chosen prefix. Preprocessing writes reduced ancestor tables into
+`data_folder` (`dphil-analysis/data/ch3/` by default). The notebook currently
+uses the validated local `OutOfAfrica_3G09-chr20-L0-R1e7-n3000-s1` dataset.
+
+The exported CSV contains `profile` rows describing available error profiles,
+`truth` rows with unflipped allele counts and positions, `genotype` rows with
+error/transition counts grouped by true allele count, and `daf` rows with site
+counts grouped by allele count and polarisation. These are raw counts, so local
+frequency bins and smoothing settings remain adjustable. The phase-switch
+illustration is excluded and retains its separate chromosome 1 Zarr input.

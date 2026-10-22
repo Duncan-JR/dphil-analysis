@@ -1,0 +1,98 @@
+cache_subdir: for_plots
+workers: null
+helper_threads: 1
+dating:
+  post_process:
+    split_ultimate: true
+    erase_flanks: true
+  preprocess:
+    delete_intervals: []
+    split_disjoint: true
+  estimation:
+    method: variational_gamma
+    time_units: generations
+    set_metadata: true
+    progress: false
+    singletons_phased: true
+frequency_bins:
+  cutoffs:
+  - 0.01
+  - 0.5
+  labels:
+  - DAF < 0.01
+  - 0.01 ≤ DAF < 0.5
+  - DAF ≥ 0.5
+plot:
+  dpi: 100
+  export_dpi: 180
+  font_size: 10
+  panel_width: 5.1
+  panel_height: 3.6
+  cutoff_colors:
+  - '#0072B2'
+  - '#D55E00'
+  full_color: '#555555'
+  population_colors:
+    African: '#009E73'
+    Non-African: '#CC79A7'
+  switch_colors:
+  - '#009E73'
+  - '#E69F00'
+  - '#7B61A8'
+  switch_categories:
+  - focal
+  - gap
+  - seam
+  switch_labels:
+  - Within focal coverage
+  - Within gaps
+  - At gap seams
+  line_width: 1.7
+  marker_size: 5
+  range_margin: 0.08
+  length_display_quantile: 0.99
+  histogram_alpha: 0.25
+  kde_grid_size: 256
+  bar_width: 0.65
+  age_hexbin_gridsize: 65
+  age_minimum: 1
+  age_maximum_quantile: 0.999
+  age_scatter_alpha: 0.8
+  gap_parent_categories:
+    older:
+      label: Older than cutoff
+      color: '#0072B2'
+    recent_nonfocal:
+      label: Recent, not focal for haplotype
+      color: '#E69F00'
+    focal:
+      label: Focal candidate for haplotype
+      color: '#009E73'
+  gap_parent_weightings:
+    span_bp: Gap sequence in bp
+    distinct_parents: Distinct gap parents
+  gap_parent_label_minimum_percentage: 5
+  root_edge_categories:
+    seam:
+      label: Touches a focal/gap seam
+      color: '#7B61A8'
+    gap_interior:
+      label: Gap interior
+      color: '#E69F00'
+    focal:
+      label: Focal only
+      color: '#009E73'
+  root_edge_histogram_bins: 55
+  root_edge_histogram_alpha: 0.65
+title: hpc_perf2
+description: 1000 Genomes Project · chr20p
+data_dir: ../../data/ch5/hpc_perf2_diagnostics
+mutation_rate: 1.29e-08
+population_groups:
+  African:
+  - AFR
+  Non-African:
+  - EUR
+  - EAS
+  - SAS
+  - AMR

@@ -17,6 +17,7 @@ dependencies = [
     "tscompare>=0.2.1",
     "tsinfer",
     "tsdate>=0.2.7",
+    "tszip>=0.3.1",
 ]
 
 [dependency-groups]

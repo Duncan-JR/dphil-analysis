@@ -108,3 +108,61 @@ records signed stitched-minus-full counts, and `arg_metrics.csv` records all
 16 stitched-to-full comparisons, including reference method and time units.
 `arg_metrics_against_truth.csv` records the nine simulated outputs compared
 with truth. Metric tables and plots contain ARF and TPR only.
+
+## Archived AF/minimum-region parameter search (pt7)
+
+`notebooks/ch5/stitching_pt7_paramsearch.py` (paired with `.ipynb`) analyses
+`data/ch5/hpc_params1_diagnostics` using its archived config and manifest.
+The analysis config is `stitching_pt7_paramsearch_config.yaml`. Sample sizes
+occupy columns; AF cutoffs or metrics occupy rows. Focal length histograms use
+minimum size 1, with `num_bins` editable in the notebook. Gap plots show only
+densities and median markers. The final sections compare tree statistics,
+ARF/TPR against Full HMM and truth, and mutation-age correlations overall and
+by DAF. No heatmaps or genotype-store restoration are used.
+
+All generated summaries, figures and dated trees are cached under the input
+directory's `for_plots/`. Integer region-length counts preserve the complete
+distributions without repeatedly loading the 4 GB CSV. Tree metric plots load
+completed cached comparisons only; missing values/panels stay blank, and the
+notebook never starts further ARG metric calculations. Dating runs in worker
+processes (`workers: null` uses available CPUs), with per-run input/settings/code
+signatures. Mutation-age comparisons use one
+position/allele intersection across truth, Full HMM and every stitched run
+within each sample size, for both reference comparisons and all DAF bins.
+For large cohorts, `ch5_arg_metrics` uses exact integer clade bitsets in each
+single-threaded worker; tscompare's metric formulas and matching code are
+unchanged. Tests compare this iterator with the original set implementation.
+
+```sh
+uv run jupytext --sync notebooks/ch5/stitching_pt7_paramsearch.py
+uv run jupyter nbconvert --to notebook --execute --inplace \
+  --ExecutePreprocessor.timeout=-1 notebooks/ch5/stitching_pt7_paramsearch.ipynb
+```
+
+## HPC performance scaling (pt8 and pt9)
+
+`stitching_pt8_hpc_perf1.py` and `stitching_pt9_hpc_perf2.py`, paired with
+notebooks of the same names, analyse the two extracted diagnostic archives
+under `data/ch5/`. Their matching analysis configs use the same stems.
+Performance plots put actual diploid sample counts on a logarithmic x axis,
+with one shared Full HMM baseline per cohort. They show recorded end-to-end
+wall time, throughput, CPU time, average cores and sampled process-tree private
+memory; stage/resident measurements are absent from these experiments.
+
+Path diagnostics include extra switches, population coverage, focal/gap lengths,
+switch partitions, parent agreement and raw edge/tree counts. Dating checks
+that the diagnostic and timed trees have matching copying paths and mutations.
+Mutation ages use one common position/allele intersection per cohort, including
+truth for simulations; 1kgp comparisons use Full HMM only. No ARG metrics or
+genotype-store restoration are run. Results, matched age pairs, figures and
+dated trees are cached in each extracted archive's `for_plots/` directory.
+The notebooks describe methods and show results; interpretation stays in chat.
+
+Their gap-parent section compares Full HMM and stitched copying under the same
+gap masks. Parents are older than the AF cutoff, recent without a carried focal
+seed, or recent with a carried focal seed. Seeds are recovered from the checked
+single-mutation reference sites; saved Full HMM haplotypes provide a common
+carrier definition, including terminal-mutation overrides. Stacked percentages
+show mean per-haplotype gap-bp and distinct-parent shares. Per-haplotype caches
+also retain inference-site and copying-segment weights. This is an analysis of
+existing paths, not a run of an age-restricted HMM.

@@ -1,0 +1,43 @@
+data_dir: ../../data/ch5/hpc_params1_diagnostics
+cache_subdir: for_plots
+workers: null
+helper_threads: 1
+mutation_rate: 2.35e-8
+followup_minimum_sizes: [1000, 2000, 3000, 5000, 10000]
+dating:
+  post_process:
+    split_ultimate: true
+    erase_flanks: true
+  preprocess:
+    delete_intervals: []
+    split_disjoint: true
+  estimation:
+    method: variational_gamma
+    time_units: generations
+    set_metadata: true
+    progress: false
+    singletons_phased: true
+frequency_bins:
+  cutoffs: [0.01, 0.5]
+  labels: ['DAF < 0.01', '0.01 ≤ DAF < 0.5', 'DAF ≥ 0.5']
+plot:
+  dpi: 100
+  font_size: 10
+  panel_width: 5
+  panel_height: 3.5
+  cutoff_colors: ['#0072B2', '#D55E00', '#009E73']
+  minimum_colors: ['#0072B2', '#009E73', '#E69F00', '#CC79A7']
+  population_colors: {African: '#0072B2', Non-African: '#E69F00'}
+  switch_colors: ['#009E73', '#E69F00', '#7B61A8']
+  switch_labels: [Within focal coverage, Within gaps, At gap seams]
+  switch_categories: [focal, gap, seam]
+  marker_size: 4
+  line_width: 1.5
+  hourglass_width: 0.07
+  hourglass_alpha: 0.3
+  range_margin: 0.08
+  histogram_alpha: 0.25
+  length_display_quantile: 0.99
+  kde_grid_size: 512
+  bar_width: 0.65
+  baseline_minimum: 1
