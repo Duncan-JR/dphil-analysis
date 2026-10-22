@@ -1,4 +1,4 @@
-"""Chapter 3 figures from ancestor-evaluation CSVs and variant Zarr stores.
+"""Chapter 3 figures from ancestor-evaluation CSVs and exported Zarr summaries.
 
 The mirrored overshoot histograms adapt the layout in tsinfer-paper's
 ``lib/visualisation.py``. All data access and plotting here are independent of
@@ -9,8 +9,8 @@ import dataclasses
 import logging
 import multiprocessing
 import pathlib
-import re
 
+import ch3_extract_data
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -46,6 +46,10 @@ class PlotConfig:
     dpi: int = 300
     bp_per_mb: float = 1e6
     box_size: tuple[float, float] = (7, 4.5)
+    ancestor_panel_spacing: float = 0.18
+    ancestor_count_margin: float = 0.35
+    ancestor_count_fontsize: float = 7
+    ancestor_count_padding: float = 3
     histogram_size: tuple[float, float] = (7, 4.5)
     overshoot_box_size: tuple[float, float] = (8.5, 3.5)
     overshoot_tail_size: tuple[float, float] = (8.5, 4.5)
@@ -79,52 +83,23 @@ class PlotConfig:
     workers: int | None = None
 
 
-@dataclasses.dataclass(frozen=True)
-class VariantStore:
-    """One replicate and error profile, parsed from its Zarr filename."""
-
-    path: pathlib.Path
-    replicate: int
-    geno_multiplier: float
-    phase_ser: float
-    mispol_rate: float
-
-
 @dataclasses.dataclass
 class ChapterData:
-    """Ancestor observations and corresponding variant stores for one dataset."""
+    """Ancestor observations and the CSV exported by :mod:`ch3_extract_data`."""
 
     overshoots: pd.DataFrame
     spans: pd.DataFrame
-    stores: list[VariantStore]
+    zarr_data: pd.DataFrame
     config: PlotConfig
 
-    def store(self, replicate, geno_multiplier=0, phase_ser=0, mispol_rate=0):
-        """Find exactly one profile, including numerically equivalent suffixes."""
-        matches = [
-            store for store in self.stores
-            if store.replicate == replicate
-            and store.geno_multiplier == geno_multiplier
-            and store.phase_ser == phase_ser
-            and store.mispol_rate == mispol_rate
+    @property
+    def phase_rates(self):
+        """Available pure phase-error profiles, including the error-free profile."""
+        profiles = self.zarr_data.loc[
+            (self.zarr_data.record_type == "profile")
+            & (self.zarr_data.geno_multiplier == 0) & (self.zarr_data.mispol_rate == 0)
         ]
-        if len(matches) != 1:
-            raise ValueError(
-                f"Expected one store for rep={replicate}, geno={geno_multiplier}, "
-                f"phase={phase_ser}, mispol={mispol_rate}; found {len(matches)}"
-            )
-        return matches[0]
-
-
-@dataclasses.dataclass
-class GenotypeCounts:
-    """Sufficient statistics from one streamed replicate/profile comparison."""
-
-    multiplier: float
-    changed: int
-    total: int
-    homozygous: np.ndarray
-    to_heterozygous: np.ndarray
+        return tuple(sorted(profiles.phase_ser.unique()))
 
 
 @dataclasses.dataclass
@@ -133,31 +108,6 @@ class GenotypeSummary:
 
     rates: pd.DataFrame
     transitions: pd.DataFrame
-
-
-@dataclasses.dataclass
-class GenotypeTask:
-    truth: VariantStore
-    observed: VariantStore
-    bins: int
-
-
-def _variant_stores(folder, prefix):
-    pattern = re.compile(
-        r"(.+)-rep(\d+)-geno-([0-9.eE+-]+)-phase([0-9.eE+-]+)"
-        r"-mispol([0-9.eE+-]+)\.zarr"
-    )
-    stores = []
-    for path in sorted(folder.glob(f"{prefix}-rep*.zarr")):
-        match = pattern.fullmatch(path.name)
-        if match is None:
-            continue  # The raw stores have no error-profile suffix.
-        stores.append(VariantStore(
-            path, int(match[2]), float(match[3]), float(match[4]), float(match[5])
-        ))
-    if not stores:
-        raise FileNotFoundError(f"No variant stores for {prefix} in {folder}")
-    return stores
 
 
 @dataclasses.dataclass
@@ -206,24 +156,24 @@ def _reduce_ancestor_chunk(task):
     return AncestorFrames(_reduce_overshoots(frame, keys), _reduce_spans(frame, keys))
 
 
-def _true_focal_frequencies(data_folder, data_prefix):
-    """Unflipped focal counts/frequencies from each error-free variant store."""
-    folder = pathlib.Path(data_folder).expanduser() / "zarr_vcfs"
-    stores = _variant_stores(folder, data_prefix)
-    frames = []
-    for store in stores:
-        if store.geno_multiplier != 0 or store.phase_ser != 0 or store.mispol_rate != 0:
-            continue
-        group = zarr.open_group(store.path, mode="r")
-        counts = group["variant_allele_count"][:]
-        total_alleles = group["call_genotype"].shape[1] * group["call_genotype"].shape[2]
-        frames.append(pd.DataFrame({
-            "replicate": store.replicate,
-            "focal_position": group["variant_position"][:],
-            "true_derived_count": counts,
-            "true_allele_frequency": counts / total_alleles,
-        }))
-    return pd.concat(frames, ignore_index=True)
+def _read_zarr_data(path, prefix):
+    """Load a CSV from :func:`ch3_extract_data.extract_data` for this prefix."""
+    frame = pd.read_csv(
+        path, dtype={"record_type": "string", "data_prefix": "string", "mispolarised": "boolean"}
+    )
+    profiles = frame.loc[frame.record_type == "profile"]
+    if set(profiles.data_prefix) != {prefix}:
+        raise ValueError(f"Exported Zarr data in {path} does not describe {prefix}")
+    return frame
+
+
+def _true_focal_frequencies(zarr_data):
+    """Unflipped focal counts/frequencies from exported error-free variants."""
+    truth = zarr_data.loc[zarr_data.record_type == "truth"].copy()
+    truth["true_derived_count"] = truth.derived_count.astype(np.int64)
+    truth["true_allele_frequency"] = truth.derived_count / truth.num_alleles
+    truth["replicate"] = truth.replicate.astype(np.int64)
+    return truth[["replicate", "focal_position", "true_derived_count", "true_allele_frequency"]]
 
 
 def _ancestor_tasks(reader, truth, config):
@@ -231,32 +181,39 @@ def _ancestor_tasks(reader, truth, config):
         frame = frame.merge(truth, on=["replicate", "focal_position"], how="left",
                             validate="many_to_one")
         if frame.true_derived_count.isna().any():
-            raise ValueError("Focal positions are missing from the error-free variant stores")
+            raise ValueError("Focal positions are missing from the exported error-free variants")
         yield AncestorTask(frame, config)
 
 
-def preprocess_data(data_folder, data_prefix, config=None):
-    """Write ancestor-level ``-overshoot.csv`` and ``-spans.csv`` beside the input.
+def preprocess_data(aggregated_path, zarr_data_path, output_folder, config=None):
+    """Reduce an aggregate CSV into ancestor-level tables in output_folder.
 
     Each inferred ancestor is identified within its replicate, version and
     numeric error profile. If any focal association is mispolarised, both sides
     use only mispolarised associations. Otherwise all associations are eligible.
     Overshoot is the signed minimum within that set, independently on each side.
-    True focal counts/frequencies come from error-free variant stores. True span
+    True focal counts/frequencies come from the CSV generated by
+    :mod:`ch3_extract_data`; no Zarr stores are opened. True span
     is the minimum over all associations; inferred span is invariant per ancestor.
     ``load_data`` and every ancestor plot consume only these reduced tables.
     """
     if config is None:
         config = PlotConfig()
-    folder = pathlib.Path(data_folder).expanduser() / "dataframes"
-    paths = AncestorPaths(folder / f"{data_prefix}-overshoot.csv",
-                          folder / f"{data_prefix}-spans.csv")
+    aggregated_path = pathlib.Path(aggregated_path).expanduser()
+    if not aggregated_path.name.endswith("-aggregated.csv"):
+        raise ValueError("aggregated_path must end with -aggregated.csv")
+    prefix = aggregated_path.name.removesuffix("-aggregated.csv")
+    folder = pathlib.Path(output_folder).expanduser()
+    folder.mkdir(parents=True, exist_ok=True)
+    paths = AncestorPaths(folder / f"{prefix}-overshoot.csv",
+                          folder / f"{prefix}-spans.csv")
     columns = list(config.ancestor_keys)
     columns += ["side", "inferred_time", "inferred_span", "true_span", "overshoot",
                 "true_focal_site", "focal_position", "focal_site_mispolarised"]
-    reader = pd.read_csv(folder / f"{data_prefix}-aggregated.csv", usecols=columns,
+    reader = pd.read_csv(aggregated_path, usecols=columns,
                          dtype={"version": str}, chunksize=config.preprocess_chunk_rows)
-    truth = _true_focal_frequencies(data_folder, data_prefix)
+    zarr_data = _read_zarr_data(pathlib.Path(zarr_data_path).expanduser(), prefix)
+    truth = _true_focal_frequencies(zarr_data)
     tasks = _ancestor_tasks(reader, truth, config)
     workers = config.workers
     if workers is None:
@@ -281,18 +238,18 @@ def preprocess_data(data_folder, data_prefix, config=None):
 
 
 def load_data(data_folder, data_prefix, config=None):
-    """Load the reduced tables from ``preprocess_data`` and discover variant stores."""
+    """Load local reduced tables and PREFIX_zarr_data.csv; see `preprocess_data`."""
     if config is None:
         config = PlotConfig()
     folder = pathlib.Path(data_folder).expanduser()
-    overshoots = pd.read_csv(folder / "dataframes" / f"{data_prefix}-overshoot.csv")
-    spans = pd.read_csv(folder / "dataframes" / f"{data_prefix}-spans.csv")
+    overshoots = pd.read_csv(folder / f"{data_prefix}-overshoot.csv")
+    spans = pd.read_csv(folder / f"{data_prefix}-spans.csv")
     overshoots = overshoots.loc[overshoots.version.isin(config.versions)].copy()
     spans = spans.loc[spans.version.isin(config.versions)].copy()
     if set(spans.version) != set(config.versions):
         raise ValueError(f"Ancestor CSV must contain versions {config.versions}")
-    stores = _variant_stores(folder / "zarr_vcfs", data_prefix)
-    return ChapterData(overshoots, spans, stores, config)
+    zarr_data = _read_zarr_data(folder / f"{data_prefix}_zarr_data.csv", data_prefix)
+    return ChapterData(overshoots, spans, zarr_data, config)
 
 
 def save_figure(fig, figure_folder, name, config):
@@ -305,6 +262,12 @@ def save_figure(fig, figure_folder, name, config):
         logger.info("Saved %s", path)
     plt.show()
     plt.close(fig)
+
+
+def _version_label(version):
+    """Display the major/minor release while retaining full data identifiers."""
+    release = ".".join(version.split(".")[:2])
+    return f"tsinfer {release}"
 
 
 def _no_errors(frame):
@@ -367,18 +330,18 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
         figsize = config.box_size
     fig, axes = plt.subplots(
         2, 1, figsize=figsize, sharex=True,
-        gridspec_kw={"height_ratios": [4, 1], "hspace": 0.08},
+        gridspec_kw={"height_ratios": [4, 1], "hspace": config.ancestor_panel_spacing},
     )
     groups = []
     if variable == "span":
         groups.append(("True", config.true_color, true_spans, "true_span"))
         for version, color in zip(config.versions, config.version_colors):
-            groups.append((f"tsinfer {version}", color,
+            groups.append((_version_label(version), color,
                            spans.loc[spans.version == version], "inferred_span"))
     else:
         frame = _no_errors(data.overshoots)
         for version, color in zip(config.versions, config.version_colors):
-            groups.append((f"tsinfer {version}", color,
+            groups.append((_version_label(version), color,
                            frame.loc[frame.version == version], "overshoot"))
     width = 0.8 / len(groups)
     handles = []
@@ -408,8 +371,14 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
             ancestor_bins = pd.cut(ancestor_rows.allele_frequency, cut_edges,
                                    labels=False, right=False)
             counts = ancestor_bins.value_counts().reindex(range(num_bins), fill_value=0)
-            axes[1].bar(np.arange(num_bins), counts, width=width * 0.85 * 2,
-                        facecolor="white", edgecolor="black")
+            bars = axes[1].bar(np.arange(num_bins), counts, width=width * 0.85 * 2,
+                               facecolor="white", edgecolor="black")
+            if variable == "span":
+                axes[1].bar_label(
+                    bars, labels=[f"{count:,}" for count in counts],
+                    fontsize=config.ancestor_count_fontsize,
+                    padding=config.ancestor_count_padding,
+                )
     if variable == "span":
         axes[0].legend(handles=handles, frameon=False, loc="lower center",
                        bbox_to_anchor=(0.5, 1.01), ncol=len(groups))
@@ -422,9 +391,13 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
     else:
         _overshoot_zero_line(axes[0])
         axes[0].set_ylabel("Overshoot (Mb)")
-    axes[1].set_ylabel("Ancestors")
+    axes[1].set_ylabel("Ancestor\ncount")
     if variable == "span":
         axes[1].set_yscale("log")
+        lower, upper = axes[1].get_ylim()
+        count_range = counts.max() / lower
+        upper = lower * count_range ** (1 / (1 - config.ancestor_count_margin))
+        axes[1].set_ylim(lower, upper)
         axes[1].yaxis.set_major_locator(mticker.LogLocator(numticks=3))
         axes[1].yaxis.set_major_formatter(mticker.LogFormatterMathtext())
     else:
@@ -449,85 +422,36 @@ def plot_ancestor_overshoot(data, figure_folder=None, num_bins=5, cutoffs=None, 
     return _ancestor_boxplot(data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha, figsize=figsize)
 
 
-def _genotype_counts(task):
-    truth = zarr.open_group(task.truth.path, mode="r")
-    observed = zarr.open_group(task.observed.path, mode="r")
-    true_calls = truth["call_genotype"]
-    observed_calls = observed["call_genotype"]
-    if true_calls.shape != observed_calls.shape:
-        raise ValueError(f"Genotype shapes differ for {task.observed.path}")
-    if not np.array_equal(truth["sample_id"][:], observed["sample_id"][:]):
-        raise ValueError(f"Sample order differs for {task.observed.path}")
-    edges = np.linspace(0, 1, task.bins + 1)
-    denominators = np.zeros((2, task.bins), dtype=np.int64)
-    numerators = np.zeros_like(denominators)
-    changed = 0
-    total = 0
-    for start in range(0, true_calls.shape[0], true_calls.chunks[0]):
-        stop = min(start + true_calls.chunks[0], true_calls.shape[0])
-        region = slice(start, stop)
-        if not np.array_equal(truth["variant_position"][region],
-                              observed["variant_position"][region]):
-            raise ValueError(f"Variant order differs for {task.observed.path}")
-        true_genotypes = true_calls[region]
-        observed_genotypes = observed_calls[region]
-        true_dosage = true_genotypes.sum(axis=2)
-        observed_dosage = observed_genotypes.sum(axis=2)
-        daf = true_dosage.mean(axis=1) / true_calls.shape[2]
-        changed += np.count_nonzero(true_dosage != observed_dosage)
-        total += true_dosage.size
-        for index, dosage in enumerate((0, 2)):
-            homozygous = true_dosage == dosage
-            to_het = homozygous & (observed_dosage == 1)
-            site_denominators = homozygous.sum(axis=1)
-            site_numerators = to_het.sum(axis=1)
-            denominators[index] += np.histogram(daf, bins=edges, weights=site_denominators)[0]
-            numerators[index] += np.histogram(daf, bins=edges, weights=site_numerators)[0]
-    return GenotypeCounts(task.observed.geno_multiplier, changed, total,
-                          denominators, numerators)
-
-
 def summarise_genotype_errors(data):
-    """Compare diploid dosage against truth, streaming one variant chunk at a time.
+    """Pool exported diploid error counts and bin transitions by true DAF.
 
-    A genotype error changes dosage (00, 01/10, or 11), so a phase reversal is
-    never counted as a genotype error. Conditional rates use the number of
-    original homozygous calls in each DAF bin as their denominator. Replicates
-    are pooled by counts, not by averaging rates. Worker tasks use the process
-    pool's queues and run independently for each replicate and multiplier.
+    :mod:`ch3_extract_data` compares each observed store to its error-free
+    replicate. Counts are exported by exact true allele count, allowing
+    transition_bins to change locally without access to the original stores.
     """
     config = data.config
-    replicates = sorted(data.spans.replicate.unique())
-    tasks = []
-    for replicate in replicates:
-        truth = data.store(replicate)
-        for multiplier in config.genotype_multipliers:
-            observed = data.store(replicate, geno_multiplier=multiplier)
-            tasks.append(GenotypeTask(truth, observed, config.transition_bins))
-    workers = config.workers
-    if workers is None:
-        workers = min(multiprocessing.cpu_count(), len(tasks))
-    if workers == 1:
-        results = list(map(_genotype_counts, tasks))
-    else:
-        context = multiprocessing.get_context("spawn")
-        with context.Pool(processes=workers) as pool:
-            results = list(pool.imap(_genotype_counts, tasks))
+    frame = data.zarr_data.loc[data.zarr_data.record_type == "genotype"]
+    replicates = set(data.spans.replicate)
     rate_rows = []
     transition_rows = []
     edges = np.linspace(0, 1, config.transition_bins + 1)
     for multiplier in config.genotype_multipliers:
-        selected = [result for result in results if result.multiplier == multiplier]
-        changed = sum(result.changed for result in selected)
-        total = sum(result.total for result in selected)
-        denominators = np.sum([result.homozygous for result in selected], axis=0)
-        numerators = np.sum([result.to_heterozygous for result in selected], axis=0)
+        selected = frame.loc[frame.geno_multiplier == multiplier]
+        if set(selected.replicate) != replicates:
+            raise ValueError(f"Missing exported genotype counts for multiplier {multiplier}")
+        changed = int(selected.changed.sum())
+        total = int(selected.total.sum())
         rate_rows.append({"multiplier": multiplier, "changed": changed,
                           "total": total, "error_rate": changed / total})
-        for index, transition in enumerate(("00 → 01/10", "11 → 01/10")):
+        frequencies = selected.derived_count / selected.num_alleles
+        for dosage, transition in [(0, "00 → 01/10"), (2, "11 → 01/10")]:
+            denominator_weights = selected[f"homozygous_{dosage}"].to_numpy(dtype=np.int64)
+            numerator_weights = selected[f"to_heterozygous_{dosage}"].to_numpy(dtype=np.int64)
+            denominators = np.histogram(frequencies, edges, weights=denominator_weights)[0]
+            numerators = np.histogram(frequencies, edges, weights=numerator_weights)[0]
             for bin_index in range(config.transition_bins):
-                denominator = denominators[index, bin_index]
-                numerator = numerators[index, bin_index]
+                denominator = denominators[bin_index]
+                numerator = numerators[bin_index]
                 rate = numerator / denominator if denominator > 0 else np.nan
                 transition_rows.append({
                     "multiplier": multiplier, "transition": transition,
@@ -660,7 +584,7 @@ def _overshoot_histogram(data, frame, by, rates, legend_title,
         ax.legend(handles=handles, title=legend_title,
                   fontsize=legend_fontsize, title_fontsize=legend_fontsize,
                   loc=legend_location)
-        ax.text(version_x, 0.96 if row == 0 else 0.04, f"tsinfer {version}",
+        ax.text(version_x, 0.96 if row == 0 else 0.04, _version_label(version),
                 transform=ax.transAxes, va="top" if row == 0 else "bottom",
                 ha=version_alignment,
                 bbox={"facecolor": "white", "edgecolor": "#cccccc", "pad": 4})
@@ -703,7 +627,7 @@ def _overshoot_zero_line(ax):
 def _overshoot_legends(fig, config, conf, alpha):
     handles = [
         mlines.Line2D([], [], marker="o", linestyle="none", color=color,
-                      alpha=alpha, markeredgecolor="none", label=f"tsinfer {version}")
+                      alpha=alpha, markeredgecolor="none", label=_version_label(version))
         for version, color in zip(config.versions, config.version_colors)
     ]
     handles.append(mlines.Line2D([], [], color="black", linestyle=config.quantile_line_style,
@@ -825,7 +749,7 @@ def _overshoot_tails(
         anchor_y = 0.5 + offset if index == 0 else 0.5 - offset
         location = "lower center" if index == 0 else "upper center"
         legend = legend_ax.legend(
-            handles=handles, title=f"{label} ({version})", loc=location,
+            handles=handles, title=f"{label} ({_version_label(version)})", loc=location,
             bbox_to_anchor=(0.5, anchor_y), borderaxespad=0, frameon=True,
         )
         if index == 0:
@@ -859,11 +783,13 @@ def _overshoot_mean(data, frame, by, rates, label, name, figure_folder, figsize=
         values = means.loc[version].reindex(rates)
         offsets = positions - config.mean_bar_group_width / 2 + width * (index + 0.5)
         ax.bar(offsets, values / config.bp_per_mb, width=width,
-               color=color, label=f"tsinfer {version}")
+               color=color, label=_version_label(version))
     labels = [f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}" for rate in rates]
     ax.set_xticks(positions, labels)
     ax.set_xlabel(label)
     ax.set_ylabel("Mean overshoot (Mb)")
+    ax.axhline(0, color="black", linestyle="--",
+               linewidth=ax.spines["left"].get_linewidth())
     ax.legend(frameon=False)
     return save_figure(fig, figure_folder, f"{name}_mean", config)
 
@@ -914,7 +840,8 @@ def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
     growing with the number of sites. Each profile integrates to one.
     """
     config = data.config
-    replicates = sorted(data.spans.replicate.unique())
+    replicates = set(data.spans.replicate)
+    frequencies = data.zarr_data.loc[data.zarr_data.record_type == "daf"]
     edges = np.linspace(0, 1, config.daf_bins + 1)
     centers = (edges[:-1] + edges[1:]) / 2
     colors = plt.get_cmap("viridis")(np.linspace(0.1, 0.85, len(config.mispol_rates)))
@@ -922,15 +849,14 @@ def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
         figsize = config.curve_size
     fig, ax = plt.subplots(figsize=figsize, layout="constrained")
     for rate, color in zip(config.mispol_rates, colors):
-        counts = np.zeros(config.daf_bins, dtype=np.int64)
-        for replicate in replicates:
-            store = data.store(replicate, mispol_rate=rate)
-            group = zarr.open_group(store.path, mode="r")
-            total_alleles = group["call_genotype"].shape[1] * group["call_genotype"].shape[2]
-            daf = group["variant_allele_count"][:] / total_alleles
-            mispolarised = ~group["variant_mispolarisation_mask"][:].astype(bool)
-            daf[mispolarised] = 1 - daf[mispolarised]
-            counts += np.histogram(daf, edges)[0]
+        selected = frequencies.loc[frequencies.mispol_rate == rate]
+        if set(selected.replicate) != replicates:
+            raise ValueError(f"Missing exported allele-frequency counts for mispol rate {rate}")
+        daf = selected.derived_count.to_numpy() / selected.num_alleles.to_numpy()
+        mispolarised = selected.mispolarised.to_numpy(dtype=bool)
+        daf[mispolarised] = 1 - daf[mispolarised]
+        weights = selected.num_sites.to_numpy(dtype=np.int64)
+        counts = np.histogram(daf, edges, weights=weights)[0]
         density = counts / counts.sum() / np.diff(edges)
         density = ndi.gaussian_filter1d(density, config.daf_smoothing_bins, mode="reflect")
         ax.plot(centers, density, color=color, label=f"{rate:g}")
@@ -1067,10 +993,11 @@ def plot_phase_switch_illustration(phasing_folder, data_prefix, figure_folder=No
     if config is None:
         config = PlotConfig()
     folder = pathlib.Path(phasing_folder).expanduser()
-    stores = _variant_stores(folder / "zarr_vcfs", data_prefix)
-    profiles = ChapterData(pd.DataFrame(), pd.DataFrame(), stores, config)
-    truth = zarr.open_group(profiles.store(0).path, mode="r")
-    observed = zarr.open_group(profiles.store(0, phase_ser=config.phase_ser).path, mode="r")
+    stores = ch3_extract_data.discover_stores(folder / "zarr_vcfs", data_prefix)
+    truth_store = ch3_extract_data.find_store(stores, 0)
+    observed_store = ch3_extract_data.find_store(stores, 0, phase_ser=config.phase_ser)
+    truth = zarr.open_group(truth_store.path, mode="r")
+    observed = zarr.open_group(observed_store.path, mode="r")
     positions = observed["variant_position"][:]
     if not np.array_equal(positions, truth["variant_position"][:]):
         raise ValueError("Phasing illustration stores have different variant positions")

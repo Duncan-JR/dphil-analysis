@@ -20,8 +20,10 @@
 # Each call displays its figure here. Only #include plots save a 300 dpi PNG
 # to the thesis figure_folder; figure_folder=None displays without saving.
 # The plotting module is self-contained and does not import `tsinfer-paper`.
-# Preprocessing writes `data_prefix-overshoot.csv` and `data_prefix-spans.csv`
-# beside the aggregate CSV; plots load these ancestor-level tables.
+# Run src/ch3_extract_data.py on the machine holding the variant Zarr stores.
+# Transfer PREFIX_zarr_data.csv alongside the aggregate CSV; the main plots
+# need no Zarrs locally. Reduced ancestor tables are written to data_folder.
+# The separate phase-switch illustration still uses its chromosome 1 Zarrs.
 
 # %%
 import pathlib
@@ -32,8 +34,11 @@ importlib.reload(ch3_plot)
 # %%
 # Prefixes include the simulation region, sample size and seed, but not replicate
 # or error-profile suffixes. All available replicates are pooled.
-data_folder = pathlib.Path("~/work/tsinfer-anc-eval/data/anc_eval").expanduser()
-data_prefix = "OutOfAfrica_3G09-chr20-L0-R1e7-n3000-s1"
+data_folder = pathlib.Path("~/work/dphil-analysis/data/ch3").expanduser()
+aggregated_folder = pathlib.Path("~/work/tsinfer-anc-eval/data/anc_eval/dataframes").expanduser()
+data_prefix = "OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1"
+aggregated_path = aggregated_folder / f"{data_prefix}-aggregated.csv"
+zarr_data_path = data_folder / f"{data_prefix}_zarr_data.csv"
 phasing_folder = pathlib.Path("~/work/tsinfer-anc-eval/data/phasing").expanduser()
 phasing_prefix = "OutOfAfrica_3G09-chr1-L0-R123400000-n20-s1"
 
@@ -47,18 +52,15 @@ config = ch3_plot.PlotConfig(
     phase_ser=0.0003,
     phase_right_mb=123.4,
     phase_individuals=5,
-    workers=None,  # Use available CPU cores for independent Zarr comparisons.
+    workers=None,  # Use available CPU cores for ancestor-table preprocessing.
     dpi=300,
 )
-processed_paths = ch3_plot.preprocess_data(data_folder, data_prefix, config)
+processed_paths = ch3_plot.preprocess_data(
+    aggregated_path, zarr_data_path, data_folder, config
+)
 data = ch3_plot.load_data(data_folder, data_prefix, config)
-# Discover the generated pure phase-switch profiles.
-pure_phase_stores = [
-    store for store in data.stores
-    if store.geno_multiplier == 0 and store.mispol_rate == 0
-]
-phase_rates = sorted({store.phase_ser for store in pure_phase_stores})
-config.phase_rates = tuple(phase_rates)
+# Available pure phase-error rates are included in the exported CSV.
+config.phase_rates = data.phase_rates
 
 # %% [markdown]
 # ## Error-free results
@@ -97,9 +99,9 @@ ch3_plot.plot_ancestor_overshoot(
 # ## Genotype errors
 #
 # Compare `call_genotype` in each pure genotype-error profile with the error-free
-# store in variant chunks. A diploid error changes genotype dosage (00, 01/10,
-# or 11). Rates pool changed calls and denominators across replicates. The dashed
-# curve scales the observed 1× rate linearly; both axes are logged.
+# store during HPC extraction. A diploid error changes genotype dosage (00, 01/10,
+# or 11). Exported counts pool changed calls and denominators across replicates.
+# The dashed curve scales the observed 1× rate linearly; both axes are logged.
 
 # %%
 #include
@@ -321,13 +323,16 @@ ch3_plot.plot_phasing_overshoot_hist(
     legend_fontsize=7.5,
 )
 
-# %% jupyter={"source_hidden": true}
+# %%
 #include right
 ch3_plot.plot_phasing_overshoot_mean(
     data,
     figure_folder=figure_folder,
     figsize=(5, 4.5),
 )
+
+# %%
+(0.0003+0.006)/2
 
 # %%
 # don't include anymore
@@ -344,3 +349,9 @@ ch3_plot.plot_phasing_overshoot_tails(
     figure_folder=None,
     figsize=(8.5, 4.5),
 )
+
+# %%
+
+# %%
+
+# %%
