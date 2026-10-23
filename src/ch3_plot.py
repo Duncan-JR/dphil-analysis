@@ -48,21 +48,22 @@ class PlotConfig:
     box_size: tuple[float, float] = (7, 4.5)
     ancestor_panel_spacing: float = 0.18
     ancestor_count_margin: float = 0.35
-    ancestor_count_fontsize: float = 7
-    ancestor_count_padding: float = 3
+    ancestor_count_fontsize: float = 8
+    ancestor_count_padding: float = 2
     histogram_size: tuple[float, float] = (7, 4.5)
     overshoot_box_size: tuple[float, float] = (8.5, 3.5)
     overshoot_tail_size: tuple[float, float] = (8.5, 4.5)
     tail_legend_width_ratio: float = 0.75
     tail_legend_gap: float = 0.04
+    tail_count_height_ratio: float = 0.28
     overshoot_cmaps: tuple[str, str] = ("Blues", "Oranges")
     version_line_styles: tuple[str, str] = ("-", "--")
     zero_color: str = "#555555"
     quantile_line_style: str = "--"
     quantile_line_width: float = 1.2
     preprocess_chunk_rows: int = 250000
-    ancestor_keys: tuple[str, ...] = (
-        "replicate", "version", "geno_multiplier", "phase_ser", "mispol_rate", "inferred_node"
+    focal_keys: tuple[str, ...] = (
+        "replicate", "version", "geno_multiplier", "phase_ser", "mispol_rate", "true_focal_site"
     )
     overshoot_box_width_ratio: float = 0.6
     jitter_seed: int = 42
@@ -71,6 +72,7 @@ class PlotConfig:
     jitter_alpha: float = 0.15
     jitter_size: float = 5
     mean_bar_group_width: float = 0.8
+    mean_bar_y_margin: float = 0.05
     curve_size: tuple[float, float] = (6, 3.5)
     transition_size: tuple[float, float] = (7, 3.5)
     phase_size: tuple[float, float] = (8, 2.8)
@@ -85,7 +87,7 @@ class PlotConfig:
 
 @dataclasses.dataclass
 class ChapterData:
-    """Ancestor observations and the CSV exported by :mod:`ch3_extract_data`."""
+    """Focal-site comparisons and the CSV exported by :mod:`ch3_extract_data`."""
 
     overshoots: pd.DataFrame
     spans: pd.DataFrame
@@ -111,49 +113,33 @@ class GenotypeSummary:
 
 
 @dataclasses.dataclass
-class AncestorTask:
+class FocalTask:
     frame: pd.DataFrame
     config: PlotConfig
 
 
 @dataclasses.dataclass
-class AncestorFrames:
+class FocalFrames:
     overshoots: pd.DataFrame
     spans: pd.DataFrame
 
 
 @dataclasses.dataclass(frozen=True)
-class AncestorPaths:
+class FocalPaths:
     overshoots: pathlib.Path
     spans: pathlib.Path
 
 
-def _reduce_overshoots(frame, keys):
-    # Prefer mispolarised focal associations on both sides. Within that set,
-    # select the most negative overshoot independently for each side.
-    ranked = frame.sort_values(["focal_site_mispolarised", "overshoot"],
-                               ascending=[False, True], kind="stable")
-    selected = ranked.drop_duplicates(keys + ["side"])
-    columns = keys + ["side", "allele_frequency", "true_focal_site",
-                      "focal_site_mispolarised", "true_derived_count",
-                      "true_allele_frequency", "overshoot"]
-    return selected.loc[:, columns]
-
-
-def _reduce_spans(frame, keys):
-    return frame.groupby(keys, sort=False, as_index=False).agg(
-        allele_frequency=("allele_frequency", "first"),
-        inferred_span=("inferred_span", "first"), true_span=("true_span", "min"),
-    )
-
-
-def _reduce_ancestor_chunk(task):
+def _prepare_focal_chunk(task):
+    """Keep both sides of every focal site and one copy of its span comparison."""
     frame = task.frame.loc[task.frame.version.isin(task.config.versions)].copy()
-    # Inferred time is the ancestor's focal-frequency proxy. Raw focal DAFs
-    # can disagree within a mispolarised ancestor; this is one value per ancestor.
-    frame = frame.rename(columns={"inferred_time": "allele_frequency"})
-    keys = list(task.config.ancestor_keys)
-    return AncestorFrames(_reduce_overshoots(frame, keys), _reduce_spans(frame, keys))
+    columns = list(task.config.focal_keys)
+    columns += ["inferred_node", "true_node", "allele_frequency",
+                "focal_site_mispolarised", "true_derived_count", "true_allele_frequency"]
+    overshoots = frame.loc[:, columns + ["side", "overshoot"]]
+    # Each focal site has exactly one left row, even across CSV chunk boundaries.
+    spans = frame.loc[frame.side == "left", columns + ["inferred_span", "true_span"]]
+    return FocalFrames(overshoots, spans)
 
 
 def _read_zarr_data(path, prefix):
@@ -176,26 +162,40 @@ def _true_focal_frequencies(zarr_data):
     return truth[["replicate", "focal_position", "true_derived_count", "true_allele_frequency"]]
 
 
-def _ancestor_tasks(reader, truth, config):
+def _focal_tasks(reader, truth, config):
     for frame in reader:
         frame = frame.merge(truth, on=["replicate", "focal_position"], how="left",
                             validate="many_to_one")
         if frame.true_derived_count.isna().any():
             raise ValueError("Focal positions are missing from the exported error-free variants")
-        yield AncestorTask(frame, config)
+        yield FocalTask(frame, config)
+
+
+def _write_focal_tables(results, paths):
+    """Stream prepared chunks to disk without retaining the full aggregate."""
+    side_count = 0
+    site_count = 0
+    temporary = FocalPaths(paths.overshoots.with_suffix(".csv.tmp"),
+                           paths.spans.with_suffix(".csv.tmp"))
+    with temporary.overshoots.open("w") as overshoot_file, temporary.spans.open("w") as span_file:
+        for index, result in enumerate(results):
+            result.overshoots.to_csv(overshoot_file, index=False, header=index == 0)
+            result.spans.to_csv(span_file, index=False, header=index == 0)
+            side_count += len(result.overshoots)
+            site_count += len(result.spans)
+    temporary.overshoots.replace(paths.overshoots)
+    temporary.spans.replace(paths.spans)
+    logger.info("Wrote %s focal-site sides and %s focal-site spans", side_count, site_count)
 
 
 def preprocess_data(aggregated_path, zarr_data_path, output_folder, config=None):
-    """Reduce an aggregate CSV into ancestor-level tables in output_folder.
+    """Prepare per-focal-site comparisons for :func:`load_data` and all plots.
 
-    Each inferred ancestor is identified within its replicate, version and
-    numeric error profile. If any focal association is mispolarised, both sides
-    use only mispolarised associations. Otherwise all associations are eligible.
-    Overshoot is the signed minimum within that set, independently on each side.
-    True focal counts/frequencies come from the CSV generated by
-    :mod:`ch3_extract_data`; no Zarr stores are opened. True span
-    is the minimum over all associations; inferred span is invariant per ancestor.
-    ``load_data`` and every ancestor plot consume only these reduced tables.
+    Each focal site retains its own true/inferred span comparison and both
+    signed overshoots within each replicate, version and error profile. Sites
+    sharing an ancestor remain separate, including sites with different
+    polarisation states. True focal counts/frequencies come from the CSV
+    generated by :mod:`ch3_extract_data`; no Zarr stores are opened.
     """
     if config is None:
         config = PlotConfig()
@@ -205,45 +205,38 @@ def preprocess_data(aggregated_path, zarr_data_path, output_folder, config=None)
     prefix = aggregated_path.name.removesuffix("-aggregated.csv")
     folder = pathlib.Path(output_folder).expanduser()
     folder.mkdir(parents=True, exist_ok=True)
-    paths = AncestorPaths(folder / f"{prefix}-overshoot.csv",
-                          folder / f"{prefix}-spans.csv")
-    columns = list(config.ancestor_keys)
-    columns += ["side", "inferred_time", "inferred_span", "true_span", "overshoot",
-                "true_focal_site", "focal_position", "focal_site_mispolarised"]
+    paths = FocalPaths(folder / f"{prefix}_focal_overshoots.csv",
+                      folder / f"{prefix}_focal_spans.csv")
+    columns = list(config.focal_keys)
+    columns += ["inferred_node", "true_node", "side", "allele_frequency",
+                "inferred_span", "true_span", "overshoot",
+                "focal_position", "focal_site_mispolarised"]
     reader = pd.read_csv(aggregated_path, usecols=columns,
                          dtype={"version": str}, chunksize=config.preprocess_chunk_rows)
     zarr_data = _read_zarr_data(pathlib.Path(zarr_data_path).expanduser(), prefix)
     truth = _true_focal_frequencies(zarr_data)
-    tasks = _ancestor_tasks(reader, truth, config)
+    tasks = _focal_tasks(reader, truth, config)
     workers = config.workers
     if workers is None:
         workers = multiprocessing.cpu_count()
     if workers == 1:
-        results = list(map(_reduce_ancestor_chunk, tasks))
+        results = map(_prepare_focal_chunk, tasks)
+        _write_focal_tables(results, paths)
     else:
         context = multiprocessing.get_context("spawn")
         with context.Pool(processes=workers) as pool:
-            results = list(pool.imap(_reduce_ancestor_chunk, tasks))
-    overshoots = pd.concat([result.overshoots for result in results], ignore_index=True)
-    spans = pd.concat([result.spans for result in results], ignore_index=True)
-    # Ancestor associations can straddle chunk boundaries; apply the same
-    # reduction again after collecting independently processed chunks.
-    keys = list(config.ancestor_keys)
-    overshoots = _reduce_overshoots(overshoots, keys)
-    spans = _reduce_spans(spans, keys)
-    overshoots.to_csv(paths.overshoots, index=False)
-    spans.to_csv(paths.spans, index=False)
-    logger.info("Wrote %s ancestor sides and %s ancestor spans", len(overshoots), len(spans))
+            results = pool.imap(_prepare_focal_chunk, tasks)
+            _write_focal_tables(results, paths)
     return paths
 
 
 def load_data(data_folder, data_prefix, config=None):
-    """Load local reduced tables and PREFIX_zarr_data.csv; see `preprocess_data`."""
+    """Load per-focal-site tables and PREFIX_zarr_data.csv; see `preprocess_data`."""
     if config is None:
         config = PlotConfig()
     folder = pathlib.Path(data_folder).expanduser()
-    overshoots = pd.read_csv(folder / f"{data_prefix}-overshoot.csv")
-    spans = pd.read_csv(folder / f"{data_prefix}-spans.csv")
+    overshoots = pd.read_csv(folder / f"{data_prefix}_focal_overshoots.csv")
+    spans = pd.read_csv(folder / f"{data_prefix}_focal_spans.csv")
     overshoots = overshoots.loc[overshoots.version.isin(config.versions)].copy()
     spans = spans.loc[spans.version.isin(config.versions)].copy()
     if set(spans.version) != set(config.versions):
@@ -314,7 +307,7 @@ def _frequency_bin_edges(frequencies, num_bins=5, cutoffs=None):
 def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=None, alpha=None, figsize=None):
     config = data.config
     spans = _no_errors(data.spans)
-    true_spans = spans.drop_duplicates(["replicate", "inferred_node"])
+    true_spans = spans.drop_duplicates(["replicate", "true_focal_site"])
     edges = _frequency_bin_edges(true_spans.allele_frequency, num_bins, cutoffs)
     if variable == "overshoot":
         if not 0 < conf < 0.5:
@@ -367,10 +360,10 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
         if variable == "span":
             handles.append(mpatches.Patch(color=color, label=label))
         if index == 0:
-            ancestor_rows = subset.drop_duplicates(["replicate", "inferred_node"])
-            ancestor_bins = pd.cut(ancestor_rows.allele_frequency, cut_edges,
+            focal_rows = subset.drop_duplicates(["replicate", "true_focal_site"])
+            focal_bins = pd.cut(focal_rows.allele_frequency, cut_edges,
                                    labels=False, right=False)
-            counts = ancestor_bins.value_counts().reindex(range(num_bins), fill_value=0)
+            counts = focal_bins.value_counts().reindex(range(num_bins), fill_value=0)
             bars = axes[1].bar(np.arange(num_bins), counts, width=width * 0.85 * 2,
                                facecolor="white", edgecolor="black")
             if variable == "span":
@@ -391,7 +384,7 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
     else:
         _overshoot_zero_line(axes[0])
         axes[0].set_ylabel("Overshoot (Mb)")
-    axes[1].set_ylabel("Ancestor\ncount")
+    axes[1].set_ylabel("Count")
     if variable == "span":
         axes[1].set_yscale("log")
         lower, upper = axes[1].get_ylim()
@@ -405,7 +398,7 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
         axes[1].yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
     axes[1].yaxis.set_minor_formatter(mticker.NullFormatter())
     axes[1].set_xticks(np.arange(num_bins), labels, rotation=25)
-    axes[1].set_xlabel("Inferred ancestor frequency")
+    axes[1].set_xlabel("Observed focal allele frequency")
     axes[0].set_xlim(-0.6, num_bins - 0.4)
     if variable == "span":
         fig.subplots_adjust(bottom=0.18, left=0.1, right=0.98, top=0.9)
@@ -413,12 +406,12 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
 
 
 def plot_ancestor_spans(data, figure_folder=None, num_bins=5, cutoffs=None, figsize=None):
-    """One inferred span and minimum true span per ancestor in DAF bins."""
+    """True and inferred spans per focal site, binned by observed focal DAF."""
     return _ancestor_boxplot(data, figure_folder, "span", num_bins, cutoffs, figsize=figsize)
 
 
 def plot_ancestor_overshoot(data, figure_folder=None, num_bins=5, cutoffs=None, conf=0.01, alpha=None, figsize=None):
-    """Minimum left/right overshoots per ancestor, using the span figure DAF bins."""
+    """Left/right overshoots per focal site, using the span figure DAF bins."""
     return _ancestor_boxplot(data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha, figsize=figsize)
 
 
@@ -567,7 +560,7 @@ def _overshoot_histogram(data, frame, by, rates, legend_title,
         max_power = int(np.floor(np.log10(max_count)))
         ax.set_yticks([10 ** power for power in range(1, max_power + 1)])
         ax.axvline(0, color=config.zero_color, linestyle="--", linewidth=1)
-        ax.set_ylabel("Ancestor sides")
+        ax.set_ylabel("Count")
         if row == 1:
             ax.invert_yaxis()
         handles = []
@@ -636,7 +629,7 @@ def _overshoot_legends(fig, config, conf, alpha):
 
 
 def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf, alpha, figsize=None):
-    """Grouped boxes of reduced ancestor sides; see `_draw_overshoot_group`."""
+    """Grouped boxes of focal-site sides; see `_draw_overshoot_group`."""
     if not 0 < conf < 0.5:
         raise ValueError("conf must be between 0 and 0.5")
     config = data.config
@@ -674,52 +667,61 @@ class TailSteps:
 
 
 def _tail_steps(values):
-    """Empirical fraction at or below each magnitude cutoff, counting ancestors once."""
+    """Empirical fraction at or below each magnitude cutoff, counting focal sites once."""
     positions, counts = np.unique(values, return_counts=True)
     fractions = np.cumsum(counts) / len(values)
     return TailSteps(positions, fractions)
 
 
 def _overshoot_tails(
-    data, frame, by, rates, label, name, figure_folder, figsize=None, fraction_above=True
+    data, frame, by, rates, label, name, figure_folder, figsize=None, fraction_above=True,
+    show_counts=False,
 ):
     """Overshoot magnitude fractions with independent panel x ranges.
 
-    The negative panel uses the magnitude of each ancestor's minimum side;
-    the positive panel uses its maximum side, both floored at zero. All ancestors
-    supply the denominator, including those with no overshoot of that sign.
-    With ``fraction_above=True``, count ancestors strictly above the magnitude
-    cutoff; False counts ancestors at or below it (see `_tail_steps`).
+    Each focal site contributes its larger negative and positive side magnitudes,
+    both floored at zero. All focal sites supply the denominator, including
+    those with no overshoot of that sign. With ``fraction_above=True``, count
+    focal sites strictly above the magnitude cutoff; False counts focal sites
+    at or below it (see `_tail_steps`).
+    ``show_counts`` adds grouped bars of nonzero focal-site counts below each sign.
     """
     config = data.config
     if figsize is None:
         figsize = config.overshoot_tail_size
-    fig, columns = plt.subplots(
-        1, 3, figsize=figsize, layout="constrained",
-        gridspec_kw={"width_ratios": [1, 1, config.tail_legend_width_ratio]},
+    rows = 2 if show_counts else 1
+    height_ratios = [1, config.tail_count_height_ratio] if show_counts else [1]
+    fig = plt.figure(figsize=figsize, layout="constrained")
+    grid = fig.add_gridspec(
+        rows, 3, width_ratios=[1, 1, config.tail_legend_width_ratio],
+        height_ratios=height_ratios,
     )
-    axes = columns[:2]
+    axes = [fig.add_subplot(grid[0, index]) for index in range(2)]
     axes[1].sharey(axes[0])
     axes[1].tick_params(labelleft=False)
-    legend_ax = columns[2]
+    legend_ax = fig.add_subplot(grid[:, 2])
     legend_ax.set_axis_off()
     version_handles = []
+    site_counts = np.zeros((2, len(config.versions), len(rates)), dtype=int)
     min_fraction = 1
-    keys = ["replicate", "inferred_node"]
-    for version, cmap_name, line_style in zip(config.versions, config.overshoot_cmaps,
-                                             config.version_line_styles):
+    keys = ["replicate", "true_focal_site"]
+    for version_index, (version, cmap_name, line_style) in enumerate(zip(
+        config.versions, config.overshoot_cmaps, config.version_line_styles
+    )):
         palette = _overshoot_colors(rates, cmap_name)
         handles = []
-        for rate in rates:
+        for rate_index, rate in enumerate(rates):
             subset = frame.loc[(frame.version == version) & (frame[by] == rate)]
             if subset.empty:
                 raise ValueError(f"No overshoots for {version}, {by}={rate}")
-            ancestors = subset.groupby(keys).overshoot.agg(["min", "max"])
-            num_ancestors = len(ancestors)
-            min_fraction = min(min_fraction, 1 / num_ancestors)
-            negative = -ancestors["min"].clip(upper=0).to_numpy() / config.bp_per_mb
-            positive = ancestors["max"].clip(lower=0).to_numpy() / config.bp_per_mb
-            for ax, values in zip(axes, (negative, positive)):
+            focal_sites = subset.groupby(keys).overshoot.agg(["min", "max"])
+            num_sites = len(focal_sites)
+            min_fraction = min(min_fraction, 1 / num_sites)
+            negative = -focal_sites["min"].clip(upper=0).to_numpy() / config.bp_per_mb
+            positive = focal_sites["max"].clip(lower=0).to_numpy() / config.bp_per_mb
+            category = f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}"
+            for sign_index, (ax, values) in enumerate(zip(axes, (negative, positive))):
+                site_counts[sign_index, version_index, rate_index] = np.count_nonzero(values > 0)
                 steps = _tail_steps(values)
                 # Include zero so both magnitude curves start at the common origin.
                 cutoffs = np.union1d(steps.edges, [0])
@@ -729,7 +731,6 @@ def _overshoot_tails(
                     fractions = 1 - fractions
                 ax.step(cutoffs, fractions, where="post",
                         color=palette[rate], linestyle=line_style)
-            category = f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}"
             handles.append(mlines.Line2D([], [], color=palette[rate], linestyle=line_style,
                                          label=category))
         version_handles.append(handles)
@@ -742,8 +743,24 @@ def _overshoot_tails(
             lambda value, position: f"{value * 100:g}%"
         ))
         ax.grid(axis="y", alpha=0.15)
+    if show_counts:
+        positions = np.arange(len(rates))
+        width = config.mean_bar_group_width / len(config.versions)
+        categories = [f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}" for rate in rates]
+        count_axes = [fig.add_subplot(grid[1, index]) for index in range(2)]
+        for sign_index, ax in enumerate(count_axes):
+            for version_index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
+                offsets = positions - config.mean_bar_group_width / 2 + width * (version_index + 0.5)
+                ax.bar(offsets, site_counts[sign_index, version_index], width=width,
+                       color=color, label=_version_label(version))
+            ax.set_xticks(positions, categories)
+            ax.set_xlabel(label)
+            ax.set_ylabel("Count")
+            ax.yaxis.set_major_locator(mticker.MaxNLocator(nbins=2, integer=True))
+            ax.yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
     direction = "above" if fraction_above else "below"
-    axes[0].set_ylabel(f"Fraction of ancestors {direction} cutoff")
+    separator = "\n" if show_counts else " "
+    axes[0].set_ylabel(f"Fraction of focal sites{separator}{direction} cutoff")
     for index, (version, handles) in enumerate(zip(config.versions, version_handles)):
         offset = config.tail_legend_gap / 2
         anchor_y = 0.5 + offset if index == 0 else 0.5 - offset
@@ -754,6 +771,11 @@ def _overshoot_tails(
         )
         if index == 0:
             legend_ax.add_artist(legend)
+    if show_counts:
+        legend_ax.add_artist(legend)
+        handles, labels = count_axes[0].get_legend_handles_labels()
+        legend_ax.legend(handles, labels, title="Focal site counts", frameon=False,
+                         fontsize="small", loc="lower center")
     return save_figure(fig, figure_folder, f"{name}_tails", config)
 
 
@@ -765,15 +787,15 @@ def _genotype_overshoots(data):
 def _overshoot_mean(data, frame, by, rates, label, name, figure_folder, figsize=None):
     """Grouped mean signed overshoot by error profile, coloured by version.
 
-    Each ancestor contributes its mean retained left/right overshoot. Ancestors
+    Each focal site contributes its mean left/right overshoot. Focal sites
     are pooled across replicates, as in `_overshoot_histogram`.
     """
     config = data.config
     frame = frame.loc[frame[by].isin(rates)]
     group_keys = ["version", by]
-    ancestor_keys = group_keys + ["replicate", "inferred_node"]
-    ancestor_means = frame.groupby(ancestor_keys).overshoot.mean()
-    means = ancestor_means.groupby(level=group_keys).mean()
+    focal_keys = group_keys + ["replicate", "true_focal_site"]
+    focal_means = frame.groupby(focal_keys).overshoot.mean()
+    means = focal_means.groupby(level=group_keys).mean()
     if figsize is None:
         figsize = config.curve_size
     fig, ax = plt.subplots(figsize=figsize, layout="constrained")
@@ -790,6 +812,8 @@ def _overshoot_mean(data, frame, by, rates, label, name, figure_folder, figsize=
     ax.set_ylabel("Mean overshoot (Mb)")
     ax.axhline(0, color="black", linestyle="--",
                linewidth=ax.spines["left"].get_linewidth())
+    ax.use_sticky_edges = False
+    ax.margins(y=config.mean_bar_y_margin)
     ax.legend(frameon=False)
     return save_figure(fig, figure_folder, f"{name}_mean", config)
 
@@ -832,12 +856,12 @@ def plot_genotype_overshoot_tails(data, figure_folder=None, figsize=None, fracti
 
 
 def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
-    """Overlay smoothed DAF densities after flipping mispolarised sites.
+    """Overlay smoothed site counts per DAF bin after flipping mispolarised sites.
 
     The stored allele counts precede mispolarisation. The mask is True for
     correctly polarised sites; its complement selects the DAFs to reverse.
     Fixed-width histograms and Gaussian smoothing avoid KDE evaluation costs
-    growing with the number of sites. Each profile integrates to one.
+    growing with the number of sites. Counts are pooled across replicates.
     """
     config = data.config
     replicates = set(data.spans.replicate)
@@ -857,13 +881,14 @@ def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
         daf[mispolarised] = 1 - daf[mispolarised]
         weights = selected.num_sites.to_numpy(dtype=np.int64)
         counts = np.histogram(daf, edges, weights=weights)[0]
-        density = counts / counts.sum() / np.diff(edges)
-        density = ndi.gaussian_filter1d(density, config.daf_smoothing_bins, mode="reflect")
-        ax.plot(centers, density, color=color, label=f"{rate:g}")
+        smoothed_counts = ndi.gaussian_filter1d(
+            counts.astype(float), config.daf_smoothing_bins, mode="reflect"
+        )
+        ax.plot(centers, smoothed_counts, color=color, label=f"{rate:g}")
     ax.set_xlim(0, 1)
     ax.set_yscale("log")
     ax.set_xlabel("Derived allele frequency")
-    ax.set_ylabel("Density")
+    ax.set_ylabel("Site count")
     ax.legend(title="Mispol. rate", frameon=False)
     return save_figure(fig, figure_folder, "mispolarisation_daf", config)
 
@@ -901,18 +926,20 @@ def plot_mispolarisation_overshoot_box(data, figure_folder=None, frequency="all"
     )
 
 
-def plot_mispolarisation_overshoot_tails(data, figure_folder=None, frequency="all", figsize=None, fraction_above=True):
+def plot_mispolarisation_overshoot_tails(
+    data, figure_folder=None, frequency="all", figsize=None, fraction_above=True, show_counts=False
+):
     """Above/below magnitude cutoff fractions by mispolarisation rate; see `_overshoot_tails`."""
     return _overshoot_tails(
         data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
         data.config.mispol_rates, "Mispol. rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder,
-        figsize=figsize, fraction_above=fraction_above,
+        figsize=figsize, fraction_above=fraction_above, show_counts=show_counts,
     )
 
 
 def plot_mispolarisation_low_count_overshoot_hist(data, figure_folder=None, max_derived_count=5, figsize=None, legend_fontsize=None):
-    """Only mispolarised ancestors with true derived count at most the bound."""
+    """Only mispolarised focal sites with true derived count at most the bound."""
     frame = _mispolarisation_overshoots(data, frequency="all")
     selected = frame.loc[
         frame.focal_site_mispolarised & (frame.true_derived_count <= max_derived_count)

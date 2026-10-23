@@ -132,12 +132,16 @@ class TestCsvOnlyPlots:
         rows = []
         for version in ["0.4.1", "0.5.1"]:
             for side in ["left", "right"]:
-                for position, mispolarised, overshoot in [(10, False, -7), (20, True, 4)]:
+                for focal_site, position, mispolarised in [(0, 10, False), (1, 20, True)]:
+                    overshoots = [-7, 9] if focal_site == 0 else [4, -2]
+                    side_index = 0 if side == "left" else 1
                     rows.append(dict(
                         replicate=0, version=version, geno_multiplier=0, phase_ser=0,
-                        mispol_rate=0, inferred_node=0, side=side, inferred_time=0.25,
-                        inferred_span=100, true_span=50, overshoot=overshoot,
-                        true_focal_site=0, focal_position=position,
+                        mispol_rate=0.1, inferred_node=0, true_node=42, side=side,
+                        allele_frequency=0 if focal_site == 0 else 0.75,
+                        inferred_span=100, true_span=50 + 25 * focal_site,
+                        overshoot=overshoots[side_index],
+                        true_focal_site=focal_site, focal_position=position,
                         focal_site_mispolarised=mispolarised,
                     ))
         aggregated = tmp_path / f"{prefix}-aggregated.csv"
@@ -147,11 +151,19 @@ class TestCsvOnlyPlots:
         output = export.parent
         paths = ch3_plot.preprocess_data(aggregated, export, output, config)
         reduced = pd.read_csv(paths.overshoots)
-        assert len(reduced) == 4
-        assert reduced.overshoot.tolist() == [4, 4, 4, 4]
-        assert reduced.true_derived_count.tolist() == [1, 1, 1, 1]
+        assert len(reduced) == 8
+        assert reduced.overshoot.tolist() == [-7, 4, 9, -2, -7, 4, 9, -2]
+        assert reduced.true_derived_count.tolist() == [0, 1, 0, 1, 0, 1, 0, 1]
+        assert reduced.focal_site_mispolarised.tolist() == [False, True] * 4
+        assert reduced.allele_frequency.tolist() == [0, 0.75] * 4
+        assert not reduced.duplicated(list(config.focal_keys) + ["side"]).any()
         data = ch3_plot.load_data(output, prefix, config)
-        assert len(data.spans) == 2
+        assert len(data.spans) == 4
+        assert data.spans.true_span.tolist() == [50, 75, 50, 75]
+        config.workers = 2
+        parallel = ch3_plot.preprocess_data(aggregated, export, tmp_path / "parallel", config)
+        assert parallel.overshoots.read_bytes() == paths.overshoots.read_bytes()
+        assert parallel.spans.read_bytes() == paths.spans.read_bytes()
 
     def test_daf_plot_uses_exact_polarised_site_counts(self, variant_data, exported_data, monkeypatch):
         calls = variant_data.calls
@@ -168,7 +180,89 @@ class TestCsvOnlyPlots:
         frequencies[~mask] = 1 - frequencies[~mask]
         edges = np.linspace(0, 1, 5)
         counts = np.histogram(frequencies, edges)[0]
-        expected = counts / counts.sum() / np.diff(edges)
-        expected = ndi.gaussian_filter1d(expected, config.daf_smoothing_bins, mode="reflect")
+        expected = ndi.gaussian_filter1d(
+            counts.astype(float) * 2, config.daf_smoothing_bins, mode="reflect"
+        )
         np.testing.assert_allclose(fig.axes[0].lines[0].get_ydata(), expected)
+        assert fig.axes[0].get_ylabel() == "Site count"
+        assert fig.axes[0].lines[0].get_ydata().sum() == pytest.approx(2 * len(frequencies))
+        plt.close(fig)
+
+
+@pytest.fixture
+def focal_plot_data():
+    rows = []
+    for version in ("0.4.1", "0.5.1"):
+        for site, sides in enumerate(((-4, 2), (0, 0), (0, 8))):
+            for side, overshoot in zip(("left", "right"), sides):
+                rows.append(dict(
+                    version=version, replicate=0, geno_multiplier=0, phase_ser=0,
+                    mispol_rate=0.1, inferred_node=site // 2, true_node=42,
+                    true_focal_site=site, side=side, overshoot=overshoot * 1e6,
+                    allele_frequency=0.25, true_allele_frequency=0.25,
+                    true_derived_count=1, focal_site_mispolarised=site == 1,
+                    inferred_span=2e6, true_span=(site + 1) * 1e6,
+                ))
+    frame = pd.DataFrame(rows)
+    spans = frame.loc[frame.side == "left"].copy()
+    config = ch3_plot.PlotConfig(mispol_rates=(0.1,))
+    return ch3_plot.ChapterData(frame, spans, pd.DataFrame(), config)
+
+
+class TestFocalSitePlots:
+    def test_mean_gives_each_focal_site_equal_weight(self, focal_plot_data, monkeypatch):
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
+        fig = ch3_plot._overshoot_mean(
+            focal_plot_data, focal_plot_data.overshoots, "mispol_rate", (0.1,),
+            "Mispolarisation rate", "test", None,
+        )
+        heights = [bar.get_height() for bar in fig.axes[0].patches]
+        np.testing.assert_allclose(heights, [1, 1])
+        lower, upper = fig.axes[0].get_ylim()
+        assert lower < 0 < upper
+        plt.close(fig)
+
+    @pytest.mark.parametrize("fraction_above", [True, False])
+    def test_tails_count_sites_sharing_an_ancestor(self, focal_plot_data, monkeypatch, fraction_above):
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
+        fig = ch3_plot.plot_mispolarisation_overshoot_tails(
+            focal_plot_data, fraction_above=fraction_above,
+        )
+        negative = fig.axes[0].lines[0]
+        positive = fig.axes[1].lines[0]
+        expected = np.array([1 / 3, 2 / 3, 1 / 3])
+        if not fraction_above:
+            expected = 1 - expected
+        at_two = np.flatnonzero(positive.get_xdata() == 2)[0]
+        actual = [negative.get_ydata()[0], positive.get_ydata()[0], positive.get_ydata()[at_two]]
+        np.testing.assert_allclose(actual, expected)
+        direction = "above" if fraction_above else "below"
+        assert fig.axes[0].get_ylabel() == f"Fraction of focal sites {direction} cutoff"
+        plt.close(fig)
+
+    def test_mispolarised_filter_does_not_include_neighbouring_focal_sites(self, focal_plot_data, monkeypatch):
+        monkeypatch.setattr(ch3_plot, "_overshoot_histogram", lambda data, frame, *args, **kwargs: frame)
+        frame = ch3_plot.plot_mispolarisation_low_count_overshoot_hist(focal_plot_data)
+        assert frame.true_focal_site.tolist() == [1, 1, 1, 1]
+        assert frame.overshoot.tolist() == [0, 0, 0, 0]
+
+    def test_tail_count_bars_count_nonzero_sites_per_sign(self, focal_plot_data, monkeypatch):
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
+        fig = ch3_plot.plot_mispolarisation_overshoot_tails(focal_plot_data, show_counts=True)
+        assert len(fig.axes) == 5
+        negative_counts, positive_counts = fig.axes[3:]
+        assert [bar.get_height() for bar in negative_counts.patches] == [1, 1]
+        assert [bar.get_height() for bar in positive_counts.patches] == [2, 2]
+        assert negative_counts.get_ylabel() == "Count"
+        assert positive_counts.get_ylabel() == "Count"
+        assert fig.axes[0].get_ylabel() == "Fraction of focal sites\nabove cutoff"
+        plt.close(fig)
+
+    def test_span_counts_are_focal_sites(self, focal_plot_data, monkeypatch):
+        focal_plot_data.spans["mispol_rate"] = 0
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
+        fig = ch3_plot.plot_ancestor_spans(focal_plot_data, cutoffs=[0, 1])
+        assert fig.axes[1].patches[0].get_height() == 3
+        assert fig.axes[1].texts[0].get_text() == "3"
+        assert fig.axes[1].get_ylabel() == "Count"
         plt.close(fig)
