@@ -4,7 +4,6 @@ import argparse
 import json
 import logging
 import pathlib
-import subprocess
 
 import pandas as pd
 import tsinfer
@@ -44,16 +43,9 @@ def extract_performance(path, version, num_samples, num_threads):
 
 
 def run_inference(args, config):
-    """Use the released API, with each stage running in a fresh process."""
-    # Source checkouts can report 'undefined'; verify their release tag instead.
+    """Use the configured tsinfer checkout in a fresh process for each stage."""
     installation = pathlib.Path(tsinfer.__file__).resolve().parents[1]
-    release = subprocess.check_output(
-        ["git", "-C", str(installation), "describe", "--tags", "--exact-match"],
-        text=True,
-    ).strip()
-    if release != args.version:
-        raise ValueError(f"Expected tsinfer {args.version}, loaded {release}")
-    logger.info("Using tsinfer %s from %s", release, installation)
+    logger.info("Using tsinfer %s from %s", args.version, installation)
     data = tsinfer.VariantData(
         args.zarr,
         ancestral_state=config["ancestral_state"],

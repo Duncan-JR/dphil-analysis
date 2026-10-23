@@ -14,8 +14,8 @@ metadata for cluster submission; the local executor uses the allocation's wallti
 
 The workflow uses the existing tsinfer-anc-eval environment because these
 releases require Zarr 2. Do not run the worker script in dphil-analysis's Zarr 3
-environment. Each stage uses a fresh process with the configured release checkout
-on `PYTHONPATH`; the Git release tag is checked before inference. Both checkouts
+environment. Each stage uses a fresh process with the configured tsinfer directory
+on `PYTHONPATH`, without checking Git tags. Both checkouts
 must be built for the environment's Python and NumPy.
 
 `datasets` lists haploid sample counts. The input filename's `n` is half
@@ -49,7 +49,7 @@ the process lifetime maximum, including input loading; separate processes preven
 an earlier inference stage's peak from contaminating the next stage.
 
 Some source checkouts report `undefined` in provenance. `version` uses the
-verified Git tag and `provenance_version` retains the original string.
+configured version label and `provenance_version` retains the original string.
 The paper's `viz.plot_perf` currently hardcodes 0.5.0/1.0 as the new version;
 update that selection to 0.5.1 and select the two matching commands to reproduce
 its original comparison. The CSV also includes `generate_ancestors` for a
