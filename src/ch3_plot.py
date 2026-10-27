@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+import polars as pl
 import scipy.ndimage as ndi
 import zarr
 
@@ -43,6 +44,19 @@ class PlotConfig:
     histogram_bins: int = 100
     daf_bins: int = 200
     daf_smoothing_bins: float = 1
+    daf_size: tuple[float, float] = (5, 4.5)
+    tgp_color: str = "red"
+    tgp_legend_label: str = "1000 Genomes Project\nn=3202"
+    tgp_region_start: int = 0
+    tgp_region_end: int = 20_000_000
+    tgp_count_prefix: str = "variant_1kgp_all_subset"
+    tgp_variant_masks: tuple[str, ...] = (
+        "variant_duplicate_position_mask",
+        "variant_not_biallelic_mask",
+        "variant_not_snps_mask",
+        "variant_bad_ancestral_mask",
+        "variant_no_ancestral_allele_mask",
+    )
     dpi: int = 300
     bp_per_mb: float = 1e6
     box_size: tuple[float, float] = (7, 4.5)
@@ -50,6 +64,13 @@ class PlotConfig:
     ancestor_count_margin: float = 0.35
     ancestor_count_fontsize: float = 8
     ancestor_count_padding: float = 2
+    ancestor_error_size: tuple[float, float] = (7, 5.4)
+    ancestor_error_height_ratios: tuple[float, float, float] = (1, 1, 0.6)
+    ancestor_error_bins: int = 20
+    ancestor_error_version: str = "0.5.1"
+    ancestor_error_type_labels: tuple[str, str] = (
+        "Should be 0 (0 → 1)", "Should be 1 (1 → 0)",
+    )
     histogram_size: tuple[float, float] = (7, 4.5)
     overshoot_box_size: tuple[float, float] = (8.5, 3.5)
     overshoot_tail_size: tuple[float, float] = (8.5, 4.5)
@@ -413,6 +434,182 @@ def plot_ancestor_spans(data, figure_folder=None, num_bins=5, cutoffs=None, figs
 def plot_ancestor_overshoot(data, figure_folder=None, num_bins=5, cutoffs=None, conf=0.01, alpha=None, figsize=None):
     """Left/right overshoots per focal site, using the span figure DAF bins."""
     return _ancestor_boxplot(data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha, figsize=figsize)
+
+
+def load_ancestor_overlap_errors(aggregated_path, config=None):
+    """Read error-free whole-overlap comparisons from the aggregate CSV.
+
+    ``num_errors`` and ``overlap_span`` describe the complete shared overlap,
+    duplicated on the left/right rows. Keep only left rows, retaining one
+    comparison per focal site and version as in :func:`plot_ancestor_overshoot`.
+    The overlap is shared between the truth and both inferred versions.
+    """
+    if config is None:
+        config = PlotConfig()
+    query = pl.scan_csv(pathlib.Path(aggregated_path).expanduser())
+    selected = query.filter(
+        (pl.col("side") == "left")
+        & (pl.col("geno_multiplier") == 0)
+        & (pl.col("phase_ser") == 0)
+        & (pl.col("mispol_rate") == 0)
+        & pl.col("version").cast(pl.String).is_in(config.versions)
+    )
+    selected = selected.select(
+        "replicate", "version", "true_focal_site", "allele_frequency",
+        "num_errors", "overlap_span", "num_should_be_0", "num_should_be_1",
+    )
+    table = selected.collect(engine="streaming")
+    return pd.DataFrame(table.to_dict(as_series=False))
+
+
+def summarise_ancestor_overlap_errors(comparisons, config=None, num_bins=5, cutoffs=None):
+    """Pool counts and overlapping bp within each version/frequency bin.
+
+    Error burden is the ratio of sums, never the mean of per-overlap rates.
+    Zero-error proportions and counts use one whole comparison per focal site.
+    Empty bins have zero counts and undefined rates. See
+    :func:`load_ancestor_overlap_errors` and :func:`plot_ancestor_overlap_errors`.
+    """
+    if config is None:
+        config = PlotConfig()
+    keys = ["replicate", "version", "true_focal_site"]
+    if comparisons.duplicated(keys).any():
+        raise ValueError("Expected one overlap comparison per focal site and version")
+    frequencies = comparisons.drop_duplicates(["replicate", "true_focal_site"])
+    edges = _frequency_bin_edges(frequencies.allele_frequency, num_bins, cutoffs)
+    cut_edges = edges.copy()
+    cut_edges[-1] = np.nextafter(cut_edges[-1], np.inf)
+    frame = comparisons.copy()
+    frame["bin"] = pd.cut(frame.allele_frequency, cut_edges, right=False, labels=False)
+    frame["error_free"] = frame.num_errors == 0
+    grouped = frame.groupby(["version", "bin"]).agg(
+        num_ancestors=("true_focal_site", "size"),
+        num_error_free=("error_free", "sum"),
+        num_errors=("num_errors", "sum"),
+        overlap_bp=("overlap_span", "sum"),
+    )
+    index = pd.MultiIndex.from_product(
+        [config.versions, range(len(edges) - 1)], names=["version", "bin"],
+    )
+    summary = grouped.reindex(index, fill_value=0).reset_index()
+    summary["bin_left"] = edges[summary.bin]
+    summary["bin_right"] = edges[summary.bin + 1]
+    ancestor_denominator = summary.num_ancestors.replace(0, np.nan)
+    overlap_denominator = summary.overlap_bp.replace(0, np.nan)
+    summary["error_free_fraction"] = summary.num_error_free / ancestor_denominator
+    summary["error_burden"] = summary.num_errors / overlap_denominator
+    return summary
+
+
+def plot_ancestor_overlap_errors(summary, figure_folder=None, config=None, figsize=None):
+    """Compact grouped bars of error-free fractions, pooled errors/bp and counts.
+
+    Consume :func:`summarise_ancestor_overlap_errors`. Matched versions must
+    have the same per-bin comparison counts, shown once in the bottom panel.
+    """
+    if config is None:
+        config = PlotConfig()
+    if figsize is None:
+        figsize = config.ancestor_error_size
+    count_table = summary.pivot(index="bin", columns="version", values="num_ancestors")
+    reference_counts = count_table[config.versions[0]]
+    if not count_table.eq(reference_counts, axis="index").all().all():
+        raise ValueError("Expected matched focal-site counts between versions")
+    fig, axes = plt.subplots(
+        3, 1, figsize=figsize, sharex=True, layout="constrained",
+        gridspec_kw={"height_ratios": config.ancestor_error_height_ratios},
+    )
+    positions = np.arange(len(count_table))
+    width = config.mean_bar_group_width / len(config.versions)
+    for version_index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
+        selected = summary.loc[summary.version == version].sort_values("bin")
+        offsets = positions - config.mean_bar_group_width / 2 + width * (version_index + 0.5)
+        axes[0].bar(offsets, selected.error_free_fraction, width=width,
+                    color=color, label=_version_label(version))
+        axes[1].bar(offsets, selected.error_burden, width=width, color=color)
+    axes[0].set_ylim(0, 1)
+    axes[0].yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
+    axes[0].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2))
+    axes[0].set_ylabel("Error-free\nancestors")
+    axes[1].set_ylabel("Pooled error burden\n(errors/overlap bp)")
+    axes[1].set_yscale("log")
+    axes[1].yaxis.set_major_locator(mticker.LogLocator(numticks=3))
+    axes[1].yaxis.set_minor_formatter(mticker.NullFormatter())
+    axes[2].bar(positions, reference_counts, width=config.mean_bar_group_width,
+                facecolor="white", edgecolor="black")
+    axes[2].set_ylabel("Count")
+    axes[2].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2, integer=True))
+    axes[2].yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
+    labels = [f"{row.bin_left:g}–{row.bin_right:g}" for row in selected.itertuples()]
+    axes[2].set_xticks(positions, labels, rotation=25)
+    axes[2].set_xlabel("Observed focal allele frequency")
+    axes[2].set_xlim(-0.6, len(positions) - 0.4)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="outside upper center", ncol=len(config.versions), frameon=False)
+    return save_figure(fig, figure_folder, "ancestor_overlap_errors", config)
+
+
+def summarise_ancestor_error_types(comparisons, config=None):
+    """Split tsinfer 0.5 focal sites into fixed-width DAF bins across [0, 1].
+
+    Plot rates at bin midpoints, including DAF 1 in the final bin. Empty bins
+    have undefined rates. Pool each error type over total overlap bp, as in
+    :func:`summarise_ancestor_overlap_errors`.
+
+    The aggregate writer reverses its ``num_should_be_*`` names:
+    ``num_should_be_0`` counts true 1 / inferred 0, and ``num_should_be_1``
+    counts true 0 / inferred 1. Output names describe the actual true state.
+    """
+    if config is None:
+        config = PlotConfig()
+    frame = comparisons.loc[comparisons.version == config.ancestor_error_version].copy()
+    keys = ["replicate", "true_focal_site"]
+    if frame.duplicated(keys).any():
+        raise ValueError("Expected one overlap comparison per focal site and version")
+    num_bins = config.ancestor_error_bins
+    if num_bins < 1:
+        raise ValueError("The number of frequency bins must be positive")
+    edges = np.arange(num_bins + 1) / num_bins
+    cut_edges = edges.copy()
+    cut_edges[-1] = np.nextafter(cut_edges[-1], np.inf)
+    frame["bin"] = pd.cut(frame.allele_frequency, cut_edges, right=False, labels=False)
+    grouped = frame.groupby("bin")
+    summary = grouped.agg(
+        num_ancestors=("true_focal_site", "size"),
+        overlap_bp=("overlap_span", "sum"),
+        should_be_0_errors=("num_should_be_1", "sum"),
+        should_be_1_errors=("num_should_be_0", "sum"),
+    )
+    summary = summary.reindex(range(num_bins), fill_value=0).reset_index()
+    summary["bin_left"] = edges[:-1]
+    summary["bin_right"] = edges[1:]
+    summary["daf"] = (edges[:-1] + edges[1:]) / 2
+    denominator = summary.overlap_bp.replace(0, np.nan)
+    summary["should_be_0_burden"] = summary.should_be_0_errors / denominator
+    summary["should_be_1_burden"] = summary.should_be_1_errors / denominator
+    return summary
+
+
+def plot_ancestor_error_types(summary, figure_folder=None, config=None, figsize=None):
+    """Two directional error-burden curves from :func:`summarise_ancestor_error_types`."""
+    if config is None:
+        config = PlotConfig()
+    if figsize is None:
+        figsize = config.curve_size
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    colors = plt.get_cmap(config.genotype_transition_cmap)(config.genotype_color_positions)
+    columns = ["should_be_0_burden", "should_be_1_burden"]
+    for column, label, color in zip(columns, config.ancestor_error_type_labels, colors):
+        positive_rates = summary[column].where(summary[column] > 0)
+        ax.plot(summary.daf, positive_rates, color=color, label=label)
+    ax.set_xlim(0, 1)
+    ax.set_yscale("log")
+    ax.set_xlabel("Derived allele frequency")
+    ax.set_ylabel("Pooled error burden\n(errors/overlap bp)")
+    ax.text(0.04, 0.96, _version_label(config.ancestor_error_version),
+            transform=ax.transAxes, va="top")
+    ax.legend(frameon=False)
+    return save_figure(fig, figure_folder, "ancestor_overlap_error_types", config)
 
 
 def summarise_genotype_errors(data):
@@ -855,23 +1052,92 @@ def plot_genotype_overshoot_tails(data, figure_folder=None, figsize=None, fracti
     )
 
 
+def load_tgp_daf(zarr_path, config=None):
+    """Load polarised TGP SNP counts for the configured half-open region.
+
+    Stored masks mark excluded variants. In addition to duplicate positions,
+    non-biallelic sites and indels, exclude unknown ancestral states and states
+    absent from the site's alleles. The all-sample counts already account for
+    polarisation; ancestral plus derived counts give the called denominator.
+    No allele-count filter is applied, retaining singletons as in the simulation.
+    See :func:`plot_tgp_daf` for the matching spectrum.
+    """
+    if config is None:
+        config = PlotConfig()
+    group = zarr.open_group(zarr_path, mode="r")
+    positions = group["variant_position"][:]
+    start = np.searchsorted(positions, config.tgp_region_start)
+    stop = np.searchsorted(positions, config.tgp_region_end)
+    region = slice(start, stop)
+    retained = np.ones(stop - start, dtype=bool)
+    for name in config.tgp_variant_masks:
+        excluded = group[name][region].astype(bool)
+        retained &= ~excluded
+    prefix = config.tgp_count_prefix
+    derived = group[f"{prefix}_derived_count"][region][retained]
+    ancestral = group[f"{prefix}_ancestral_count"][region][retained]
+    return pd.DataFrame({
+        "position": positions[region][retained],
+        "derived_count": derived,
+        "num_alleles": derived + ancestral,
+    })
+
+
+def _format_daf_axes(ax):
+    """Common axes for the simulation and TGP spectra."""
+    ax.set_xlim(0, 1)
+    ax.set_yscale("log")
+    ax.set_xlabel("Derived allele frequency")
+    ax.set_ylabel("Site count")
+
+
+def _plot_daf_counts(ax, frequencies, config, weights=None, **kwargs):
+    """Shared binning and smoothing for :func:`plot_mispolarisation_daf` and TGP."""
+    edges = np.linspace(0, 1, config.daf_bins + 1)
+    centers = (edges[:-1] + edges[1:]) / 2
+    counts = np.histogram(frequencies, edges, weights=weights)[0]
+    smoothed_counts = ndi.gaussian_filter1d(
+        counts.astype(float), config.daf_smoothing_bins, mode="reflect"
+    )
+    lines = ax.plot(centers, smoothed_counts, **kwargs)
+    return lines[0]
+
+
+def plot_tgp_daf(variants, figure_folder=None, config=None, figsize=None):
+    """Plot :func:`load_tgp_daf` counts with the simulation's bins and styling."""
+    if config is None:
+        config = PlotConfig()
+    if figsize is None:
+        figsize = config.daf_size
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    _format_daf_axes(ax)
+    frequencies = variants.derived_count.to_numpy() / variants.num_alleles.to_numpy()
+    _plot_daf_counts(
+        ax, frequencies, config, color=config.tgp_color, label=config.tgp_legend_label,
+    )
+    ax.legend(loc="upper right", frameon=False)
+    return save_figure(fig, figure_folder, "tgp_daf", config)
+
+
 def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
     """Overlay smoothed site counts per DAF bin after flipping mispolarised sites.
 
     The stored allele counts precede mispolarisation. The mask is True for
     correctly polarised sites; its complement selects the DAFs to reverse.
     Fixed-width histograms and Gaussian smoothing avoid KDE evaluation costs
-    growing with the number of sites. Counts are pooled across replicates.
+    growing with the number of sites. Counts are pooled across replicates,
+    including singletons (which the error generator does not mispolarise).
+    See :func:`plot_tgp_daf` for the empirical comparison with the same bins,
+    smoothing and line width.
     """
     config = data.config
     replicates = set(data.spans.replicate)
     frequencies = data.zarr_data.loc[data.zarr_data.record_type == "daf"]
-    edges = np.linspace(0, 1, config.daf_bins + 1)
-    centers = (edges[:-1] + edges[1:]) / 2
     colors = plt.get_cmap("viridis")(np.linspace(0.1, 0.85, len(config.mispol_rates)))
     if figsize is None:
-        figsize = config.curve_size
+        figsize = config.daf_size
     fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    _format_daf_axes(ax)
     for rate, color in zip(config.mispol_rates, colors):
         selected = frequencies.loc[frequencies.mispol_rate == rate]
         if set(selected.replicate) != replicates:
@@ -880,16 +1146,8 @@ def plot_mispolarisation_daf(data, figure_folder=None, figsize=None):
         mispolarised = selected.mispolarised.to_numpy(dtype=bool)
         daf[mispolarised] = 1 - daf[mispolarised]
         weights = selected.num_sites.to_numpy(dtype=np.int64)
-        counts = np.histogram(daf, edges, weights=weights)[0]
-        smoothed_counts = ndi.gaussian_filter1d(
-            counts.astype(float), config.daf_smoothing_bins, mode="reflect"
-        )
-        ax.plot(centers, smoothed_counts, color=color, label=f"{rate:g}")
-    ax.set_xlim(0, 1)
-    ax.set_yscale("log")
-    ax.set_xlabel("Derived allele frequency")
-    ax.set_ylabel("Site count")
-    ax.legend(title="Mispol. rate", frameon=False)
+        _plot_daf_counts(ax, daf, config, weights=weights, color=color, label=f"{rate:g}")
+    ax.legend(title="Simulation:\nMispol. rate", loc="upper right", frameon=False)
     return save_figure(fig, figure_folder, "mispolarisation_daf", config)
 
 

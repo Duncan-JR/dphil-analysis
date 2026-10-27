@@ -196,7 +196,7 @@ def _site_bracket(ax, sites, label, color, config):
 def _legend(ax, x, config):
     fontsize = config.legend_fontsize
     ink = config.ink_color
-    ax.text(x, -0.05, "Sample set", fontsize=fontsize, fontweight="bold", color=ink)
+    ax.text(x, -0.05, r"Sample set ($S$)", fontsize=fontsize, fontweight="bold", color=ink)
     # Three equal-height groups, with the same heading and entry spacing.
     entries = (
         (0.45, config.sample_color, "Retained (both versions)"),
@@ -272,9 +272,9 @@ def plot_ancestor_extension(config, figure_folder=None):
             color = config.version_colors[1]
         ax.text(x, -0.76, str(count), color=color, ha="center", va="center",
                 fontsize=config.label_fontsize, fontweight="bold" if count > counts[focal] else "normal")
-    _site_bracket(ax, [config.focal_site], "Focal", config.focal_color, config)
-    _site_bracket(ax, contained, "Within clade", config.contained_color, config)
-    _site_bracket(ax, shared, "Conflicting clade", config.version_colors[1], config)
+    _site_bracket(ax, [config.focal_site], "Focal\nsite", config.focal_color, config)
+    _site_bracket(ax, contained, "Within clade\ndoubleton", config.contained_color, config)
+    _site_bracket(ax, shared, "Conflicting clade\ndoubleton", config.version_colors[1], config)
 
     for sample, (name, row, y) in enumerate(zip(config.samples, genotypes, ys)):
         _bar(ax, 0.5, last_x, y, config.outside_color, config)
@@ -349,9 +349,9 @@ def plot_ancestor_extension(config, figure_folder=None):
     _legend(ax, legend_x, config)
     old_remaining = len(initial) - len(old.removals)
     new_remaining = len(initial) - len(new.removals)
-    ax.text(legend_x, ancestor_ys[0], rf"$|S| = {old_remaining}$: continue", va="center",
+    ax.text(legend_x, ancestor_ys[0], rf"$|S| = {old_remaining}$: continue extension", va="center",
             fontsize=config.legend_fontsize, color=config.version_colors[0])
-    ax.text(legend_x, ancestor_ys[1], rf"$|S| = {new_remaining}$: stop",
+    ax.text(legend_x, ancestor_ys[1], rf"$|S| = {new_remaining}$: extension stopped",
             va="center", fontsize=config.legend_fontsize, color=config.version_colors[1])
     if figure_folder is not None:
         folder = pathlib.Path(figure_folder).expanduser()
