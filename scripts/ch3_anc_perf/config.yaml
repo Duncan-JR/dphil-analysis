@@ -11,10 +11,13 @@ output_dir: results
 
 ancestral_state: variant_mispolarised_ancestral_state
 sequence_length: 28100000
+site_mask: null
+sample_mask: null
 # ONE_BIT: valid for these biallelic inputs without missing genotypes.
 genotype_encoding: 1
 recombination_rate: null
 mismatch_ratio: null
+precision: null
 # Match the paper benchmark: time sample matching without post-processing.
 post_process: false
 log_level: INFO

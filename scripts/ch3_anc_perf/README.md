@@ -25,6 +25,28 @@ dataset per `n`. Default datasets contain 100,
 Edit paths and inference settings in `config.yaml` before starting. For a rerun
 with changed scientific settings, choose a new `output_dir`.
 
+For 1KGP chr20p, use the prepared pipeline Zarr and its stored masks:
+
+```sh
+uv run --project /well/kelleher/users/uuc395/tsinfer-anc-eval --no-sync \
+    snakemake --configfile config.yaml.1kgp \
+    --cores 196 --resources mem_mb=950000 --quiet rules --show-failed-logs
+```
+
+`config.yaml.1kgp` selects 6,404 haplotypes and the 504,149 sites retained by
+`variant_1kgp_all_subset_chr20p_region_filterNton23_mask`, together with
+`sample_1kgp_all_subset_mask`. Mask values of true exclude entries. No mask
+generation or other data preparation is run. The absolute `zarr_pattern` needs
+no filename wildcard for this single dataset. Ancestor and sample matching run
+in a single process per stage, using the same threaded API as the simulations.
+The 0.5.1 checkout should be the built 0.5.x backport used for the comparison.
+Results go to `results_1kgp/`, separate from the simulations.
+
+The 1KGP config uses `variant_ancestral_allele` and precision 15, matching the
+batch pipeline. `sequence_length: null` preserves the Zarr contig length
+(64,444,167 bp), while the site mask selects chr20p. The simulation config
+retains its previous default precision and has both masks set to null.
+
 Outputs are retained under `results/`:
 
 - `<version>/n<count>/ancestors.ancestors`: generated ancestors (an LMDB file).

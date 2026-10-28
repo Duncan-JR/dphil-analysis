@@ -50,6 +50,8 @@ def run_inference(args, config):
         args.zarr,
         ancestral_state=config["ancestral_state"],
         sequence_length=config["sequence_length"],
+        site_mask=config["site_mask"],
+        sample_mask=config["sample_mask"],
     )
     assert data.num_samples == args.num_samples
     logger.info(
@@ -59,6 +61,7 @@ def run_inference(args, config):
         "num_threads": args.threads,
         "recombination_rate": config["recombination_rate"],
         "mismatch_ratio": config["mismatch_ratio"],
+        "precision": config["precision"],
         "progress_monitor": False,
     }
     if args.command == "generate_ancestors":

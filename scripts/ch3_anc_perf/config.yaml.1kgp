@@ -1,0 +1,29 @@
+# 3,202 diploid individuals: the existing filterNton23 mask includes chr20p.
+datasets: [6404]
+zarr_pattern: /well/kelleher/users/uuc395/tsinfer-snakemake/data/workflow/zarr_vcfs/chr20/data.zarr
+
+versions:
+  "0.4.1": /well/kelleher/users/uuc395/tsinfer_0_4_1
+  "0.5.1": /well/kelleher/users/uuc395/tsinfer_0_5_1
+# Use the same built checkouts and Zarr 2 runtime as the simulation benchmark.
+runtime_project: /well/kelleher/users/uuc395/tsinfer-anc-eval
+output_dir: results_1kgp
+
+ancestral_state: variant_ancestral_allele
+site_mask: variant_1kgp_all_subset_chr20p_region_filterNton23_mask
+sample_mask: sample_1kgp_all_subset_mask
+# Infer the contig length from the Zarr, as in the pre-existing pipeline run.
+sequence_length: null
+genotype_encoding: 1
+recombination_rate: null
+mismatch_ratio: null
+# Match the precision used by the 1KGP batch pipeline.
+precision: 15
+post_process: false
+log_level: INFO
+sample_matching_log_level: WARNING
+helper_threads: 1
+resources:
+  threads: 196
+  mem_mb: 950000
+  time_min: 2880
