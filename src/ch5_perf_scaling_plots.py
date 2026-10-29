@@ -1,4 +1,4 @@
-"""Shared sample-size and cohort-panel figures for the two HPC archives."""
+"""Shared sample-size and cohort-panel figures for the HPC archives."""
 
 import ch5_perf_scaling
 import matplotlib.colors as mcolors
@@ -19,7 +19,7 @@ class ScalingPlots:
         by_name = {dataset['name']: dataset for dataset in config['manifest']['datasets']}
         self.datasets = [by_name[name] for name in self.cohorts.dataset]
         self.sample_sizes = self.cohorts.num_samples.to_numpy()
-        self.cutoffs = sorted(config['experiment']['af_cutoff'])
+        self.cutoffs = sorted({run['af_cutoff'] for dataset in self.datasets for run in dataset['runs']})
         self.colors = dict(zip(self.cutoffs, self.style['cutoff_colors'], strict=True))
         plt.rcParams.update({'figure.dpi': self.style['dpi'], 'font.size': self.style['font_size'],
                              'axes.spines.top': False, 'axes.spines.right': False})
@@ -258,16 +258,19 @@ class ScalingPlots:
                 ax.legend(fontsize='small')
         return figure
 
-    def age_correlations(self, table, frequency_bin='all'):
+    def age_correlations(self, table, frequency_bin='all', metrics=None):
+        if metrics is None:
+            metrics = {'pearson_r': 'Pearson r',
+                       'median_absolute_error_generations': 'Median absolute error (generations)'}
         references = ['truth', 'full_hmm'] if self.cohorts.has_truth.all() else ['full_hmm']
-        figure, axes = self.panels(rows=len(references), columns=2,
+        figure, axes = self.panels(rows=len(references), columns=len(metrics),
                                    title=f'Mutation ages · {frequency_bin}')
         for row, reference in enumerate(references):
             selected = table.loc[table.reference_method.eq(reference) & table.frequency_bin.eq(frequency_bin)]
             methods = [(cutoff, self.colors[cutoff], self.cutoff_label(cutoff)) for cutoff in self.cutoffs]
             if reference == 'truth':
                 methods.insert(0, (None, self.style['full_color'], 'Full HMM'))
-            for col, metric in enumerate(['pearson_r', 'median_absolute_error_generations']):
+            for col, (metric, ylabel) in enumerate(metrics.items()):
                 ax = axes[row, col]
                 for cutoff, color, label in methods:
                     method_mask = selected.method.eq('full_hmm') if cutoff is None else selected.af_cutoff.eq(cutoff)
@@ -275,13 +278,12 @@ class ScalingPlots:
                     ax.plot(curve.num_samples, curve[metric], marker='o', color=color, label=label)
                 self.sample_axis(ax)
                 reference_label = 'Truth' if reference == 'truth' else 'Full HMM'
-                ylabel = 'Pearson r' if col == 0 else 'Median absolute error (generations)'
                 ax.set(title=f'Compared with {reference_label}', ylabel=ylabel)
-                if col == 1:
-                    ax.set_ylim(bottom=0)
-                else:
+                if metric in ['pearson_r', 'spearman_r']:
                     low, high = ax.get_ylim()
                     ax.set_ylim(max(-1, low), min(1, high))
+                else:
+                    ax.set_ylim(bottom=0)
         handles, labels = axes[0, 0].get_legend_handles_labels()
         figure.legend(handles, labels, loc='outside lower center', ncol=len(labels), fontsize='small')
         return figure

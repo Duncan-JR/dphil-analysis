@@ -1,0 +1,146 @@
+cache_subdir: for_plots
+workers: null
+helper_threads: 1
+dating:
+  post_process:
+    split_ultimate: true
+    erase_flanks: true
+  preprocess:
+    delete_intervals: []
+    split_disjoint: true
+  estimation:
+    method: variational_gamma
+    time_units: generations
+    set_metadata: true
+    progress: false
+    singletons_phased: true
+frequency_bins:
+  cutoffs:
+  - 0.01
+  - 0.5
+  labels:
+  - DAF < 0.01
+  - 0.01 ≤ DAF < 0.5
+  - DAF ≥ 0.5
+plot:
+  dpi: 100
+  export_dpi: 180
+  font_size: 10
+  panel_width: 4.4
+  panel_height: 3.6
+  panel_wspace: 0.12
+  cutoff_colors:
+  - '#0072B2'
+  full_color: '#555555'
+  population_colors:
+    African: '#009E73'
+    Non-African: '#CC79A7'
+  switch_colors:
+  - '#009E73'
+  - '#E69F00'
+  - '#7B61A8'
+  switch_categories:
+  - focal
+  - gap
+  - seam
+  switch_labels:
+  - Within focal coverage
+  - Within gaps
+  - At gap seams
+  line_width: 1.7
+  marker_size: 5
+  range_margin: 0.08
+  length_display_quantile: 0.99
+  histogram_alpha: 0.25
+  focal_histogram_bins: 120
+  kde_grid_size: 256
+  bar_width: 0.65
+  age_hexbin_gridsize: 65
+  age_minimum: 1
+  age_maximum_quantile: 0.999
+  age_scatter_alpha: 0.8
+  root_edge_categories:
+    seam:
+      label: Touches a focal/gap seam
+      color: '#7B61A8'
+    gap_interior:
+      label: Gap interior
+      color: '#E69F00'
+    focal:
+      label: Focal only
+      color: '#009E73'
+  root_edge_histogram_bins: 55
+  root_edge_histogram_alpha: 0.65
+  stage_label_margin: 0.22
+  grouped_bar_width: 0.32
+  truth_color: '#009E73'
+  wall_stages:
+    input_setup:
+      label: Load inputs
+      color: '#56B4E9'
+    reference_catalog:
+      label: Reference catalog
+      color: '#009E73'
+    coordinator_process_startup:
+      label: Process startup
+      color: '#E69F00'
+    coordinator_packing_completion:
+      label: Pack reference (coordinator)
+      color: '#CC79A7'
+    coordinator_worker_readiness:
+      label: Wait for worker readiness
+      color: '#F0E442'
+    coordinator_matching_drain:
+      label: Load samples, match, assemble
+      color: '#0072B2'
+    coordinator_shutdown:
+      label: Worker shutdown
+      color: '#D55E00'
+    finalise_output:
+      label: Finalise output
+      color: '#999999'
+    other:
+      label: Uninstrumented wall time
+      color: '#DDDDDD'
+  worker_stages:
+    reference_packing:
+      label: Pack reference (workers)
+      color: '#CC79A7'
+    worker_setup:
+      label: Worker setup
+      color: '#E69F00'
+    candidate_extension_cover:
+      label: Extend candidates and cover
+      color: '#009E73'
+    gap_native_find_path:
+      label: 'Gap HMM: native find_path'
+      color: '#0072B2'
+    gap_path_conversion:
+      label: Gap path conversion
+      color: '#56B4E9'
+    gap_mutation_extraction:
+      label: Gap mutation extraction
+      color: '#D55E00'
+    gap_final_concatenation:
+      label: Final gap concatenation
+      color: '#F0E442'
+    gap_other:
+      label: Other work inside gap matching
+      color: '#999999'
+title: hpc_perf3
+description: Out-of-Africa simulations · chr20p · 1% genotype error
+data_dir: ../../data/ch5/hpc_perf3_diagnostics
+mutation_rate: 2.35e-08
+population_groups:
+  African:
+  - YRI
+  Non-African:
+  - CEU
+  - CHB
+stages:
+  gap_parent: gap_matching_assembly
+  gap_children:
+  - gap_native_find_path
+  - gap_path_conversion
+  - gap_mutation_extraction
+  - gap_final_concatenation

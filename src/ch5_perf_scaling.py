@@ -82,7 +82,7 @@ def cohort_table(config: dict) -> pd.DataFrame:
 
 
 def performance_runs(config: dict) -> pd.DataFrame:
-    """Preserve one Full HMM baseline and both greedy trials per sample size."""
+    """Preserve one Full HMM baseline and greedy trials per sample size."""
     name = config['experiment']['performance']['experiment_id']
     root = config['data_dir'] / 'performance' / name
     runs = pd.read_csv(root / 'runs.csv')
@@ -118,7 +118,19 @@ def diagnostic_summary(config: dict) -> pd.DataFrame:
     table = pd.read_csv(path)
     cohorts = cohort_table(config)
     assert table.unmatched_sites_mean.eq(0).all()
-    assert table.min_region_size_kb.eq(config['experiment']['min_region_size_kb']).all()
+    expected_rows = []
+    for dataset in config['manifest']['datasets']:
+        for run in dataset['runs']:
+            expected_rows.append({'dataset': dataset['name'], 'af_cutoff': run['af_cutoff'],
+                                  'min_region_size_kb': run['min_region_size_kb'],
+                                  'min_focal_region_size': run['min_focal_region_size']})
+    expected = pd.DataFrame(expected_rows)
+    check_columns = ['dataset', 'af_cutoff', 'min_region_size_kb', 'min_focal_region_size']
+    checked = table[check_columns].merge(expected, on=['dataset', 'af_cutoff'], how='outer',
+                                         suffixes=('', '_expected'), validate='one_to_one', indicator=True)
+    assert checked['_merge'].eq('both').all()
+    assert checked.min_region_size_kb.eq(checked.min_region_size_kb_expected).all()
+    assert checked.min_focal_region_size.eq(checked.min_focal_region_size_expected).all()
     assert not table.duplicated(['dataset', 'af_cutoff']).any()
     table = table.merge(cohorts[['dataset', 'num_samples']].rename(columns={'num_samples': 'actual_samples'}),
                         on='dataset', validate='many_to_one')
@@ -347,12 +359,15 @@ def age_comparison(config: dict, dataset: dict, dated: pd.DataFrame) -> pd.DataF
                 y = group[key]
                 error = y - x
                 correlation = np.nan
+                rank_correlation = np.nan
                 if len(group) > 1 and x.nunique() > 1 and y.nunique() > 1:
                     correlation = float(stats.pearsonr(x, y).statistic)
+                    rank_correlation = float(stats.spearmanr(x, y).statistic)
                 comparisons.append({'dataset': dataset['name'], 'num_samples': row.num_samples,
                                     'method': row.method, 'af_cutoff': row.af_cutoff,
                                     'reference_method': reference, 'frequency_bin': label,
                                     'matched_mutations': len(group), 'pearson_r': correlation,
+                                    'spearman_r': rank_correlation,
                                     'mean_error_generations': error.mean(),
                                     'median_absolute_error_generations': error.abs().median(),
                                     'mean_estimated_age': y.mean(), 'mean_reference_age': x.mean()})

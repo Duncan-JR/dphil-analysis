@@ -165,7 +165,8 @@ def root_edge_summary(config: dict) -> pd.DataFrame:
     keys = ['dataset', 'af_cutoff', 'method', 'category']
     summary = edges.groupby(keys).agg(edge_count=('span_bp', 'size'), span_bp=('span_bp', 'sum'))
     sizes = ch5_perf_scaling.cohort_table(config)
-    index = pd.MultiIndex.from_product([sizes.dataset, config['experiment']['af_cutoff'],
+    cutoffs = sorted({run['af_cutoff'] for dataset in config['manifest']['datasets'] for run in dataset['runs']})
+    index = pd.MultiIndex.from_product([sizes.dataset, cutoffs,
                                        ['full_hmm', 'greedy'], categories], names=keys)
     summary = summary.reindex(index, fill_value=0).reset_index()
     summary = summary.merge(sizes[['dataset', 'num_samples', 'num_haplotypes']],

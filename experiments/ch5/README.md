@@ -166,3 +166,35 @@ carrier definition, including terminal-mutation overrides. Stacked percentages
 show mean per-haplotype gap-bp and distinct-parent shares. Per-haplotype caches
 also retain inference-site and copying-segment weights. This is an analysis of
 existing paths, not a run of an age-restricted HMM.
+
+## Gap filling and instrumented HPC performance (pt11)
+
+`notebooks/ch5/stitching_pt11_gapfill.py`, paired with `.ipynb`, analyses
+`data/ch5/hpc_perf3_diagnostics` using `stitching_pt11_gapfill_config.yaml`.
+Extract `data/ch5/hpc_perf3_diagnostics.tar.gz` into that directory first.
+The three simulated cohorts contain 50, 500 and 5,000 diploid samples, with
+AF cutoff 0.1 and respective focal-length minima of 25, 50 and 100 kb.
+Each method/cohort has one trial at 94 matching workers.
+
+Performance figures show wall time, throughput, private memory, speedup and
+achieved parallelism (process CPU time / measured wall time). Additional
+figures partition sequential pipeline wall time and worker elapsed/CPU time.
+Nested gap-stage totals are replaced by their children plus a residual;
+overlapping worker service times are never added to the wall-time stack.
+Only aggregate timings are archived, so per-haplotype timing values are means
+and per-sample timing scatter plots are unavailable.
+
+The remaining pt9 diagnostics are retained, with compact root-copying panels.
+Recurrent-site counts replace the one-site-gap plot and use vectorised
+mutation-site counts on a common inference-site axis, including truth.
+Parentheses above bars show the percentage of all inference sites; the right
+panel shows mean mutations conditional on recurrence. Pearson and Spearman
+mutation-age correlations use the same cohort mutation intersection. The
+gap-parent ancestor-category section is omitted. Tables, dated trees and
+PNG/PDF figures are cached under the extracted archive's `for_plots/`.
+
+```sh
+uv run jupytext --sync notebooks/ch5/stitching_pt11_gapfill.py
+uv run jupyter nbconvert --to notebook --execute --inplace \
+  --ExecutePreprocessor.timeout=-1 notebooks/ch5/stitching_pt11_gapfill.ipynb
+```
