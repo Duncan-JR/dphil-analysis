@@ -11,7 +11,6 @@ supplies the example matrix; no evaluation data are needed.
 import dataclasses
 import pathlib
 
-import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
 import matplotlib.pyplot as plt
@@ -21,8 +20,8 @@ import numpy as np
 @dataclasses.dataclass
 class FigureConfig:
     genotypes: tuple[tuple[int, ...], ...]
-    samples: tuple[str, ...] = tuple("abcdefgh")
-    focal_site: int = 2  # One-indexed, as in the drawing.
+    samples: tuple[str, ...] = tuple("adbcfg")
+    focal_site: int = 1  # One-indexed, as in the drawing.
     versions: tuple[str, str] = ("0.4.1", "0.5.1")
     version_colors: tuple[str, str] = ("#1a80bb", "#ea801c")
     sample_color: str = "#748a98"
@@ -38,12 +37,13 @@ class FigureConfig:
     contained_color: str = "#8167a6"
     older_allele_color: str = "#ead4a5"
     neutral_allele_color: str = "#d7dce0"
-    figsize: tuple[float, float] = (8.2, 5.6)
+    figsize: tuple[float, float] = (9.0, 4.9)
+    legend_width: float = 6.3
+    site_spacing: float = 1.4
     row_spacing: float = 0.76
     outside_gap: float = 0.22
     bar_height: float = 0.52
     circle_radius: float = 0.205
-    circle_layers: int = 12
     allele_fontsize: float = 10.8
     label_fontsize: float = 11
     legend_fontsize: float = 10
@@ -115,22 +115,11 @@ def trace_ancestor(config, version):
 
 
 def _circle(ax, x, y, allele, color, edge, config, radius=None):
-    """Small vector layers give the allele buttons a soft inset highlight."""
+    """A flat allele symbol keeps the small genotype matrix easy to read."""
     if radius is None:
         radius = config.circle_radius
-    ax.add_patch(mpatches.Circle((x, y + 0.018), radius, color="#000000", alpha=0.07, zorder=3))
-    base = np.asarray(mcolors.to_rgb(color))
-    for layer in range(config.circle_layers):
-        fraction = layer / config.circle_layers
-        highlight = 0.72 * fraction
-        fill = base * (1 - highlight) + highlight
-        center = (x - 0.035 * fraction, y - 0.045 * fraction)
-        ax.add_patch(mpatches.Circle(
-            center, radius * (1 - 0.83 * fraction), facecolor=fill,
-            edgecolor="none", zorder=4,
-        ))
     ax.add_patch(mpatches.Circle(
-        (x, y), radius, fill=False, edgecolor=edge,
+        (x, y), radius, facecolor=color, edgecolor=edge,
         linewidth=1.3 if edge == config.focal_color else 0.7, zorder=5,
     ))
     ax.text(x, y + config.allele_text_offset, str(allele), ha="center", va="center",
@@ -176,7 +165,8 @@ def _bar(ax, left, right, y, color, config, edge="none", hatch=None):
 
 
 def _site_bracket(ax, sites, label, color, config):
-    left, right = min(sites) - 0.31, max(sites) + 0.31
+    left = min(sites) * config.site_spacing - 0.31
+    right = max(sites) * config.site_spacing + 0.31
     middle = (left + right) / 2
     y = -1.21
     vertices = [
@@ -197,7 +187,6 @@ def _legend(ax, x, config):
     fontsize = config.legend_fontsize
     ink = config.ink_color
     ax.text(x, -0.05, r"Sample set ($S$)", fontsize=fontsize, fontweight="bold", color=ink)
-    # Three equal-height groups, with the same heading and entry spacing.
     entries = (
         (0.45, config.sample_color, "Retained (both versions)"),
         (1.00, config.version_colors[0], "Retained (0.4 only)"),
@@ -214,15 +203,15 @@ def _legend(ax, x, config):
     ax.text(x + 0.58, 2.90, "First disagreement", va="center", fontsize=fontsize, color=ink)
     _ragged(ax, x + 0.21, 3.45, config.conflict_color, config)
     ax.text(x + 0.58, 3.45, "Second: remove", va="center", fontsize=fontsize, color=ink)
-    ax.text(x, 4.00, "Orange: removed in 0.5 only", va="center", fontsize=fontsize,
-            color=config.version_colors[1])
-    ax.text(x, 4.85, "Highlighted sites", fontsize=fontsize, fontweight="bold", color=ink)
-    site_entries = (
-        (5.35, config.focal_color, "Focal site"),
-        (5.90, config.contained_color, "Within-clade doubleton"),
-        (6.45, config.version_colors[1], "Conflicting-clade doubleton"),
+    ax.text(x, 4.10, "Red: both versions", va="center", fontsize=fontsize, color=config.conflict_color)
+    ax.text(x, 4.60, "Orange: 0.5 only", va="center", fontsize=fontsize, color=config.version_colors[1])
+    ax.text(x, 5.35, "Highlighted sites", fontsize=fontsize, fontweight="bold", color=ink)
+    sites = (
+        (5.90, config.focal_color, "Focal Site"),
+        (6.45, config.contained_color, "Within-clade doubleton"),
+        (7.00, config.version_colors[1], "Conflicting-clade doubleton"),
     )
-    for y, color, label in site_entries:
+    for y, color, label in sites:
         _circle(ax, x + 0.21, y, 1, color, color, config, radius=0.17)
         ax.text(x + 0.58, y, label, va="center", color=ink, fontsize=fontsize)
 
@@ -232,7 +221,8 @@ def plot_ancestor_extension(config, figure_folder=None):
 
     Arrows mean that the stopping criterion has not been reached within the
     displayed window. The stop site itself is included in the inferred 0.5
-    ancestor. Blue on sample c distinguishes its two membership histories.
+    ancestor. The eight-site example removes b in both versions, then c only
+    in 0.5, reaching the halving threshold and leaving 0.4 two sites longer.
     """
     genotypes = np.asarray(config.genotypes, dtype=np.int8)
     counts = genotypes.sum(axis=0)
@@ -251,41 +241,44 @@ def plot_ancestor_extension(config, figure_folder=None):
 
     fig, ax = plt.subplots(figsize=config.figsize)
     fig.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.99)
-    last_x = genotypes.shape[1] + 0.5
+    site_positions = np.arange(1, genotypes.shape[1] + 1) * config.site_spacing
+    left_x = 0.5 * config.site_spacing
+    last_x = (genotypes.shape[1] + 0.5) * config.site_spacing
     ys = np.arange(len(config.samples), dtype=float) * config.row_spacing
     ys[len(initial):] += config.outside_gap
     axis_y = ys[-1] + 0.88
     ancestor_ys = (axis_y + 1.06, axis_y + 1.93)
-    ax.set(xlim=(-2.55, last_x + 5.22), ylim=(ancestor_ys[-1] + 0.63, -1.90))
+    ax.set(xlim=(-2.55, last_x + config.legend_width), ylim=(ancestor_ys[-1] + 0.63, -2.15))
     ax.set_aspect("equal")
     ax.axis("off")
 
     ax.text(0.12, -0.76, "Allele count", ha="right", va="center",
             color=config.ink_color, fontsize=config.label_fontsize)
-    for x, count in enumerate(counts, start=1):
+    for site, (x, count) in enumerate(zip(site_positions, counts), start=1):
         color = config.ink_color
-        if x == config.focal_site:
+        if site == config.focal_site:
             color = config.focal_color
-        elif x in contained:
+        elif site in contained:
             color = config.contained_color
-        elif x in shared:
+        elif site in shared:
             color = config.version_colors[1]
         ax.text(x, -0.76, str(count), color=color, ha="center", va="center",
                 fontsize=config.label_fontsize, fontweight="bold" if count > counts[focal] else "normal")
-    _site_bracket(ax, [config.focal_site], "Focal\nsite", config.focal_color, config)
-    _site_bracket(ax, contained, "Within clade\ndoubleton", config.contained_color, config)
-    _site_bracket(ax, shared, "Conflicting clade\ndoubleton", config.version_colors[1], config)
+    _site_bracket(ax, [config.focal_site], "Focal", config.focal_color, config)
+    _site_bracket(ax, contained, "Within\nclade", config.contained_color, config)
+    _site_bracket(ax, shared, "Conflicting\nclade", config.version_colors[1], config)
 
     for sample, (name, row, y) in enumerate(zip(config.samples, genotypes, ys)):
-        _bar(ax, 0.5, last_x, y, config.outside_color, config)
+        _bar(ax, left_x, last_x, y, config.outside_color, config)
         if sample in initial:
             stop = new.removals.get(sample)
-            right = last_x if stop is None else stop + 1.5
-            _bar(ax, 0.5, right, y, config.sample_color, config)
+            right = last_x if stop is None else (stop + 1.5) * config.site_spacing
+            _bar(ax, left_x, right, y, config.sample_color, config)
             if sample in new.removals and sample not in old.removals:
                 _bar(ax, right, last_x, y, config.version_colors[0], config)
         ax.text(0.18, y, name, ha="right", va="center", fontsize=config.label_fontsize + 1,
-                fontstyle="italic", color=config.ink_color)
+                fontstyle="italic", color=config.focal_color if sample in initial else config.ink_color,
+                fontweight="bold" if sample in initial else "normal")
         for site, allele in enumerate(row):
             face = config.neutral_allele_color if allele else "#edf0f2"
             edge = "#aab4bb"
@@ -298,33 +291,29 @@ def plot_ancestor_extension(config, figure_folder=None):
                     face, edge = config.version_colors[1], config.version_colors[1]
                 elif counts[site] > counts[focal]:
                     face, edge = config.older_allele_color, "#b59a66"
-            _circle(ax, site + 1, y, allele, face, edge, config)
+            _circle(ax, site_positions[site], y, allele, face, edge, config)
         if sample in new.removals:
             specific = sample not in old.removals
             trace = new if specific else old
             removal = trace.removals[sample]
             color = config.version_colors[1] if specific else config.conflict_color
             first = max(site for site in trace.marks[sample] if site < removal)
-            _first_conflict(ax, first + 1.5, y, color, config)
-            _ragged(ax, removal + 1.5, y, color, config)
+            _first_conflict(ax, (first + 1.5) * config.site_spacing, y, color, config)
+            _ragged(ax, (removal + 1.5) * config.site_spacing, y, color, config)
 
     ax.text(-0.90, (ys[0] + ys[-1]) / 2, "Sample haplotype", rotation=90,
             ha="center", va="center", fontsize=config.label_fontsize, color=config.ink_color)
-    ax.plot([0.5, last_x], [axis_y, axis_y], lw=0.8, color="#8e9aa2")
+    ax.plot([left_x, last_x], [axis_y, axis_y], lw=0.8, color="#8e9aa2")
     ax.text(0.12, axis_y + 0.19, "Site", ha="right", va="center",
             fontsize=config.label_fontsize, color=config.ink_color)
-    for x in range(1, genotypes.shape[1] + 1):
+    for site, x in enumerate(site_positions, start=1):
         ax.plot([x, x], [axis_y - 0.06, axis_y + 0.08], color="#8e9aa2", lw=0.8)
-        ax.text(x, axis_y + 0.30, str(x), ha="center", va="center",
+        ax.text(x, axis_y + 0.30, str(site), ha="center", va="center",
                 fontsize=config.legend_fontsize, color=config.ink_color)
 
     for trace, y, version, color in zip((old, new), ancestor_ys, config.versions, config.version_colors):
-        stop_x = trace.end + 0.4
-        _bar(ax, 0.5, stop_x, y, color, config)
-        ax.add_patch(mpatches.Polygon(
-            [[0.5, y - config.bar_height / 2], [0.18, y], [0.5, y + config.bar_height / 2]],
-            facecolor=color, edgecolor="none", zorder=1,
-        ))
+        stop_x = (trace.end + 0.4) * config.site_spacing
+        _bar(ax, left_x, stop_x, y, color, config)
         if trace.end == genotypes.shape[1]:
             ax.add_patch(mpatches.Polygon(
                 [[stop_x, y - config.bar_height / 2], [stop_x + 0.32, y],
@@ -340,19 +329,13 @@ def plot_ancestor_extension(config, figure_folder=None):
                 # The full-size white button covers the inner part of the red
                 # disk, so the thicker ring grows entirely outwards.
                 ax.add_patch(mpatches.Circle(
-                    (site + 1, y), config.circle_radius + config.focal_ring_width,
+                    (site_positions[site], y), config.circle_radius + config.focal_ring_width,
                     facecolor=config.focal_color, edgecolor="none", zorder=3,
                 ))
-            _circle(ax, site + 1, y, trace.haplotype[site], "#ffffff", "#ffffff", config)
+            _circle(ax, site_positions[site], y, trace.haplotype[site], "#ffffff", "#ffffff", config)
 
     legend_x = last_x + 0.62
     _legend(ax, legend_x, config)
-    old_remaining = len(initial) - len(old.removals)
-    new_remaining = len(initial) - len(new.removals)
-    ax.text(legend_x, ancestor_ys[0], rf"$|S| = {old_remaining}$: continue extension", va="center",
-            fontsize=config.legend_fontsize, color=config.version_colors[0])
-    ax.text(legend_x, ancestor_ys[1], rf"$|S| = {new_remaining}$: extension stopped",
-            va="center", fontsize=config.legend_fontsize, color=config.version_colors[1])
     if figure_folder is not None:
         folder = pathlib.Path(figure_folder).expanduser()
         folder.mkdir(parents=True, exist_ok=True)

@@ -29,6 +29,7 @@
 # %%
 import pathlib
 import importlib
+import xml.etree.ElementTree as ET
 import IPython.display as ipd
 import numpy as np
 import tskit
@@ -40,108 +41,131 @@ importlib.reload(ch3_ancestor_extension)
 # %% [markdown]
 # ## Ancestor extension: toy example
 #
-# This self-contained figure needs no simulation data. Rows are samples a-h and
-# columns are sites 1-10; the focal site is 2. Derived allele counts supply site
-# times. The generator replays 0.4.1 and the corrected 0.5.x backport, including assignment of
-# 0 at younger sites regardless of the current consensus. Its outputs have been
-# checked against `AncestorBuilder.make_ancestor` from tag 0.4.1 and the
+# Six samples and eight sites show both shared pruning and the shorter 0.5
+# ancestor. The focal site has carriers {a,b,c,d}; site 2's doubleton {a,d}
+# lies within that set. Sites 3–4 are older (five derived carriers) and remove b
+# in both versions. Sites 5–6's doubletons {c,f} cross the sample-set boundary
+# and remove c only in 0.5. Derived allele counts supply site times.
+# The generator replays 0.4.1 and the corrected 0.5.x backport, including
+# assignment of 0 at younger sites regardless of the current consensus.
+# The replay follows `AncestorBuilder.make_ancestor` from tag 0.4.1 and the
 # [0.5.x backport](https://github.com/Duncan-JR/tsinfer/tree/0.5.x)
 # (commit `d694eea`). Both removal and flag updates use the same gate.
 #
-# Samples b and e leave at sites 4 and 7 in both versions. The site-5 doubleton
-# has both carriers in the current sample set and does not mark samples for
-# removal. The c/f doubletons at sites 8-9 remove c only in 0.5.1, reducing the
-# set from three to two and stopping extension after site 9. Arrows indicate
-# that the stopping criterion was not reached within the displayed window.
-# The included PNG and editable SVG are exported to the thesis figure folder.
+# Site 2 cannot mark samples for removal because both carriers are within S.
+# Red conflicts mark and remove b at sites 3 and 4. Orange conflicts mark and
+# remove c at sites 5 and 6. After b leaves, S={a,c,d}; f is a derived carrier
+# outside S, making the c/f doubletons informative despite their younger ages.
+# Removing c halves the original four-sample set, so 0.5 stops after site 6.
+# The 0.4 ancestor continues through site 8, two sites longer in this window;
+# its arrow indicates that its stopping criterion has still not been reached.
+# Younger sites are assigned 0 in both ancestors regardless of their consensus.
+# Both toy figures are also included in Chapter 3 of the thesis.
 
 # %%
-# include
 figure_folder = pathlib.Path("~/work/dphil-thesis/figures/ch3").expanduser()
 extension_config = ch3_ancestor_extension.FigureConfig(
-    # Columns are one-indexed sites 1-10; site 2 is focal.
+    # Columns are one-indexed sites 1–8; site 1 is focal.
     genotypes=(
-        (0, 1, 1, 1, 1, 1, 1, 0, 0, 1),  # a
-        (0, 1, 0, 0, 0, 1, 1, 0, 0, 1),  # b
-        (0, 1, 1, 1, 0, 1, 1, 1, 1, 1),  # c
-        (0, 1, 1, 1, 1, 1, 1, 0, 0, 1),  # d
-        (0, 1, 1, 1, 0, 0, 0, 0, 0, 1),  # e
-        (1, 0, 1, 1, 0, 1, 1, 1, 1, 1),  # f
-        (1, 0, 1, 0, 0, 1, 1, 0, 0, 1),  # g
-        (0, 0, 0, 1, 0, 1, 1, 0, 0, 0),  # h
+        (1, 1, 1, 1, 0, 0, 1, 1),  # a
+        (1, 1, 1, 1, 0, 0, 1, 1),  # d
+        (1, 0, 0, 0, 0, 0, 0, 0),  # b
+        (1, 0, 1, 1, 1, 1, 1, 1),  # c
+        (0, 0, 1, 1, 1, 1, 1, 1),  # f
+        (0, 0, 1, 1, 0, 0, 1, 1),  # g
     ),
-    focal_site=2,
+    samples=("a", "d", "b", "c", "f", "g"),
+    focal_site=1,
     version_colors=ch3_plot.PlotConfig().version_colors,
-    figsize=(8.2, 5.6),
+    figsize=(9.0, 4.9),
+    site_spacing=1.4,
     dpi=400,
 )
 ch3_ancestor_extension.plot_ancestor_extension(
-    extension_config, figure_folder=figure_folder
+    extension_config, figure_folder=None
 );
 
 # %% [markdown]
 # ## Genealogical justification for ancestor extension
 #
-# This hand-built tree sequence reproduces **every genotype at sites 4–10** of
-# the example above, with three marginal trees: site 4, sites 5–7 and sites
-# 8–10. Sample labels and the colours of **F** (focal ancestor, red), **E**
-# (within-clade doubleton, purple) and **G** (conflicting doubleton, orange)
-# match that example. Internal nodes without labels only complete the topology.
-# Ages are illustrative, on a shared linear scale; they are chosen for legibility
-# and are not the derived allele counts used as site times by the algorithm.
-# Crosses mark single 0→1 mutations, labelled by site number. The focal mutation
-# at site 2 lies outside this window, so F is identified by its red node.
+# Three trees reproduce **all 48 genotypes** above. At sites 1–2, E's doubleton
+# {a,d} is nested within F's focal clade {a,b,c,d}. At sites 3–4, b has left F,
+# while the two older mutations each cover everyone except b: both algorithms
+# detect b's repeated disagreement. At sites 5–8, c joins f under G. The {c,f}
+# doubletons at sites 5–6 overlap S={a,c,d} without being nested within it;
+# they supply the extra evidence used by 0.5. The older mutations at sites 7–8
+# are included in 0.4's longer ancestor. Every mutation occurs once, so the
+# conflicting clades require recombination; the genotypes do not identify a
+# unique recombination history.
 #
-# At site 5, E's carriers are a and d: both are still in the current sample set,
-# so this nested doubleton supplies no evidence that either has left the focal
-# clade. Between sites 7 and 8, c leaves F's descendants and joins f under G.
-# The doubletons at sites 8 and 9 are therefore informative even though their
-# derived allele count (2) is lower than the focal count (5): c is inside the
-# current set S={a,c,d}, while f is outside it. Relative to focal-site membership,
-# these sites exhibit all four gametes: 11 (c), 10 (a,b,d,e), 01 (f), and 00 (g,h).
-# Under the single-mutation model used here, this requires recombination.
-# Two successive disagreements with the sample-set consensus mark and then
-# remove c, leaving S={a,d} and reaching the halving threshold at site 9.
-# The tree is compatible with this history; the genotypes alone do not identify
-# a unique recombination event. F is retained as a unary node in the final tree
-# so the same ancestor can be followed across all three panels.
+# Red branches and bold red sample labels identify F's descendants in the first
+# two trees and the surviving a/d clade in the last tree; orange
+# branches connect G to c and f in the final tree. E remains purple to match
+# its doubleton in the matrix, while its descendant branches are red because
+# they lie within F. Circled labels identify the ancestors. Crosses mark 0→1
+# mutations and are labelled by site. Ages are illustrative on a shared linear
+# scale, rather than the derived allele counts used as inference site times.
+# Sites have irregular illustrative positions across 100 bp; mutation and arrow
+# labels retain the site numbers 1–8 used in the genotype matrix.
+# F disappears at the second breakpoint (47 bp), where retaining it above E
+# would create a unary node. E and G remain distinct coalescent ancestors.
+# The unlabelled multifurcations are unresolved branches: a binary refinement
+# permits b's departure at the first breakpoint and c joining f at the second,
+# with no change to the labelled mutation nodes or any observed genotypes.
+# This matches the non-unary reference representation used for ancestor
+# evaluation: E, F and G are the mutation nodes for sites 2, 1 and 5–6,
+# respectively, rather than persistent names for descendant sample sets.
+#
+# Using the evaluator's decoding convention, F's true haplotype is `1011----`:
+# it is defined at sites 1–4 and missing thereafter. The inferred haplotypes
+# are `10110011` (0.4) and `101100--` (0.5). Both recover the four known alleles
+# exactly; 0.5 overshoots by two sites instead of four. Thus this example shows
+# reduced span inflation, not improved allelic accuracy or an exact boundary.
+# The true tree breakpoint (47 bp) and boundaries inferred from site coordinates
+# are different quantities; the evaluator uses the next shared site as the
+# right boundary of a contiguous stretch of known genotypes.
 #
 # Construction follows tskit's [tables and editing tutorial](https://tskit.dev/tutorials/tables_and_editing.html),
 # and SVG styling follows its [visualization tutorial](https://tskit.dev/tutorials/viz.html).
-# This plot is displayed in the notebook only.
+# This plot is also included in Chapter 3 of the thesis.
 
 # %%
 extension_tree_config = {
-    "sequence_length": 10.5,
-    "plot_interval": (3.5, 10.5),
-    "intervals": ((0, 4.5), (4.5, 7.5), (7.5, 10.5)),
-    "regions": {(3.5, 4.5): "Site 4", (4.5, 7.5): "Sites 5–7", (7.5, 10.5): "Sites 8–10"},
-    "node_ages": {"E": 2, "C": 3, "H": 3, "B": 4, "G": 3, "F": 5, "A": 8, "R": 10},
+    "sequence_length": 100,
+    "plot_interval": (0, 100),
+    "site_positions": (6, 17, 31, 39, 58, 65, 81, 96),
+    "intervals": ((0, 24), (24, 47), (47, 100)),
+    "node_ages": {"E": 2, "F": 4, "G": 2, "A": 6, "R": 10},
     "topologies": (
-        {"R": ("A", "B"), "A": ("F", "H"), "F": ("E", "C"),
-         "E": ("a", "d"), "C": ("c", "e"), "H": ("f", "h"), "B": ("b", "g")},
-        {"R": ("A", "e"), "A": ("F", "B", "H"), "F": ("E", "c"),
-         "E": ("a", "d"), "H": ("f", "h"), "B": ("b", "g")},
-        {"R": ("A", "h"), "A": ("F", "B", "G", "e"), "F": ("E",),
-         "E": ("a", "d"), "G": ("c", "f"), "B": ("b", "g")},
+        {"A": ("F", "f", "g"), "F": ("E", "b", "c"), "E": ("a", "d")},
+        {"R": ("A", "b"), "A": ("F", "f", "g"), "F": ("E", "c"), "E": ("a", "d")},
+        {"R": ("A", "b"), "A": ("E", "G", "g"),
+         "E": ("a", "d"), "G": ("c", "f")},
     ),
-    # Each mutation is on the branch immediately above the named node.
-    "mutations": ((4, "A", 9), (5, "E", 3.5), (6, "A", 8.6), (7, "A", 9.3),
-                  (8, "G", 4), (9, "G", 5.5), (10, "A", 9)),
+    # Site number, branch's child node, and mutation age. Positions are separate.
+    "mutations": ((1, "F", 5.3), (2, "E", 3.1), (3, "A", 7.2), (4, "A", 8.6),
+                  (5, "G", 3.2), (6, "G", 4.5), (7, "A", 7.2), (8, "A", 8.6)),
     "node_colors": {"F": extension_config.focal_color,
                     "E": extension_config.contained_color,
                     "G": extension_config.version_colors[1]},
-    "mutation_colors": {5: extension_config.contained_color,
-                        8: extension_config.version_colors[1],
-                        9: extension_config.version_colors[1]},
+    "descendant_colors": {"F": extension_config.focal_color,
+                          "E": extension_config.focal_color,
+                          "G": extension_config.version_colors[1]},
     "ink_color": extension_config.ink_color,
     "muted_color": extension_config.muted_color,
     "older_color": "#b59a66",
     "background_color": "#f1f4f6",
     "canvas_color": "white",
-    "size": (1100, 470),
-    "y_ticks": (0, 2, 5, 8, 10),
-    "symbol_size": 7,
+    "size": (680, 300),
+    "axis_gap": 14,
+    "y_ticks": (0, 2, 4, 6, 8, 10),
+    "font_size": 14.5,
+    "mutation_font_size": 14.8,
+    "site_font_size": 13.8,
+    "sample_font_size": 15.8,
+    "symbol_size": 6,
+    "label_radius": 11,
+    "site_label_offset": -16,
     "svg_id": "ancestor_extension_trees",
 }
 
@@ -163,7 +187,8 @@ for interval, topology in zip(extension_tree_config["intervals"], extension_tree
                 left=left, right=right,
                 parent=extension_node_ids[parent], child=extension_node_ids[child],
             )
-for position, node_name, age in extension_tree_config["mutations"]:
+for site_number, node_name, age in extension_tree_config["mutations"]:
+    position = extension_tree_config["site_positions"][site_number - 1]
     site_id = extension_tables.sites.add_row(position=position, ancestral_state="0")
     extension_tables.mutations.add_row(
         site=site_id, node=extension_node_ids[node_name], derived_state="1", time=age,
@@ -173,50 +198,95 @@ extension_ts = extension_tables.tree_sequence()
 
 # Verify compatibility with the existing haplotype illustration, including all
 # background mutations, rather than just the highlighted doubletons.
-expected_extension_genotypes = np.asarray(extension_config.genotypes)[:, 3:]
+expected_extension_genotypes = np.asarray(extension_config.genotypes)
 np.testing.assert_array_equal(extension_ts.genotype_matrix().T, expected_extension_genotypes)
+np.testing.assert_array_equal(extension_ts.sites_position, extension_tree_config["site_positions"])
 assert extension_ts.num_trees == len(extension_tree_config["intervals"])
+old_extension = ch3_ancestor_extension.trace_ancestor(extension_config, extension_config.versions[0])
+new_extension = ch3_ancestor_extension.trace_ancestor(extension_config, extension_config.versions[1])
+extension_b = extension_config.samples.index("b")
+extension_c = extension_config.samples.index("c")
+assert old_extension.marks[extension_b] == [2]  # Both mark b at site 3.
+assert new_extension.marks[extension_b] == [2]
+assert old_extension.removals == {extension_b: 3}  # Both remove b at site 4.
+assert new_extension.marks[extension_c] == [4]  # Only 0.5 marks c at site 5.
+assert new_extension.removals == {extension_b: 3, extension_c: 5}
+assert old_extension.end == 8
+assert new_extension.end == 6
+assert old_extension.end - new_extension.end == 2
+
+# Match get_true_ancestor's single-mutation rule, and check that these mutation
+# nodes are coalescences rather than unary waypoints or sample-set labels.
+for variant in extension_ts.variants():
+    tree = extension_ts.at(variant.site.position)
+    carriers = variant.samples[variant.genotypes == 1]
+    true_node = variant.site.mutations[0].node
+    assert true_node == tree.mrca(*carriers)
+    assert tree.num_children(true_node) >= 2
+for tree in extension_ts.trees():
+    assert all(tree.num_children(node) != 1 for node in tree.nodes())
+assert extension_node_ids["F"] not in set(extension_ts.last().nodes())
+
+# process_ancestor_chunk marks all nodes as samples before decoding, so an
+# ancestor absent from a tree is isolated and therefore missing at that site.
+extension_truth_tables = extension_ts.dump_tables()
+extension_truth_tables.nodes.flags = np.full(extension_ts.num_nodes, tskit.NODE_IS_SAMPLE, dtype=np.uint32)
+extension_truth_ts = extension_truth_tables.tree_sequence()
+extension_true_haplotype = extension_truth_ts.genotype_matrix(
+    samples=[extension_node_ids["F"]], isolated_as_missing=True,
+)[:, 0]
+np.testing.assert_array_equal(extension_true_haplotype, [1, 0, 1, 1, -1, -1, -1, -1])
+extension_true_sites = np.flatnonzero(extension_true_haplotype != tskit.MISSING_DATA)
+np.testing.assert_array_equal(old_extension.haplotype[extension_true_sites], extension_true_haplotype[extension_true_sites])
+np.testing.assert_array_equal(new_extension.haplotype[extension_true_sites], extension_true_haplotype[extension_true_sites])
+assert old_extension.end - (extension_true_sites[-1] + 1) == 4
+assert new_extension.end - (extension_true_sites[-1] + 1) == 2
 
 # %%
 extension_svg_id = extension_tree_config["svg_id"]
 extension_ink = extension_tree_config["ink_color"]
 extension_muted = extension_tree_config["muted_color"]
-extension_older = extension_tree_config["older_color"]
 extension_background = extension_tree_config["background_color"]
 # Scope every selector so this SVG cannot recolour other notebook figures.
 extension_style = [
-    f"#{extension_svg_id} text {{font-family: Arial, sans-serif; fill: {extension_ink}; font-size: 13px;}}",
+    f"#{extension_svg_id} text {{font-family: Arial, sans-serif; fill: {extension_ink};"
+    f" font-size: {extension_tree_config['font_size']}px;}}",
     f"#{extension_svg_id} .edge {{stroke: {extension_muted}; stroke-width: 1.4;}}",
     f"#{extension_svg_id} .node > .sym {{fill: {extension_muted}; stroke: white; stroke-width: 1;}}",
-    f"#{extension_svg_id} .sample > .lab {{font-style: italic;}}",
-    f"#{extension_svg_id} .n{extension_node_ids['c']} > .lab {{font-weight: bold;}}",
-    f"#{extension_svg_id} .mut .sym {{stroke: {extension_older}; stroke-width: 2;}}",
-    f"#{extension_svg_id} .mut .lab {{fill: {extension_older}; font-size: 12px;}}",
-    f"#{extension_svg_id} .y-axis .grid {{stroke: #e4e8eb; stroke-dasharray: 3 5;}}",
+    f"#{extension_svg_id} .sample > .lab {{font-style: italic;"
+    f" font-size: {extension_tree_config['sample_font_size']}px;}}",
+    f"#{extension_svg_id} .mut .sym {{stroke-width: 2;}}",
+    f"#{extension_svg_id} .mut .lab {{font-size: {extension_tree_config['mutation_font_size']}px;}}",
     f"#{extension_svg_id} .background path {{fill: {extension_background}; fill-opacity: 1;}}",
     f"#{extension_svg_id} .background path:nth-child(even) {{fill: white;}}",
-    f"#{extension_svg_id} .x-axis .ticks .lab {{display: none;}}",
-    f"#{extension_svg_id} .x-regions rect {{fill: #f0f3f5; stroke: white; stroke-width: 2;}}",
+    f"#{extension_svg_id} .site > .lab {{font-size: {extension_tree_config['site_font_size']}px;"
+    " text-anchor: middle; font-weight: bold;}",
 ]
+extension_node_attrs = {}
 for name, color in extension_tree_config["node_colors"].items():
     node_id = extension_node_ids[name]
+    extension_node_attrs[node_id] = {"r": extension_tree_config["label_radius"]}
     extension_style.extend([
-        f"#{extension_svg_id} .n{node_id} > .sym {{fill: {color};}}",
-        f"#{extension_svg_id} .n{node_id} > .lab {{fill: {color}; font-size: 15px; font-weight: bold;}}",
-        f"#{extension_svg_id} .n{node_id} > .edge {{stroke: {color}; stroke-width: 2;}}",
+        f"#{extension_svg_id} .n{node_id} > .sym {{fill: white; stroke: {color}; stroke-width: 1.8;}}",
+        f"#{extension_svg_id} .n{node_id} > .lab {{fill: {color}; font-weight: bold;"
+        " text-anchor: middle; dominant-baseline: central;}",
     ])
-extension_g = extension_node_ids["G"]
-extension_orange = extension_tree_config["node_colors"]["G"]
-extension_style.extend([
-    f"#{extension_svg_id} .n{extension_g} .edge {{stroke: {extension_orange}; stroke-width: 2;}}",
-    f"#{extension_svg_id} .n{extension_g} .sample > .lab {{fill: {extension_orange};}}",
-])
+for name, color in extension_tree_config["descendant_colors"].items():
+    node_id = extension_node_ids[name]
+    extension_style.extend([
+        f"#{extension_svg_id} .n{node_id} .node > .edge {{stroke: {color}; stroke-width: 2;}}",
+        f"#{extension_svg_id} .n{node_id} .sample > .lab {{fill: {color}; font-weight: bold;}}",
+    ])
+extension_color_by_node = {
+    extension_node_ids[name]: color
+    for name, color in extension_tree_config["node_colors"].items()
+}
 for mutation in extension_ts.mutations():
-    position = extension_ts.site(mutation.site).position
-    color = extension_tree_config["mutation_colors"].get(position, extension_older)
+    color = extension_color_by_node.get(mutation.node, extension_tree_config["older_color"])
     extension_style.extend([
         f"#{extension_svg_id} .m{mutation.id} > .sym {{stroke: {color};}}",
         f"#{extension_svg_id} .m{mutation.id} > .lab {{fill: {color};}}",
+        f"#{extension_svg_id} .site.s{mutation.site} > .lab {{fill: {color};}}",
     ])
 
 extension_node_labels = {extension_node_ids[name]: name for name in extension_config.samples}
@@ -224,17 +294,18 @@ for name in extension_tree_config["node_colors"]:
     extension_node_labels[extension_node_ids[name]] = name
 extension_mutation_labels = {}
 for mutation in extension_ts.mutations():
-    position = extension_ts.site(mutation.site).position
-    extension_mutation_labels[mutation.id] = str(int(position))
+    extension_mutation_labels[mutation.id] = str(mutation.site + 1)
 
 extension_tree_svg = extension_ts.draw_svg(
     size=extension_tree_config["size"],
+    canvas_size=(extension_tree_config["size"][0],
+                 extension_tree_config["size"][1] + extension_tree_config["axis_gap"]),
     x_lim=extension_tree_config["plot_interval"],
-    x_regions=extension_tree_config["regions"],
-    x_label="Genomic position · mutations labelled by site",
-    time_scale="time", y_axis=True, y_gridlines=True,
-    y_label="Illustrative age", y_ticks=extension_tree_config["y_ticks"],
-    node_labels=extension_node_labels, mutation_labels=extension_mutation_labels,
+    x_label="Genome position (bp)",
+    time_scale="time", y_axis=True, y_gridlines=False,
+    y_label="Age (generations ago)", y_ticks=extension_tree_config["y_ticks"],
+    node_labels=extension_node_labels, node_attrs=extension_node_attrs,
+    mutation_labels=extension_mutation_labels,
     symbol_size=extension_tree_config["symbol_size"],
     root_svg_attributes={"id": extension_svg_id},
     style="\n".join(extension_style),
@@ -242,6 +313,39 @@ extension_tree_svg = extension_ts.draw_svg(
         f'<rect width="100%" height="100%" fill="{extension_tree_config["canvas_color"]}"/>'
     ),
 )
+# Centre the labels on their node symbols using SVG attributes so the white
+# circles also render correctly in SVG viewers without CSS transform support.
+ET.register_namespace("", "http://www.w3.org/2000/svg")
+extension_svg_root = ET.fromstring(extension_tree_svg)
+extension_x_axis = extension_svg_root.find(".//{http://www.w3.org/2000/svg}g[@class='x-axis']")
+# Move the axis and its connecting background together, preserving the trees'
+# alignment with the age scale while increasing the gap below the sample labels.
+extension_axis_shift = f"translate(0 {extension_tree_config['axis_gap']})"
+extension_x_axis.set("transform", extension_axis_shift)
+extension_background_group = extension_svg_root.find(
+    ".//{http://www.w3.org/2000/svg}g[@class='background']"
+)
+extension_background_group.set("transform", extension_axis_shift)
+extension_circle_classes = {f"n{node_id}" for node_id in extension_node_attrs}
+for group in extension_svg_root.iter("{http://www.w3.org/2000/svg}g"):
+    group_classes = set(group.get("class", "").split())
+    if group_classes.isdisjoint(extension_circle_classes):
+        continue
+    label = group.find("{http://www.w3.org/2000/svg}text")
+    label.set("transform", "translate(0 0)")
+# Add the site numbers above tskit's site arrows.
+for site in extension_ts.sites():
+    site_group = extension_svg_root.find(
+        f".//{{http://www.w3.org/2000/svg}}g[@class='site s{site.id}']"
+    )
+    site_label = ET.SubElement(
+        site_group, "{http://www.w3.org/2000/svg}text",
+        {"class": "lab", "x": "0", "y": str(extension_tree_config["site_label_offset"])},
+    )
+    site_label.text = str(site.id + 1)
+extension_tree_svg = ET.tostring(extension_svg_root, encoding="unicode")
+
+#include
 ipd.display(ipd.SVG(extension_tree_svg))
 
 # %%
@@ -677,21 +781,46 @@ ch3_plot.plot_phasing_overshoot_tails(
 # Speedup is `elapsed_0.4 / elapsed_0.5`: above 1 means faster in 0.5.
 # The elapsed-time stacks sum the three stages; each sample-size panel has its
 # own linear y scale in minutes so smaller runs remain visible.
+# Parentheses above the tsinfer 0.5 bars show speedup for the summed elapsed time.
+# Add 1KGP chr20p as a fifth group (6,404 haplotypes from 3,202 individuals).
+# The 1KGP comparison uses the threaded API and 504,149 filtered sites.
+# Both plots retain the original figure dimensions; the extra group narrows bars.
 
 # %%
+import pathlib
+
 import ch3_anc_perf
+import ch3_anc_perf_analysis
+import IPython.display as ipdisplay
 import matplotlib.pyplot as plt
+import pandas as pd
 
-perf_config = ch3_anc_perf.PlotConfig()
-perf_path = pathlib.Path("~/work/dphil-analysis/data/ch3/anc_perf/perf_combined.csv").expanduser()
-perf_data = ch3_anc_perf.load_performance(perf_path, perf_config)
+perf_config = ch3_anc_perf.PlotConfig(
+    sample_labels={6404: "6,404 (1KGP)"},
+    sample_titles={6404: "6,404 haplotypes\n(1KGP)"},
+)
+perf_folder = pathlib.Path("~/work/dphil-analysis/data/ch3/results").expanduser()
+perf_data = ch3_anc_perf.load_performance(perf_folder / "perf_combined.csv", perf_config)
+tgp_perf_data = ch3_anc_perf.load_performance(perf_folder.parent / "tgp_perf.csv", perf_config)
+perf_comparison_data = pd.concat([perf_data, tgp_perf_data]).sort_index()
 
 # %%
-perf_speedup_figure = ch3_anc_perf.plot_speedup(perf_data, perf_config)
+# include
+
+perf_speedup_figure = ch3_anc_perf.plot_speedup(perf_comparison_data, perf_config)
+perf_speedup_figure.savefig(
+    pathlib.Path("~/work/dphil-thesis/figures/ch3/inference_performance_speedup.png").expanduser(),
+    dpi=300, bbox_inches="tight", facecolor="white",
+)
 plt.show()
 
 # %%
-perf_elapsed_figure = ch3_anc_perf.plot_elapsed(perf_data, perf_config)
+# include
+perf_elapsed_figure = ch3_anc_perf.plot_elapsed(perf_comparison_data, perf_config)
+perf_elapsed_figure.savefig(
+    pathlib.Path("~/work/dphil-thesis/figures/ch3/inference_performance_elapsed.png").expanduser(),
+    dpi=300, bbox_inches="tight", facecolor="white",
+)
 plt.show()
 
 # %% [markdown]
@@ -710,11 +839,157 @@ plt.show()
 # ### Parallelism
 #
 # Average active CPU cores = `(user_time + sys_time) / elapsed_time` for each
-# stage, including setup and I/O. This measures achieved CPU concurrency, not
+# stage, including setup and I/O inside the inference API call. Top-level
+# input loading, process startup and output writing are outside that timer.
+# This measures achieved CPU concurrency, not
 # speedup from threading: there is no single-threaded baseline here. Shared
 # linear y axes allow comparison between stages; the dotted line marks the
 # 196 configured threads.
+# Triangles show 1KGP chr20p (6,404 haplotypes), with colours identifying
+# tsinfer versions in both datasets. Both datasets use the threaded API.
 
 # %%
-perf_parallelism_figure = ch3_anc_perf.plot_resources(perf_data, "parallelism", perf_config)
+# include
+perf_parallelism_figure = ch3_anc_perf.plot_resources(
+    perf_data, "parallelism", perf_config, reference_data=tgp_perf_data,
+)
+perf_parallelism_figure.savefig(
+    pathlib.Path("~/work/dphil-thesis/figures/ch3/inference_performance_parallelism.png").expanduser(),
+    dpi=300, bbox_inches="tight", facecolor="white",
+)
 plt.show()
+
+# %% [markdown]
+# ### Linesweep groups: scheduling capacity
+#
+# Each panel overlays both versions for one sample size. Each point is an
+# actual matching group: x is its scheduling order (older to younger), y is
+# the number of ancestors available concurrently. The empty virtual-root group
+# is omitted from the log scale. The horizontal line marks 196 threads.
+# These are the **hybrid** groups used in the benchmark: linesweep for older
+# small epochs, followed by unchanged time epochs after the original cutoff.
+# Group number is specific to each version; points at the same x need not
+# contain the same ancestors.
+#
+# Reconstruct ancestor start/end/time from the matched ancestor TS; exclude
+# path-compression nodes. The intervals were checked against all eight original
+# LMDB ancestor files and match exactly. Replay the standalone grouping code
+# from local tsinfer tag 0.5.1 (shared by both benchmark schedulers), preserving
+# the median-size cutoff, group-ID gap, and virtual-root removal. No HMM is run.
+# Every replayed group ID and count is checked against its benchmark log.
+# The four sample sizes give 22,598 validated groups across the eight runs.
+#
+# Compact CSV caches are in `results/analysis`. Set `rebuild_perf_analysis=True`
+# to regenerate them using multiprocessing queues across available CPU cores.
+# The legacy grouping code is read from the configured local Git checkout;
+# neither the installed tsinfer matcher nor a legacy Zarr API is needed.
+
+# %%
+perf_analysis_config = ch3_anc_perf_analysis.AnalysisConfig(
+    tsinfer_source=pathlib.Path("~/work/tsinfer").expanduser(),
+    grouping_ref="0.5.1",
+    workers=None,
+)
+rebuild_perf_analysis = False
+if rebuild_perf_analysis:
+    perf_analysis = ch3_anc_perf_analysis.preprocess_results(
+        perf_folder, perf_config, perf_analysis_config,
+    )
+else:
+    perf_analysis = ch3_anc_perf_analysis.load_analysis(perf_folder, perf_config)
+perf_linesweep_figure = ch3_anc_perf_analysis.plot_linesweep(
+    perf_analysis, perf_config, perf_analysis_config,
+)
+plt.show()
+
+# %% [markdown]
+# Grouping improves as expected. The table also shows the fraction of measured
+# group elapsed time spent in groups smaller than the thread count. Larger
+# groups provide capacity; their size alone does not measure busy HMM workers.
+
+# %%
+perf_group_table = perf_analysis.summary[[
+    "num_samples", "version", "num_groups", "median_group_size",
+    "underfull_time_fraction",
+]].copy()
+perf_version_labels = dict(zip(perf_config.versions, perf_config.version_labels))
+perf_group_table["version"] = perf_group_table.version.map(perf_version_labels)
+perf_group_table = perf_group_table.rename(columns={
+    "num_samples": "Haplotypes", "version": "Method", "num_groups": "Groups",
+    "median_group_size": "Median ancestors/group",
+    "underfull_time_fraction": "Time in groups <196",
+})
+ipdisplay.display(perf_group_table.style.hide(axis="index").format({
+    "Haplotypes": "{:,.0f}", "Groups": "{:,.0f}",
+    "Median ancestors/group": "{:.0f}", "Time in groups <196": "{:.1%}",
+}))
+
+# %% [markdown]
+# ### Why average CPU concurrency falls
+#
+# At 100,000 haplotypes, ancestor matching falls from **124.6 to 65.2 average
+# active cores**, even though groups fall from **8,596 to 6,487** and median
+# group size rises from **12 to 18**. CPU time falls **7.86-fold**, whereas
+# elapsed time falls **4.11-fold**. Since average cores = CPU time / elapsed
+# time, these measurements imply the lower core count directly. The following
+# plot shows the same relationship for both matching stages and all sizes.
+
+# %%
+perf_work_reduction_figure = ch3_anc_perf_analysis.plot_work_reduction(
+    perf_analysis, perf_config,
+)
+plt.show()
+
+# %% [markdown]
+# **What the saved data establish.** At 100,000 haplotypes there are the same
+# 1,085,897 ancestors and 1,086,350 inference sites in both versions. The older
+# linesweep section covers 197,858 ancestors including the virtual root: its
+# total covered sites fall about 25.4%, and its groups fall 8,439 → 6,330.
+# The other 888,039 ancestors remain in the same 157 young time-epoch groups.
+# Their total covered sites **increase 6.1%**, so the overall covered-site count
+# increases 4.6%. Here "shorter ancestors" describes the older subset's aggregate
+# span, not the entire ancestor set. The young epochs still account for 66.5%
+# and 60.5% of group elapsed time in tsinfer 0.4 and tsinfer 0.5 respectively.
+# The fraction of group time in groups smaller than 196 actually rises from
+# 32.7% to 37.4%: the larger groups have become faster disproportionately.
+#
+# Sample matching is a useful comparison. It has no ancestor-group barriers,
+# and the samples still span the full region. Yet its average cores also fall
+# (188.5 → 167.3 at 100,000; 149.0 → 71.1 at 10,000). Its CPU time falls
+# 9.88-fold at 100,000 while elapsed time falls 8.77-fold. Group counts alone
+# therefore cannot explain the full change. The matched ancestor TS is similar
+# in size: about 22.61M versus 22.52M edges (0.4% fewer) and 1.676M versus 1.615M
+# nodes (3.6% fewer), despite the much greater CPU-work reduction.
+#
+# **Most plausible mechanism: cheaper HMM work exposes other costs.** The
+# [legacy ancestor matcher](https://github.com/tskit-dev/tsinfer/blob/0.5.1/tsinfer/inference.py)
+# consumes ancestor haplotypes through a producer, creates a thread pool for
+# each group, waits for the group, and then inserts paths/mutations serially.
+# `threading.local()` is created inside the per-ancestor callback, so the shown
+# code allocates a new matcher for each task instead of reusing one per worker.
+# Its C constructor retains the GIL, while `find_path` releases it. Full-length
+# haplotype and match buffers also remain even when the matched interval is
+# shorter. These costs do not shrink in proportion to interval length and can
+# limit the rate at which useful HMM tasks reach the workers. Group barriers,
+# task-length imbalance and serial insertion further limit realised occupancy.
+# This code is shared by both versions; faster tasks make it more prominent.
+#
+# This version comparison also changes the HMM numerical update. In the tagged
+# C sources, tsinfer 0.4 normalises every active likelihood using `tsk_round`,
+# which calls `pow` and `round`; tsinfer 0.5 uses a threshold/max operation.
+# The benchmark logs confirm the precision → likelihood-threshold switch.
+# See the [tsinfer 0.4 matcher](https://github.com/tskit-dev/tsinfer/blob/0.4.1/lib/ancestor_matcher.c)
+# and [tsinfer 0.5 matcher](https://github.com/tskit-dev/tsinfer/blob/0.5.1/lib/ancestor_matcher.c).
+# This can reduce CPU work per site independently of ancestor spans, and is a
+# strong candidate for the large reduction seen in both matching stages.
+# Donor topology, traceback complexity and memory effects can also contribute.
+#
+# **Limits and next measurement.** These are eight single runs. The logs report
+# total group duration, not per-group CPU time, HMM time, task-feed rate, or
+# insertion time; provenance does not pin the exact source commit of the
+# tsinfer 0.5 development build. Thus the dominant bottleneck and the share due
+# to the numerical change are hypotheses, not measured attributions. Profile
+# task production, matcher construction, `find_path`, and path insertion
+# separately; record busy HMM workers over time. Reuse matchers and the pool,
+# then repeat a thread-count sweep with fixed ancestors. A same-source comparison
+# using the two ancestor sets would isolate the ancestor-length/grouping effect.
