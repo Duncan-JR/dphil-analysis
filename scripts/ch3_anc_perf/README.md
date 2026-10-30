@@ -42,6 +42,32 @@ in a single process per stage, using the same threaded API as the simulations.
 The 0.5.1 checkout should be the built 0.5.x backport used for the comparison.
 Results go to `results_1kgp/`, separate from the simulations.
 
+Extract the full ancestor span for each focal site in every version from this
+folder, using either built legacy checkout with the benchmark environment:
+
+```sh
+PYTHONPATH=/well/kelleher/users/uuc395/tsinfer_0_5_1 \
+uv run --project /well/kelleher/users/uuc395/tsinfer-anc-eval --no-sync \
+    python extract_spans.py results_1kgp
+```
+
+This writes `results_1kgp/ancestor_spans.csv` by reading each
+`<version>/n<count>/ancestors.ancestors` store; it does not require matching to
+have completed or the original variant Zarr. Both benchmark versions share this
+ancestor format, so one checkout reads both. The importable
+`extract_spans(output_dir)` function returns the same pandas dataframe.
+These stores are the benchmark's equivalent of the pipeline's ancestor Zarr.
+
+Columns follow tsinfer-anc-eval: `version`, `num_samples`, `inferred_node`
+(ancestor ID), `inf_focal_site` (ID within the store's inference sites),
+`focal_position`, `inferred_time`, `inferred_span` (bp), and
+`inferred_site_span` (number of inference sites). Each row describes the full
+ancestor, with no `side` column. Multiple focal sites belonging to the same
+ancestor each receive a row; artificial roots without focal sites are omitted.
+The half-open interval's end maps to the next inference site's position, or
+the stored sequence length for ancestors ending at the last site, following
+`AncestorData.ancestors_length`. Spans use each version's own inference sites.
+
 The 1KGP config uses `variant_ancestral_allele` and precision 15, matching the
 batch pipeline. `sequence_length: null` preserves the Zarr contig length
 (64,444,167 bp), while the site mask selects chr20p. The simulation config
