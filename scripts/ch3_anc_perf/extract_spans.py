@@ -1,4 +1,4 @@
-"""Extract one full ancestor span per focal site from benchmark outputs."""
+"""Extract ancestor spans between their first and last inference sites."""
 
 import argparse
 import logging
@@ -21,8 +21,10 @@ def extract_spans(output_dir):
     Column names follow tsinfer-anc-eval. ``inf_focal_site`` indexes the
     ancestor store's inference sites, and ``inferred_node`` is its ancestor ID.
     ``inferred_span`` is in bp and ``inferred_site_span`` counts inference
-    sites. Intervals are half-open: the end maps to the next site's position,
-    or sequence_length when end == num_sites, as in AncestorData.ancestors_length.
+    sites. For the half-open site interval [start, end), the span is
+    positions[end - 1] - positions[start]: the distance between the first
+    and last included inference sites. A one-site ancestor has span zero.
+    The sequence length is not used to calculate these spans.
     Ancestors with multiple focal sites contribute one row for each; ancestors
     without focal sites (including the two artificial roots) contribute none.
     """
@@ -37,7 +39,6 @@ def extract_spans(output_dir):
         logger.info("Reading tsinfer %s, n=%s: %s", version, num_samples, path)
         with tsinfer.AncestorData.load(str(path)) as ancestors:
             positions = ancestors.sites_position[:]
-            boundaries = np.append(positions, ancestors.sequence_length)
             start = ancestors.ancestors_start[:]
             end = ancestors.ancestors_end[:]
             times = ancestors.ancestors_time[:]
@@ -46,7 +47,8 @@ def extract_spans(output_dir):
             ancestor_ids = np.arange(ancestors.num_ancestors)
             inferred_node = np.repeat(ancestor_ids, counts)
             inf_focal_site = np.concatenate(focal_sites).astype(int)
-            spans = boundaries[end] - boundaries[start]
+            last_site = end - 1
+            spans = positions[last_site] - positions[start]
             site_spans = end - start
             frame = pd.DataFrame({
                 "version": version,
