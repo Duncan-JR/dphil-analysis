@@ -1,0 +1,5 @@
+tsinfer_version=0.5.1
+output=data/workflow_compare/tsinfer_0_5_1
+python=.venv_compare/bin/python
+cores=196
+memory_budget_mb=950000

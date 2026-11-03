@@ -67,9 +67,17 @@ class PlotConfig:
     ancestor_error_size: tuple[float, float] = (7, 5.4)
     ancestor_error_height_ratios: tuple[float, float, float] = (1, 1, 0.6)
     ancestor_error_bins: int = 20
+    ancestor_error_log_subs: tuple[float, ...] = (1, 2, 5)
+    ancestor_error_hatch: str = "///"
+    ancestor_error_legend_fontsize: float = 9
+    ancestor_error_label_fontsize: float = 8
+    ancestor_error_label_padding: float = 3
+    ancestor_error_label_decimals: int = 3
+    ancestor_error_change_decimals: int = 2
+    ancestor_error_burden_label_margin: float = 0.2
     ancestor_error_version: str = "0.5.1"
     ancestor_error_type_labels: tuple[str, str] = (
-        "Should be 0 (0 → 1)", "Should be 1 (1 → 0)",
+        "True = 0, Observed = 1", "True = 1, Observed = 0",
     )
     histogram_size: tuple[float, float] = (7, 4.5)
     overshoot_box_size: tuple[float, float] = (8.5, 3.5)
@@ -81,12 +89,15 @@ class PlotConfig:
     version_line_styles: tuple[str, str] = ("-", "--")
     zero_color: str = "#555555"
     quantile_line_style: str = "--"
+    quantile_secondary_line_style: str = "-."
+    quantile_secondary_color: str = "#555555"
     quantile_line_width: float = 1.2
     preprocess_chunk_rows: int = 250000
     focal_keys: tuple[str, ...] = (
         "replicate", "version", "geno_multiplier", "phase_ser", "mispol_rate", "true_focal_site"
     )
     overshoot_box_width_ratio: float = 0.6
+    overshoot_linthresh_bp: float = 1000
     jitter_seed: int = 42
     jitter_max_points: int = 1500
     jitter_width: float = 0.32
@@ -95,6 +106,13 @@ class PlotConfig:
     mean_bar_group_width: float = 0.8
     mean_bar_y_margin: float = 0.05
     curve_size: tuple[float, float] = (6, 3.5)
+    span_curve_size: tuple[float, float] = (4.5, 4.8)
+    span_curve_height_ratios: tuple[float, float] = (3, 0.6)
+    span_curve_true_color: str = "#8b0000"
+    span_curve_title_fontsize: float = 10
+    span_curve_legend_fontsize: float = 11
+    span_curve_limit_factor: float = 1.2
+    span_curve_line_width: float = 1.8
     transition_size: tuple[float, float] = (7, 3.5)
     phase_size: tuple[float, float] = (8, 2.8)
     phase_row_spacing: float = 0.82
@@ -325,7 +343,10 @@ def _frequency_bin_edges(frequencies, num_bins=5, cutoffs=None):
     return edges
 
 
-def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=None, alpha=None, figsize=None):
+def _ancestor_boxplot(
+    data, figure_folder, variable, num_bins, cutoffs, conf=None, alpha=None,
+    figsize=None, y_log=False,
+):
     config = data.config
     spans = _no_errors(data.spans)
     true_spans = spans.drop_duplicates(["replicate", "true_focal_site"])
@@ -400,9 +421,12 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
         fig.set_layout_engine("constrained")
         _overshoot_legends(fig, config, conf, alpha)
     if variable == "span":
-        axes[0].set_yscale("log")
+        if y_log:
+            axes[0].set_yscale("log")
         axes[0].set_ylabel("Ancestor span (Mb)")
     else:
+        if y_log:
+            _symlog_overshoot_axis(axes[0], config)
         _overshoot_zero_line(axes[0])
         axes[0].set_ylabel("Overshoot (Mb)")
     axes[1].set_ylabel("Count")
@@ -426,15 +450,163 @@ def _ancestor_boxplot(data, figure_folder, variable, num_bins, cutoffs, conf=Non
     return save_figure(fig, figure_folder, f"ancestor_{variable}_boxplot", config)
 
 
-def plot_ancestor_spans(data, figure_folder=None, num_bins=5, cutoffs=None, figsize=None):
+def plot_ancestor_spans(
+    data, figure_folder=None, num_bins=5, cutoffs=None, figsize=None, y_log=True,
+):
     """True and inferred spans per focal site, binned by observed focal DAF."""
-    return _ancestor_boxplot(data, figure_folder, "span", num_bins, cutoffs, figsize=figsize)
+    return _ancestor_boxplot(
+        data, figure_folder, "span", num_bins, cutoffs,
+        figsize=figsize, y_log=y_log,
+    )
 
 
-def plot_ancestor_overshoot(data, figure_folder=None, num_bins=5, cutoffs=None, conf=0.01, alpha=None, figsize=None):
-    """Left/right overshoots per focal site, using the span figure DAF bins."""
-    return _ancestor_boxplot(data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha, figsize=figsize)
+def plot_ancestor_overshoot(
+    data, figure_folder=None, num_bins=5, cutoffs=None, conf=0.01, alpha=None,
+    figsize=None, y_log=False,
+):
+    """Left/right overshoots in DAF bins; ``y_log=True`` uses a symlog axis."""
+    return _ancestor_boxplot(
+        data, figure_folder, "overshoot", num_bins, cutoffs, conf, alpha,
+        figsize=figsize, y_log=y_log,
+    )
 
+
+def load_tgp_ancestor_spans(path):
+    """Load full focal-site spans from the frequency-timed 1KGP benchmark.
+
+    ``scripts/ch3_anc_perf/extract_spans.py`` exports one row per focal site.
+    The benchmark uses the default frequency proxy for ancestor times, so
+    ``inferred_time`` is the focal derived allele frequency, not an age.
+    """
+    frame = pd.read_csv(
+        pathlib.Path(path).expanduser(), dtype={"version": str},
+        usecols=["version", "inf_focal_site", "focal_position", "inferred_time", "inferred_span"],
+    )
+    return frame.rename(columns={"inferred_time": "allele_frequency"})
+
+
+def summarise_ancestor_span_curves(data, tgp_spans):
+    """Mean full spans per focal site in the error-direction figure's DAF bins.
+
+    Retain each focal site even when it shares an ancestor with another site.
+    Simulation rows come from the error-free profile in ``data.spans``; truth
+    is included once using the first configured version's matched focal sites.
+    Use :func:`load_tgp_ancestor_spans` for the empirical rows. All spans remain
+    at their exported lengths, without clipping to a common genomic region.
+    Empty bins have zero focal sites and undefined means. DAF 1 is included
+    in the final bin. See :func:`plot_ancestor_span_curves`.
+    """
+    config = data.config
+    simulation = _no_errors(data.spans)
+    simulation = simulation.loc[simulation.version.isin(config.versions)].copy()
+    if simulation.duplicated(["replicate", "version", "true_focal_site"]).any():
+        raise ValueError("Expected one simulation span per focal site and version")
+    empirical = tgp_spans.loc[tgp_spans.version.isin(config.versions)].copy()
+    if empirical.duplicated(["version", "inf_focal_site"]).any():
+        raise ValueError("Expected one 1KGP span per focal site and version")
+    truth = simulation.loc[simulation.version == config.versions[0]].copy()
+    truth["version"] = "True"
+    truth["inferred_span"] = truth.true_span
+    columns = ["version", "allele_frequency", "inferred_span"]
+    simulated = pd.concat([simulation[columns], truth[columns]], ignore_index=True)
+    simulated["dataset"] = "Simulation"
+    empirical = empirical[columns].copy()
+    empirical["dataset"] = "1000 Genomes Project"
+    frame = pd.concat([simulated, empirical], ignore_index=True)
+    if not frame.allele_frequency.between(0, 1).all():
+        raise ValueError("Focal allele frequencies must be in [0, 1]")
+    num_bins = config.ancestor_error_bins
+    if num_bins < 1:
+        raise ValueError("The number of frequency bins must be positive")
+    edges = np.arange(num_bins + 1) / num_bins
+    cut_edges = edges.copy()
+    cut_edges[-1] = np.nextafter(cut_edges[-1], np.inf)
+    frame["bin"] = pd.cut(frame.allele_frequency, cut_edges, right=False, labels=False)
+    grouped = frame.groupby(["dataset", "version", "bin"]).agg(
+        num_focal_sites=("inferred_span", "size"),
+        mean_span_bp=("inferred_span", "mean"),
+    )
+    groups = [("Simulation", version) for version in (*config.versions, "True")]
+    groups += [("1000 Genomes Project", version) for version in config.versions]
+    index = pd.MultiIndex.from_tuples(
+        [(dataset, version, bin_id) for dataset, version in groups
+         for bin_id in range(num_bins)],
+        names=["dataset", "version", "bin"],
+    )
+    summary = grouped.reindex(index).reset_index()
+    summary["num_focal_sites"] = summary.num_focal_sites.fillna(0).astype(int)
+    summary["mean_span_mb"] = summary.mean_span_bp / config.bp_per_mb
+    summary["bin_left"] = edges[summary.bin]
+    summary["bin_right"] = edges[summary.bin + 1]
+    summary["daf"] = (summary.bin_left + summary.bin_right) / 2
+    return summary
+
+
+def plot_ancestor_span_curves(
+    summary, dataset, title=None, figure_folder=None, config=None, figsize=None, y_log=True,
+):
+    """One dataset's mean-span curves, with a short focal-count panel below.
+
+    Consume :func:`summarise_ancestor_span_curves`; ``dataset`` must be
+    ``Simulation`` or ``1000 Genomes Project``. Counts must match between
+    versions (and truth). All lines are solid, with dark red simulation truth.
+    Use the complete summary for both calls to share mean-span axis limits.
+    """
+    if config is None:
+        config = PlotConfig()
+    if figsize is None:
+        figsize = config.span_curve_size
+    if title is None:
+        title = dataset
+    filenames = {
+        "Simulation": "ancestor_span_frequency_simulation",
+        "1000 Genomes Project": "ancestor_span_frequency_tgp",
+    }
+    if dataset not in filenames:
+        raise ValueError("dataset must be Simulation or 1000 Genomes Project")
+    selected = summary.loc[summary.dataset == dataset]
+    count_table = selected.pivot(index="bin", columns="version", values="num_focal_sites")
+    reference = count_table.iloc[:, 0]
+    if not count_table.eq(reference, axis="index").all().all():
+        raise ValueError(f"Expected matched focal-site counts within {dataset}")
+    fig, axes = plt.subplots(
+        2, 1, figsize=figsize, sharex=True, layout="constrained",
+        gridspec_kw={"height_ratios": config.span_curve_height_ratios},
+    )
+    versions = list(config.versions)
+    colors = list(config.version_colors)
+    if dataset == "Simulation":
+        versions.append("True")
+        colors.append(config.span_curve_true_color)
+    for version, color in zip(versions, colors):
+        rows = selected.loc[selected.version == version].sort_values("bin")
+        label = "True" if version == "True" else _version_label(version)
+        axes[0].plot(
+            rows.daf, rows.mean_span_mb, color=color, linestyle="-",
+            linewidth=config.span_curve_line_width, label=label,
+        )
+    bins = selected.drop_duplicates("bin").sort_values("bin")
+    widths = bins.bin_right - bins.bin_left
+    axes[1].bar(bins.daf, reference, width=widths, facecolor="white", edgecolor="black")
+    axes[1].set_yscale("log")
+    axes[1].set_ylabel("Count")
+    axes[1].yaxis.set_major_locator(mticker.LogLocator(numticks=2))
+    axes[1].yaxis.set_minor_formatter(mticker.NullFormatter())
+    if y_log:
+        axes[0].set_yscale("log")
+        positive_means = summary.loc[summary.mean_span_mb > 0, "mean_span_mb"]
+        lower = positive_means.min() / config.span_curve_limit_factor
+        upper = positive_means.max() * config.span_curve_limit_factor
+        axes[0].set_ylim(lower, upper)
+    axes[0].set_title(title, fontsize=config.span_curve_title_fontsize)
+    axes[0].set_ylabel("Mean ancestor span (Mb)")
+    axes[0].legend(
+        frameon=False, loc="upper left",
+        fontsize=config.span_curve_legend_fontsize,
+    )
+    axes[1].set_xlabel("Derived focal allele frequency")
+    axes[1].set_xlim(0, 1)
+    return save_figure(fig, figure_folder, filenames[dataset], config)
 
 def load_ancestor_overlap_errors(aggregated_path, config=None):
     """Read error-free whole-overlap comparisons from the aggregate CSV.
@@ -462,6 +634,77 @@ def load_ancestor_overlap_errors(aggregated_path, config=None):
     return pd.DataFrame(table.to_dict(as_series=False))
 
 
+def load_demography_comparisons(aggregated_paths, config=None):
+    """Load both error-free sides per focal site, tagged by model identifier.
+
+    ``aggregated_paths`` maps model identifiers to aggregate CSV paths. Read
+    only the columns needed for overshoots and whole-overlap error burden;
+    exported Zarr summaries are not required. See
+    :func:`plot_demography_overshoot_box` and
+    :func:`summarise_demography_overlap_errors`.
+    """
+    if config is None:
+        config = PlotConfig()
+    frames = []
+    for model, path in aggregated_paths.items():
+        query = pl.scan_csv(pathlib.Path(path).expanduser())
+        selected = query.filter(
+            (pl.col("geno_multiplier") == 0)
+            & (pl.col("phase_ser") == 0)
+            & (pl.col("mispol_rate") == 0)
+            & pl.col("version").cast(pl.String).is_in(config.versions)
+        )
+        selected = selected.select(
+            "replicate", "version", "true_focal_site", "side", "overshoot",
+            "num_errors", "overlap_span", "num_should_be_0", "num_should_be_1",
+        )
+        table = selected.collect(engine="streaming")
+        frame = pd.DataFrame(table.to_dict(as_series=False))
+        frame["model"] = model
+        frames.append(frame)
+    return pd.concat(frames, ignore_index=True)
+
+
+def _pool_overlap_errors(frame, group_columns):
+    """Sum whole-comparison counts and bp before calculating error rates."""
+    frame = frame.copy()
+    frame["error_free"] = frame.num_errors == 0
+    return frame.groupby(group_columns, sort=False).agg(
+        num_ancestors=("true_focal_site", "size"),
+        num_error_free=("error_free", "sum"),
+        num_errors=("num_errors", "sum"),
+        should_be_0_errors=("num_should_be_1", "sum"),
+        should_be_1_errors=("num_should_be_0", "sum"),
+        overlap_bp=("overlap_span", "sum"),
+    )
+
+
+def _overlap_error_rates(summary):
+    """Add pooled burdens and zero-error proportions to summed comparisons."""
+    summary = summary.copy()
+    ancestor_denominator = summary.num_ancestors.replace(0, np.nan)
+    overlap_denominator = summary.overlap_bp.replace(0, np.nan)
+    summary["error_free_fraction"] = summary.num_error_free / ancestor_denominator
+    summary["error_burden"] = summary.num_errors / overlap_denominator
+    summary["should_be_0_burden"] = summary.should_be_0_errors / overlap_denominator
+    summary["should_be_1_burden"] = summary.should_be_1_errors / overlap_denominator
+    return summary
+
+
+def summarise_demography_overlap_errors(comparisons):
+    """Pool all frequencies within each model/version, counting one side once.
+
+    Retain one whole-overlap comparison per focal site, matching
+    :func:`load_ancestor_overlap_errors`. Focal-site IDs are local to a model.
+    """
+    frame = comparisons.loc[comparisons.side == "left"]
+    keys = ["model", "replicate", "version", "true_focal_site"]
+    if frame.duplicated(keys).any():
+        raise ValueError("Expected one overlap comparison per focal site and version")
+    summary = _pool_overlap_errors(frame, ["model", "version"]).reset_index()
+    return _overlap_error_rates(summary)
+
+
 def summarise_ancestor_overlap_errors(comparisons, config=None, num_bins=5, cutoffs=None):
     """Pool counts and overlapping bp within each version/frequency bin.
 
@@ -481,72 +724,131 @@ def summarise_ancestor_overlap_errors(comparisons, config=None, num_bins=5, cuto
     cut_edges[-1] = np.nextafter(cut_edges[-1], np.inf)
     frame = comparisons.copy()
     frame["bin"] = pd.cut(frame.allele_frequency, cut_edges, right=False, labels=False)
-    frame["error_free"] = frame.num_errors == 0
-    grouped = frame.groupby(["version", "bin"]).agg(
-        num_ancestors=("true_focal_site", "size"),
-        num_error_free=("error_free", "sum"),
-        num_errors=("num_errors", "sum"),
-        overlap_bp=("overlap_span", "sum"),
-    )
+    grouped = _pool_overlap_errors(frame, ["version", "bin"])
     index = pd.MultiIndex.from_product(
         [config.versions, range(len(edges) - 1)], names=["version", "bin"],
     )
     summary = grouped.reindex(index, fill_value=0).reset_index()
     summary["bin_left"] = edges[summary.bin]
     summary["bin_right"] = edges[summary.bin + 1]
-    ancestor_denominator = summary.num_ancestors.replace(0, np.nan)
-    overlap_denominator = summary.overlap_bp.replace(0, np.nan)
-    summary["error_free_fraction"] = summary.num_error_free / ancestor_denominator
-    summary["error_burden"] = summary.num_errors / overlap_denominator
-    return summary
+    return _overlap_error_rates(summary)
 
 
-def plot_ancestor_overlap_errors(summary, figure_folder=None, config=None, figsize=None):
-    """Compact grouped bars of error-free fractions, pooled errors/bp and counts.
+def plot_ancestor_overlap_errors(
+    summary, figure_folder=None, config=None, figsize=None, *,
+    group_by="bin", group_labels=None, show_counts=True,
+    name="ancestor_overlap_errors", show_burden_change=False,
+):
+    """Grouped fractions and counts, with errors/bp stacked by direction.
 
     Consume :func:`summarise_ancestor_overlap_errors`. Matched versions must
-    have the same per-bin comparison counts, shown once in the bottom panel.
+    have the same per-group comparison counts. ``show_counts=False`` omits
+    the bottom count panel. For categorical groups, pass their column as
+    ``group_by`` and an ordered identifier-to-label mapping as
+    ``group_labels``; no frequency binning is performed by this plot.
+    ``show_burden_change`` labels the second version's total pooled burden
+    with its signed percentage change relative to the first version.
     """
     if config is None:
         config = PlotConfig()
     if figsize is None:
         figsize = config.ancestor_error_size
-    count_table = summary.pivot(index="bin", columns="version", values="num_ancestors")
+    count_table = summary.pivot(index=group_by, columns="version", values="num_ancestors")
+    if group_labels is not None:
+        count_table = count_table.reindex(group_labels)
     reference_counts = count_table[config.versions[0]]
     if not count_table.eq(reference_counts, axis="index").all().all():
         raise ValueError("Expected matched focal-site counts between versions")
+    panel_count = 3 if show_counts else 2
+    height_ratios = config.ancestor_error_height_ratios[:panel_count]
     fig, axes = plt.subplots(
-        3, 1, figsize=figsize, sharex=True, layout="constrained",
-        gridspec_kw={"height_ratios": config.ancestor_error_height_ratios},
+        panel_count, 1, figsize=figsize, sharex=True, layout="constrained",
+        gridspec_kw={"height_ratios": height_ratios},
     )
     positions = np.arange(len(count_table))
     width = config.mean_bar_group_width / len(config.versions)
     for version_index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
-        selected = summary.loc[summary.version == version].sort_values("bin")
+        selected = summary.loc[summary.version == version].set_index(group_by)
+        selected = selected.reindex(count_table.index)
         offsets = positions - config.mean_bar_group_width / 2 + width * (version_index + 0.5)
-        axes[0].bar(offsets, selected.error_free_fraction, width=width,
-                    color=color, label=_version_label(version))
-        axes[1].bar(offsets, selected.error_burden, width=width, color=color)
+        bars = axes[0].bar(
+            offsets, selected.error_free_fraction, width=width,
+            color=color, label=_version_label(version),
+        )
+        proportion_labels = [
+            f"{value:.{config.ancestor_error_label_decimals}f}"
+            if np.isfinite(value) else ""
+            for value in selected.error_free_fraction
+        ]
+        axes[0].bar_label(
+            bars, labels=proportion_labels, color=color,
+            fontsize=config.ancestor_error_label_fontsize,
+            padding=config.ancestor_error_label_padding,
+        )
+        axes[1].bar(offsets, selected.should_be_1_burden, width=width,
+                    facecolor=color, edgecolor=color)
+        burden_bars = axes[1].bar(
+            offsets, selected.should_be_0_burden, width=width,
+            bottom=selected.should_be_1_burden, facecolor="white",
+            edgecolor=color, hatch=config.ancestor_error_hatch,
+        )
+        if show_burden_change and version_index == 1:
+            reference_burden = summary.loc[summary.version == config.versions[0]]
+            reference_burden = reference_burden.set_index(group_by).error_burden
+            reference_burden = reference_burden.reindex(count_table.index)
+            denominator = reference_burden.where(reference_burden > 0)
+            change = (selected.error_burden / denominator - 1) * 100
+            change_labels = [
+                f"{value:+.{config.ancestor_error_change_decimals}f}%"
+                if np.isfinite(value) else ""
+                for value in change
+            ]
+            axes[1].bar_label(
+                burden_bars, labels=change_labels, color=color,
+                fontsize=config.ancestor_error_label_fontsize,
+                padding=config.ancestor_error_label_padding,
+            )
     axes[0].set_ylim(0, 1)
     axes[0].yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
     axes[0].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2))
-    axes[0].set_ylabel("Error-free\nancestors")
-    axes[1].set_ylabel("Pooled error burden\n(errors/overlap bp)")
+    axes[0].set_ylabel("Proportion of\nerror-free ancestors")
+    axes[1].set_ylabel("Pooled error burden\n(errors/bp)")
     axes[1].set_yscale("log")
-    axes[1].yaxis.set_major_locator(mticker.LogLocator(numticks=3))
+    if show_burden_change:
+        axes[1].margins(y=config.ancestor_error_burden_label_margin)
+    axes[1].yaxis.set_major_locator(
+        mticker.LogLocator(subs=config.ancestor_error_log_subs, numticks=3)
+    )
+    axes[1].yaxis.set_major_formatter(
+        mticker.LogFormatterSciNotation(minor_thresholds=(np.inf, np.inf))
+    )
     axes[1].yaxis.set_minor_formatter(mticker.NullFormatter())
-    axes[2].bar(positions, reference_counts, width=config.mean_bar_group_width,
-                facecolor="white", edgecolor="black")
-    axes[2].set_ylabel("Count")
-    axes[2].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2, integer=True))
-    axes[2].yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
-    labels = [f"{row.bin_left:g}–{row.bin_right:g}" for row in selected.itertuples()]
-    axes[2].set_xticks(positions, labels, rotation=25)
-    axes[2].set_xlabel("Observed focal allele frequency")
-    axes[2].set_xlim(-0.6, len(positions) - 0.4)
+    if show_counts:
+        axes[2].bar(positions, reference_counts, width=config.mean_bar_group_width,
+                    facecolor="white", edgecolor="black")
+        axes[2].set_ylabel("Count")
+        axes[2].yaxis.set_major_locator(mticker.MaxNLocator(nbins=2, integer=True))
+        axes[2].yaxis.set_major_formatter(mticker.StrMethodFormatter("{x:,.0f}"))
+    if group_labels is None:
+        labels = [f"{row.bin_left:g}–{row.bin_right:g}" for row in selected.itertuples()]
+        axes[-1].set_xlabel("Observed focal allele frequency")
+        rotation = 25
+    else:
+        labels = [group_labels[group] for group in count_table.index]
+        axes[-1].set_xlabel("Demographic model")
+        rotation = 0
+    axes[-1].set_xticks(positions, labels, rotation=rotation)
+    axes[-1].set_xlim(-0.6, len(positions) - 0.4)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="outside upper center", ncol=len(config.versions), frameon=False)
-    return save_figure(fig, figure_folder, "ancestor_overlap_errors", config)
+    error_handles = [
+        mpatches.Patch(facecolor="white", edgecolor="black", hatch=config.ancestor_error_hatch),
+        mpatches.Patch(facecolor="black", edgecolor="black"),
+    ]
+    axes[1].legend(error_handles, config.ancestor_error_type_labels, frameon=False,
+                   loc="lower center", bbox_to_anchor=(0.5, 1), ncol=2,
+                   fontsize=config.ancestor_error_legend_fontsize)
+    return save_figure(fig, figure_folder, name, config)
 
 
 def summarise_ancestor_error_types(comparisons, config=None):
@@ -604,10 +906,8 @@ def plot_ancestor_error_types(summary, figure_folder=None, config=None, figsize=
         ax.plot(summary.daf, positive_rates, color=color, label=label)
     ax.set_xlim(0, 1)
     ax.set_yscale("log")
-    ax.set_xlabel("Derived allele frequency")
+    ax.set_xlabel("Derived focal allele frequency")
     ax.set_ylabel("Pooled error burden\n(errors/overlap bp)")
-    ax.text(0.04, 0.96, _version_label(config.ancestor_error_version),
-            transform=ax.transAxes, va="top")
     ax.legend(frameon=False)
     return save_figure(fig, figure_folder, "ancestor_overlap_error_types", config)
 
@@ -808,13 +1108,20 @@ def _draw_overshoot_group(ax, values, position, box_width, color, rng, config, c
               zorder=5)
 
 
+def _symlog_overshoot_axis(ax, config):
+    """Use signed decade ticks and a linear region that includes zero."""
+    linthresh = config.overshoot_linthresh_bp / config.bp_per_mb
+    ax.set_yscale("symlog", linthresh=linthresh)
+    ax.yaxis.set_major_formatter(mticker.LogFormatterMathtext())
+
+
 def _overshoot_zero_line(ax):
     """Match the border, above jitter (2) and below boxes (3)."""
     ax.axhline(0, color="black", linestyle="-",
                linewidth=ax.spines["left"].get_linewidth(), zorder=2.5)
 
 
-def _overshoot_legends(fig, config, conf, alpha):
+def _overshoot_legends(fig, config, conf, alpha, conf_secondary=None):
     handles = [
         mlines.Line2D([], [], marker="o", linestyle="none", color=color,
                       alpha=alpha, markeredgecolor="none", label=_version_label(version))
@@ -822,14 +1129,30 @@ def _overshoot_legends(fig, config, conf, alpha):
     ]
     handles.append(mlines.Line2D([], [], color="black", linestyle=config.quantile_line_style,
                                  label=f"{conf * 100:g}% tail quantiles"))
+    if conf_secondary is not None:
+        handles.append(mlines.Line2D(
+            [], [], color=config.quantile_secondary_color,
+            linestyle=config.quantile_secondary_line_style,
+            label=f"{conf_secondary * 100:g}% tail quantiles",
+        ))
     fig.legend(handles=handles, frameon=False, loc="outside right center")
 
 
-def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf, alpha, figsize=None):
-    """Grouped boxes of focal-site sides; see `_draw_overshoot_group`."""
+def _overshoot_boxplot(
+    config, frame, by, rates, label, name, figure_folder, conf, alpha,
+    figsize=None, group_labels=None,
+    y_log=False, conf_secondary=None,
+):
+    """Grouped boxes of focal-site sides; see `_draw_overshoot_group`.
+
+    ``y_log=True`` uses a symmetric log axis, preserving signed values
+    and zeros. The central linear region is set in :class:`PlotConfig`.
+    Quartiles, whiskers and tail quantiles precede the axis transformation.
+    """
     if not 0 < conf < 0.5:
         raise ValueError("conf must be between 0 and 0.5")
-    config = data.config
+    if conf_secondary is not None and not 0 < conf_secondary < 0.5:
+        raise ValueError("conf_secondary must be between 0 and 0.5")
     if alpha is None:
         alpha = config.jitter_alpha
     rng = np.random.default_rng(config.jitter_seed)
@@ -846,14 +1169,28 @@ def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf,
             values = subset.overshoot.to_numpy() / config.bp_per_mb
             position = index - 0.4 + group_width * (version_index + 0.5)
             _draw_overshoot_group(ax, values, position, box_width, color, rng, config, conf, alpha)
+            if conf_secondary is not None:
+                quantiles = np.quantile(values, [conf_secondary, 1 - conf_secondary])
+                ax.hlines(
+                    quantiles, position - config.jitter_width / 2,
+                    position + config.jitter_width / 2,
+                    color=config.quantile_secondary_color,
+                    linestyle=config.quantile_secondary_line_style,
+                    linewidth=config.quantile_line_width, zorder=5,
+                )
+    if y_log:
+        _symlog_overshoot_axis(ax, config)
     _overshoot_zero_line(ax)
     ax.set_ylabel("Overshoot (Mb)")
     ax.set_xlabel(label)
-    labels = [f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}" for rate in rates]
+    if group_labels is None:
+        labels = [f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}" for rate in rates]
+    else:
+        labels = [group_labels[rate] for rate in rates]
     ax.set_xticks(range(len(rates)), labels)
     ax.set_xlim(-0.5, len(rates) - 0.5)
     ax.grid(axis="y", alpha=0.15)
-    _overshoot_legends(fig, config, conf, alpha)
+    _overshoot_legends(fig, config, conf, alpha, conf_secondary)
     return save_figure(fig, figure_folder, f"{name}_box", config)
 
 
@@ -861,6 +1198,29 @@ def _overshoot_boxplot(data, frame, by, rates, label, name, figure_folder, conf,
 class TailSteps:
     edges: np.ndarray
     fractions: np.ndarray
+
+
+def plot_demography_overshoot_box(
+    comparisons, model_labels, figure_folder=None, config=None,
+    conf=0.01, alpha=None, figsize=None,
+    y_log=False, conf_secondary=0.01,
+):
+    """Plot both error-free sides, grouped by model, using the usual boxes.
+
+    ``model_labels`` maps model identifiers to display labels in plot order.
+    Load comparisons with :func:`load_demography_comparisons`.
+    Set ``y_log=True`` for a signed log axis that retains zero values.
+    ``conf_secondary`` adds a second pair of tail quantile caps and legend
+    entry without changing the points sampled using ``conf``. Set it to
+    None to omit the additional caps.
+    """
+    if config is None:
+        config = PlotConfig()
+    return _overshoot_boxplot(
+        config, comparisons, "model", list(model_labels), "Demographic model",
+        "demography_overshoot", figure_folder, conf, alpha, figsize=figsize, y_log=y_log,
+        group_labels=model_labels, conf_secondary=conf_secondary,
+    )
 
 
 def _tail_steps(values):
@@ -1034,12 +1394,14 @@ def plot_genotype_overshoot_hist(data, figure_folder=None, figsize=None, legend_
     )
 
 
-def plot_genotype_overshoot_box(data, figure_folder=None, conf=0.01, alpha=None, figsize=None):
+def plot_genotype_overshoot_box(
+    data, figure_folder=None, conf=0.01, alpha=None, figsize=None, y_log=False,
+):
     """Grouped boxplots for pure genotype-error profiles; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
-        data, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
+        data.config, _genotype_overshoots(data), "geno_multiplier", data.config.genotype_multipliers,
         "Error multiplier", "genotype_error_overshoot", figure_folder, conf, alpha,
-        figsize=figsize,
+        figsize=figsize, y_log=y_log,
     )
 
 
@@ -1174,13 +1536,16 @@ def plot_mispolarisation_overshoot_hist(data, figure_folder=None, frequency="all
     )
 
 
-def plot_mispolarisation_overshoot_box(data, figure_folder=None, frequency="all", conf=0.01, alpha=None, figsize=None):
+def plot_mispolarisation_overshoot_box(
+    data, figure_folder=None, frequency="all", conf=0.01, alpha=None,
+    figsize=None, y_log=False,
+):
     """Grouped mispolarisation boxplots; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
-        data, _mispolarisation_overshoots(data, frequency), "mispol_rate",
+        data.config, _mispolarisation_overshoots(data, frequency), "mispol_rate",
         data.config.mispol_rates, "Mispolarisation rate",
         f"mispolarisation_overshoot_{frequency}_frequency", figure_folder, conf, alpha,
-        figsize=figsize,
+        figsize=figsize, y_log=y_log,
     )
 
 
@@ -1233,12 +1598,14 @@ def plot_phasing_overshoot_hist(data, figure_folder=None, figsize=None, legend_f
     )
 
 
-def plot_phasing_overshoot_box(data, figure_folder=None, conf=0.01, alpha=None, figsize=None):
+def plot_phasing_overshoot_box(
+    data, figure_folder=None, conf=0.01, alpha=None, figsize=None, y_log=False,
+):
     """Grouped phase-switch boxplots; see `_overshoot_boxplot`."""
     return _overshoot_boxplot(
-        data, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
+        data.config, _phasing_overshoots(data), "phase_ser", data.config.phase_rates,
         "Switch error rate", "phasing_error_overshoot", figure_folder, conf, alpha,
-        figsize=figsize,
+        figsize=figsize, y_log=y_log,
     )
 
 

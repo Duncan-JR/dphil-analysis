@@ -1,0 +1,53 @@
+default:
+  threads: 1
+  mem_mb: 16000
+  time_min: 240
+
+allele_counts:
+  threads: 32
+  mem_mb: 64000
+  time_min: 1440
+
+generate_ancestors:
+  threads: 196
+  mem_mb: 128000
+  time_min: 1440
+
+match_ancestors_init:
+  threads: 1
+  mem_mb: 64000
+  time_min: 240
+
+# This cap also determines when the Snakefile partitions a group.
+# The Snakefile scales mem_mb with the threads used for unpartitioned groups.
+match_ancestors_group:
+  threads: 32
+  mem_mb: 128000
+  time_min: 1440
+
+match_ancestors_group_partition:
+  threads: 1
+  mem_mb: 32000
+  time_min: 240
+
+match_ancestors_final:
+  threads: 1
+  mem_mb: 64000
+  time_min: 240
+
+match_samples_init:
+  threads: 1
+  mem_mb: 64000
+  time_min: 240
+
+# Resource key used by the match_sample_partitions rule.
+match_sample_paths:
+  threads: 1
+  mem_mb: 32000
+  time_min: 240
+
+# Resource key used by the match_samples_finalise rule.
+match_samples:
+  threads: 1
+  mem_mb: 128000
+  time_min: 1440

@@ -64,9 +64,11 @@ Columns follow tsinfer-anc-eval: `version`, `num_samples`, `inferred_node`
 `inferred_site_span` (number of inference sites). Each row describes the full
 ancestor, with no `side` column. Multiple focal sites belonging to the same
 ancestor each receive a row; artificial roots without focal sites are omitted.
-The half-open interval's end maps to the next inference site's position, or
-the stored sequence length for ancestors ending at the last site, following
-`AncestorData.ancestors_length`. Spans use each version's own inference sites.
+For the half-open inference-site interval `[start, end)`, the span is
+`positions[end - 1] - positions[start]`: the distance between its first and
+last included inference sites. A one-site ancestor has span zero. Neither
+the next site's position nor the stored sequence length enters the span
+calculation. Spans use each version's own inference sites.
 
 The 1KGP config uses `variant_ancestral_allele` and precision 15, matching the
 batch pipeline. `sequence_length: null` preserves the Zarr contig length

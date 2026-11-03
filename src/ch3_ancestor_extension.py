@@ -339,9 +339,8 @@ def plot_ancestor_extension(config, figure_folder=None):
     if figure_folder is not None:
         folder = pathlib.Path(figure_folder).expanduser()
         folder.mkdir(parents=True, exist_ok=True)
-        for suffix in ("png", "svg"):
-            fig.savefig(folder / f"ancestor_extension_comparison.{suffix}", dpi=config.dpi,
-                        bbox_inches="tight", facecolor="white")
+        fig.savefig(folder / "ancestor_extension_comparison.png", dpi=config.dpi,
+                    bbox_inches="tight", facecolor="white")
     plt.show()
     plt.close(fig)
     return fig
