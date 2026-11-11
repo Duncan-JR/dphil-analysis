@@ -1,0 +1,60 @@
+pipeline_dir: ../../../tsinfer-match-eval
+output_dir: ../../data/ch5/stitching_pt12_conditioning
+epsilon_per_haplotype_bp: 1.0e-5
+recombination_map: ../../data/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt
+datasets:
+  - name: tgp_chr20_n100_500kb
+    label: 1KGP chr20 · 100 individuals
+    zarr_path: ../../data/zarr_vcfs/tgp/chr20/data.zarr
+    sample_list: ../../../tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv
+    region: [1000000, 1500000]
+    ancestral_field: variant_ancestral_allele
+    exclude_masks:
+      - variant_not_snps_mask
+      - variant_not_biallelic_mask
+      - variant_bad_ancestral_mask
+      - variant_duplicate_position_mask
+    truth_path: null
+    raw_zarr_path: null
+  - name: out_of_africa_n300_500kb_error
+    label: Simulation · 300 individuals
+    zarr_path: ../../../tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-geno-1.0-phase3e-4-mispol0.zarr
+    sample_list: null
+    region: [1000000, 1500000]
+    ancestral_field: variant_mispolarised_ancestral_state
+    exclude_masks: []
+    truth_path: ../../../tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees
+    raw_zarr_path: ../../../tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-raw.zarr
+pipeline:
+  focal_choice: left
+  af_cutoff: 0.1
+  min_region_size_kb: 25
+  ancestor_chunk_size: 5000
+  inference_threads: 18
+  matching_threads: 9
+  sample_reader_threads: 1
+  sample_prefetch_chunks: 2
+  max_pending_haplotypes: null
+  helper_threads:
+    blosc_threads: 1
+    zarr_async_concurrency: 1
+    zarr_threading_max_workers: 1
+    blas_threads: 1
+storage:
+  variant_chunk: 1000
+  sample_chunk: 100
+plot:
+  provisional_note: Greedy results are provisional
+  dpi: 120
+  export_dpi: 180
+  font_size: 10
+  panel_width: 5.2
+  panel_height: 3.7
+  bar_width: 0.65
+  bar_headroom_fraction: 0.22
+  full_color: '#555555'
+  greedy_color: '#0072B2'
+  truth_color: '#009E73'
+  error_color: '#D55E00'
+  other_color: '#B8B8B8'
+  switch_color: '#E69F00'
