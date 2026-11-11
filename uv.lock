@@ -1805,7 +1805,6 @@ dependencies = [
     { name = "psutil" },
     { name = "tqdm" },
     { name = "tskit" },
-    { name = "tsls" },
     { name = "vcztools" },
     { name = "zarr" },
 ]
@@ -1821,7 +1820,6 @@ requires-dist = [
     { name = "psutil" },
     { name = "tqdm" },
     { name = "tskit", specifier = ">=1.0.0" },
-    { name = "tsls", git = "https://github.com/tskit-dev/tsls" },
     { name = "vcztools", specifier = ">=0.2" },
     { name = "zarr", specifier = ">=3" },
 ]
@@ -1900,15 +1898,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/3e/1c7adaae07a00ce009e692a6d171c7a0882d1ed9753017b78a7db7ae7d72/tskit-1.0.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:241192b12d310e49b21bfae524c76768a15d0ed3f7b950d6ee09dce1528b8973", size = 1378470, upload-time = "2026-05-14T18:19:53.881Z" },
     { url = "https://files.pythonhosted.org/packages/71/a1/10d12e9b7908775cf97ad9e6c3d94b4b970940c74a161cc9aaf540fa83c0/tskit-1.0.3-cp312-cp312-win32.whl", hash = "sha256:3e11c9fe328b27c0e4a3ff64a0fed972d2cd48a743c03c8bc339352664322ee8", size = 450010, upload-time = "2026-05-14T18:19:55.419Z" },
     { url = "https://files.pythonhosted.org/packages/2c/b7/d1842bec89cd4993958165d6da774e85ad79b9426baca571c39457a1b6b5/tskit-1.0.3-cp312-cp312-win_amd64.whl", hash = "sha256:66c83c7f971bc160fd29ca6169e1ee31023a5283ca88936df3eed1e568eee209", size = 496000, upload-time = "2026-05-14T18:19:56.75Z" },
-]
-
-[[package]]
-name = "tsls"
-version = "0.1.dev117"
-source = { git = "https://github.com/tskit-dev/tsls#a32ce0681f9bf5c46f9caf784ea0427241515ac0" }
-dependencies = [
-    { name = "numpy" },
-    { name = "tskit" },
 ]
 
 [[package]]

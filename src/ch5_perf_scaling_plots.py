@@ -21,11 +21,49 @@ class ScalingPlots:
         self.sample_sizes = self.cohorts.num_samples.to_numpy()
         self.cutoffs = sorted({run['af_cutoff'] for dataset in self.datasets for run in dataset['runs']})
         self.colors = dict(zip(self.cutoffs, self.style['cutoff_colors'], strict=True))
+        single_setting = all(len(dataset['runs']) == 1 for dataset in self.datasets)
+        self.panel_cutoffs = [None] if single_setting and len(self.cutoffs) > 1 else self.cutoffs
+        labels = config.get('cohort_labels', {})
+        self.cohort_labels = {row.dataset: labels.get(row.dataset, f'{row.num_samples:,}')
+                              for row in self.cohorts.itertuples()}
+        self.sample_labels = [self.cohort_labels[name] for name in self.cohorts.dataset]
         plt.rcParams.update({'figure.dpi': self.style['dpi'], 'font.size': self.style['font_size'],
                              'axes.spines.top': False, 'axes.spines.right': False})
 
-    def cutoff_label(self, cutoff: float, samples: int | None = None) -> str:
-        sizes = self.sample_sizes if samples is None else [samples]
+    def dataset_cutoff(self, dataset, cutoff):
+        """Use each cohort's saved setting in a single-setting panel row."""
+        return dataset['runs'][0]['af_cutoff'] if cutoff is None else cutoff
+
+    def dataset_label(self, dataset):
+        return self.cohort_labels[dataset['name']]
+
+    def cohort_curve(self, ax, curve, metric, color, label, sem=False):
+        """Keep real-data points separate from simulated sample-size curves."""
+        truth = self.cohorts.set_index('dataset').has_truth
+        simulated = curve.dataset.map(truth)
+        for is_simulation in [True, False]:
+            values = curve.loc[simulated.eq(is_simulation)].sort_values('num_samples')
+            if len(values) == 0:
+                continue
+            sem_column = 'sem' if metric == 'mean' else metric.removesuffix('_mean') + '_sem'
+            yerr = values[sem_column] if sem else None
+            marker = 'o' if is_simulation else self.style.get('real_data_marker', 'o')
+            ax.errorbar(values.num_samples, values[metric], yerr=yerr, color=color,
+                        marker=marker, markersize=self.style['marker_size'],
+                        linewidth=self.style['line_width'], capsize=3,
+                        linestyle='-' if is_simulation or not truth.any() else 'none', label=label)
+            label = None
+
+    def cutoff_label(self, cutoff: float | None, samples: int | None = None) -> str:
+        if cutoff is None:
+            return 'Cohort-specific AF'
+        if samples is None:
+            sizes = []
+            for dataset, size in zip(self.datasets, self.sample_sizes, strict=True):
+                if any(run['af_cutoff'] == cutoff for run in dataset['runs']):
+                    sizes.append(size)
+        else:
+            sizes = [samples]
         counts = [str(round(2 * int(size) * cutoff)) for size in sizes]
         return f"AF ≤ {cutoff:g} [AC {' / '.join(counts)}]"
 
@@ -39,9 +77,21 @@ class ScalingPlots:
             ax.tick_params(axis='y', labelleft=True)
         return figure, axes
 
-    def sample_axis(self, ax):
+    def sample_axis(self, ax, datasets=None):
+        if datasets is None:
+            selected = np.ones(len(self.cohorts), dtype=bool)
+        else:
+            selected = self.cohorts.dataset.isin(datasets)
         ax.set_xscale('log')
-        ax.set_xticks(self.sample_sizes, labels=[f'{value:,}' for value in self.sample_sizes])
+        labels = np.asarray(self.sample_labels)[selected]
+        ax.set_xticks(self.sample_sizes[selected], labels=labels)
+        rotation = self.style.get('sample_tick_rotation', 0)
+        alignments = self.style.get('sample_tick_alignments', {})
+        names = self.cohorts.loc[selected, 'dataset']
+        for label, name in zip(ax.get_xticklabels(), names, strict=True):
+            label.set_rotation(rotation)
+            default_alignment = 'center' if rotation == 0 else 'right'
+            label.set_horizontalalignment(alignments.get(name, default_alignment))
         ax.minorticks_off()
         ax.set_xlabel('Samples (diploid individuals)')
 
@@ -74,10 +124,7 @@ class ScalingPlots:
             for cutoff, color, label in curves:
                 selected = table.method.eq('full_hmm') if cutoff is None else table.af_cutoff.eq(cutoff)
                 curve = table.loc[selected].sort_values('num_samples')
-                yerr = curve[metric.removesuffix('_mean') + '_sem'] if sem else None
-                ax.errorbar(curve.num_samples, curve[metric], yerr=yerr, color=color,
-                            marker='o', markersize=self.style['marker_size'],
-                            linewidth=self.style['line_width'], capsize=3, label=label)
+                self.cohort_curve(ax, curve, metric, color, label, sem=sem)
             self.sample_axis(ax)
             ax.set_ylabel(ylabel)
             if log_y:
@@ -93,13 +140,14 @@ class ScalingPlots:
         return figure
 
     def coverage(self, table):
-        figure, axes = self.panels(columns=len(self.cutoffs), title='Physical focal coverage by population')
-        for ax, cutoff in zip(axes.flat, self.cutoffs, strict=True):
+        figure, axes = self.panels(columns=len(self.panel_cutoffs), title='Physical focal coverage by population')
+        for ax, cutoff in zip(axes.flat, self.panel_cutoffs, strict=True):
             for population, color in self.style['population_colors'].items():
-                curve = table.loc[table.af_cutoff.eq(cutoff) & table.population_group.eq(population)]
-                curve = curve.sort_values('num_samples')
-                ax.errorbar(curve.num_samples, curve['mean'], yerr=curve['sem'], color=color,
-                            label=population, marker='o', capsize=3)
+                selected = table.population_group.eq(population)
+                if cutoff is not None:
+                    selected &= table.af_cutoff.eq(cutoff)
+                curve = table.loc[selected]
+                self.cohort_curve(ax, curve, 'mean', color, population, sem=True)
             self.sample_axis(ax)
             ax.set(title=self.cutoff_label(cutoff), ylabel='Physical focal coverage (%)')
             ax.margins(y=self.style['range_margin'])
@@ -108,15 +156,16 @@ class ScalingPlots:
         return figure
 
     def focal_lengths(self, lengths, unit, num_bins):
-        figure, axes = self.panels(rows=len(self.cutoffs), columns=len(self.datasets),
+        figure, axes = self.panels(rows=len(self.panel_cutoffs), columns=len(self.datasets),
                                    title=f'Retained focal lengths · {unit}')
         source = lengths.loc[~lengths.is_gap & lengths.unit.eq(unit)]
-        for row, cutoff in enumerate(self.cutoffs):
-            pooled = source.loc[source.af_cutoff.eq(cutoff)]
+        for row, panel_cutoff in enumerate(self.panel_cutoffs):
+            pooled = source if panel_cutoff is None else source.loc[source.af_cutoff.eq(panel_cutoff)]
             upper = ch5_perf_scaling.weighted_quantile(pooled, self.style['length_display_quantile'])
             bins = np.linspace(0, upper, num_bins + 1)
             grid = np.linspace(0, upper, self.style['kde_grid_size'])
             for col, dataset in enumerate(self.datasets):
+                cutoff = self.dataset_cutoff(dataset, panel_cutoff)
                 ax = axes[row, col]
                 samples = self.sample_sizes[col]
                 values = pooled.loc[pooled.dataset.eq(dataset['name'])]
@@ -129,7 +178,7 @@ class ScalingPlots:
                 minimum = dataset['runs'][0]['min_focal_region_size'] if unit == 'sites' else dataset['runs'][0]['min_region_size_kb']
                 label = f'{minimum:,} site minimum' if unit == 'sites' else f'{minimum:g} kb mean equivalent'
                 ax.axvline(minimum, linestyle='--', color='gray', label=label)
-                ax.set(title=f'n = {samples:,} · {self.cutoff_label(cutoff, samples)}',
+                ax.set(title=f'{self.dataset_label(dataset)} · {self.cutoff_label(cutoff, samples)}',
                        xlabel=f'Focal length ({unit})', ylabel='Count per bin', xlim=(0, upper), ylim=(0, None))
                 ax.legend(fontsize='small')
         return figure
@@ -141,7 +190,9 @@ class ScalingPlots:
         grid = np.linspace(0, upper, self.style['kde_grid_size'])
         for col, dataset in enumerate(self.datasets):
             ax = axes[0, col]
-            for cutoff, color in self.colors.items():
+            for run in dataset['runs']:
+                cutoff = run['af_cutoff']
+                color = self.colors[cutoff]
                 values = source.loc[source.dataset.eq(dataset['name']) & source.af_cutoff.eq(cutoff)]
                 median = ch5_perf_scaling.weighted_quantile(values, 0.5)
                 density = ch5_perf_scaling.length_density(values, grid)
@@ -149,7 +200,7 @@ class ScalingPlots:
                 label = f'{self.cutoff_label(cutoff, self.sample_sizes[col])}\nmedian {median:.1f} kb; tail {tail:.1%}'
                 ax.plot(grid, density, color=color, label=label)
                 ax.axvline(median, color=color, linestyle='--', linewidth=self.style['line_width'])
-            ax.set(title=f'n = {self.sample_sizes[col]:,}', xlabel='Gap length (kb)',
+            ax.set(title=self.dataset_label(dataset), xlabel='Gap length (kb)',
                    ylabel='Density per kb', xlim=(0, upper), ylim=(0, None))
             ax.legend(fontsize='small')
         self.zoom_y(axes.flat, lower=0)
@@ -178,7 +229,7 @@ class ScalingPlots:
             minimum_kb = dataset['runs'][0]['min_region_size_kb']
             minimum_sites = dataset['runs'][0]['min_focal_region_size']
             labels = [self.cutoff_label(cutoff, samples) for cutoff in self.cutoffs]
-            ax.set(title=f'n = {samples:,} · minimum {minimum_kb:g} kb ({minimum_sites:,} sites)',
+            ax.set(title=f'{self.dataset_label(dataset)} · minimum {minimum_kb:g} kb ({minimum_sites:,} sites)',
                    xticks=np.arange(len(self.cutoffs)), xticklabels=labels,
                    xlabel='AF cutoff', ylabel='Number of one-site gaps')
             ax.ticklabel_format(axis='y', style='plain')
@@ -187,10 +238,11 @@ class ScalingPlots:
         return figure
 
     def switch_composition(self, summary):
-        figure, axes = self.panels(rows=len(self.cutoffs), columns=len(self.datasets),
+        figure, axes = self.panels(rows=len(self.panel_cutoffs), columns=len(self.datasets),
                                    title='Switch composition · each AF uses its own focal mask')
-        for row, cutoff in enumerate(self.cutoffs):
+        for row, panel_cutoff in enumerate(self.panel_cutoffs):
             for col, dataset in enumerate(self.datasets):
+                cutoff = self.dataset_cutoff(dataset, panel_cutoff)
                 ax = axes[row, col]
                 values = summary.loc[summary.dataset.eq(dataset['name']) & summary.af_cutoff.eq(cutoff)].iloc[0]
                 bottom = np.zeros(2)
@@ -199,7 +251,7 @@ class ScalingPlots:
                     height = np.array([values[f'full_{category}_switches_mean'], values[f'stitched_{category}_switches_mean']])
                     ax.bar([0, 1], height, bottom=bottom, color=color, label=label, width=self.style['bar_width'])
                     bottom += height
-                ax.set(title=f'n = {self.sample_sizes[col]:,} · {self.cutoff_label(cutoff, self.sample_sizes[col])}',
+                ax.set(title=f'{self.dataset_label(dataset)} · {self.cutoff_label(cutoff, self.sample_sizes[col])}',
                        xticks=[0, 1], xticklabels=['Full HMM', 'Stitched'], ylabel='Mean switches per haplotype')
         handles, labels = axes[0, 0].get_legend_handles_labels()
         figure.legend(handles, labels, loc='outside lower center', ncol=len(labels))
@@ -245,7 +297,9 @@ class ScalingPlots:
         for row, (metric, label) in enumerate(metrics.items()):
             for col, dataset in enumerate(self.datasets):
                 ax = axes[row, col]
-                for cutoff, color in self.colors.items():
+                for run in dataset['runs']:
+                    cutoff = run['af_cutoff']
+                    color = self.colors[cutoff]
                     selected = table.dataset.eq(dataset['name']) & table.af_cutoff.eq(cutoff)
                     values = table.loc[selected, metric].dropna().to_numpy()
                     if np.ptp(values) == 0:
@@ -254,7 +308,7 @@ class ScalingPlots:
                         grid = np.linspace(values.min(), values.max(), self.style['kde_grid_size'])
                         ax.plot(grid, stats_density(values, grid), color=color,
                                 label=self.cutoff_label(cutoff, self.sample_sizes[col]))
-                ax.set(title=f'n = {self.sample_sizes[col]:,}', xlabel=label, ylabel='Density', ylim=(0, None))
+                ax.set(title=self.dataset_label(dataset), xlabel=label, ylabel='Density', ylim=(0, None))
                 ax.legend(fontsize='small')
         return figure
 
@@ -262,7 +316,7 @@ class ScalingPlots:
         if metrics is None:
             metrics = {'pearson_r': 'Pearson r',
                        'median_absolute_error_generations': 'Median absolute error (generations)'}
-        references = ['truth', 'full_hmm'] if self.cohorts.has_truth.all() else ['full_hmm']
+        references = ['truth', 'full_hmm'] if self.cohorts.has_truth.any() else ['full_hmm']
         figure, axes = self.panels(rows=len(references), columns=len(metrics),
                                    title=f'Mutation ages · {frequency_bin}')
         for row, reference in enumerate(references):
@@ -275,8 +329,8 @@ class ScalingPlots:
                 for cutoff, color, label in methods:
                     method_mask = selected.method.eq('full_hmm') if cutoff is None else selected.af_cutoff.eq(cutoff)
                     curve = selected.loc[method_mask].sort_values('num_samples')
-                    ax.plot(curve.num_samples, curve[metric], marker='o', color=color, label=label)
-                self.sample_axis(ax)
+                    self.cohort_curve(ax, curve, metric, color, label)
+                self.sample_axis(ax, datasets=selected.dataset.unique())
                 reference_label = 'Truth' if reference == 'truth' else 'Full HMM'
                 ax.set(title=f'Compared with {reference_label}', ylabel=ylabel)
                 if metric in ['pearson_r', 'spearman_r']:
@@ -289,26 +343,31 @@ class ScalingPlots:
         return figure
 
     def age_density(self, correlations, reference):
-        cases = [None, *self.cutoffs] if reference == 'truth' else self.cutoffs
+        datasets = [dataset for dataset in self.datasets
+                    if reference != 'truth' or dataset['truth'] is not None]
+        cases = [('greedy', cutoff) for cutoff in self.panel_cutoffs]
+        if reference == 'truth':
+            cases.insert(0, ('full_hmm', None))
         reference_label = 'True' if reference == 'truth' else 'Full HMM'
-        figure, axes = self.panels(rows=len(cases), columns=len(self.datasets),
+        figure, axes = self.panels(rows=len(cases), columns=len(datasets),
                                    title=f'Mutation-age pairs · compared with {reference_label} ages')
         tables = []
         maximum = self.style['age_minimum']
-        for dataset in self.datasets:
+        for dataset in datasets:
             path = self.config['cache_dir'] / 'age_pairs' / f"{dataset['name']}.parquet"
             stored = pl.read_parquet(path)
             table = pd.DataFrame({name: stored[name].to_numpy() for name in stored.columns})
             tables.append(table)
-            columns = [reference, 'full_hmm', *[f'af_{cutoff}' for cutoff in self.cutoffs]]
+            columns = [reference, 'full_hmm', *[f"af_{run['af_cutoff']}" for run in dataset['runs']]]
             quantiles = table[columns].quantile(self.style['age_maximum_quantile'])
             maximum = max(maximum, quantiles.max())
         minimum = self.style['age_minimum']
         extent = (np.log10(minimum), np.log10(maximum), np.log10(minimum), np.log10(maximum))
         collections = []
-        for row, cutoff in enumerate(cases):
-            key = 'full_hmm' if cutoff is None else f'af_{cutoff}'
-            for col, dataset in enumerate(self.datasets):
+        for row, (method, panel_cutoff) in enumerate(cases):
+            for col, dataset in enumerate(datasets):
+                cutoff = self.dataset_cutoff(dataset, panel_cutoff)
+                key = 'full_hmm' if method == 'full_hmm' else f'af_{cutoff}'
                 ax = axes[row, col]
                 table = tables[col]
                 selected = table[reference].ge(minimum) & table[key].ge(minimum)
@@ -317,14 +376,17 @@ class ScalingPlots:
                                    gridsize=self.style['age_hexbin_gridsize'], mincnt=1, bins='log', cmap='viridis')
                 collections.append(artist)
                 ax.plot([minimum, maximum], [minimum, maximum], color='red', linestyle='--', linewidth=1)
-                method = 'Full HMM' if cutoff is None else self.cutoff_label(cutoff, self.sample_sizes[col])
-                ax.set(title=f'n = {self.sample_sizes[col]:,} · {method}', xlim=(minimum, maximum),
+                samples = len(dataset['cohort']) // 2
+                label = 'Full HMM' if method == 'full_hmm' else self.cutoff_label(cutoff, samples)
+                ax.set(title=f'{self.dataset_label(dataset)} · {label}', xlim=(minimum, maximum),
                        ylim=(minimum, maximum), xlabel=f'{reference_label} mutation age (generations)',
                        ylabel='Estimated mutation age (generations)')
                 scores = correlations.loc[correlations.dataset.eq(dataset['name'])
                                           & correlations.reference_method.eq(reference)
                                           & correlations.frequency_bin.eq('all')]
-                scores = scores.loc[scores.method.eq('full_hmm')] if cutoff is None else scores.loc[scores.af_cutoff.eq(cutoff)]
+                scores = scores.loc[scores.method.eq(method)]
+                if method == 'greedy':
+                    scores = scores.loc[scores.af_cutoff.eq(cutoff)]
                 result = scores.iloc[0]
                 ax.text(0.04, 0.96, f'r = {result.pearson_r:.3f}\nN = {result.matched_mutations:,}',
                         transform=ax.transAxes, va='top', bbox={'facecolor': 'white', 'alpha': 0.8, 'edgecolor': 'none'})

@@ -18,20 +18,16 @@ def tgp_store(tmp_path):
     group.create_array("variant_position", data=positions)
     group.create_array("variant_1kgp_all_subset_derived_count", data=derived)
     group.create_array("variant_1kgp_all_subset_ancestral_count", data=8 - derived)
-    for index, name in enumerate(ch3_plot.PlotConfig().tgp_variant_masks, start=1):
-        mask = np.zeros(len(positions), dtype=np.int8)
-        mask[index] = 1
-        group.create_array(name, data=mask)
     return path
 
 
 class TestTgpDaf:
-    def test_masks_and_half_open_region_preserve_singletons(self, tgp_store):
+    def test_unfiltered_half_open_region_preserves_all_variants(self, tgp_store):
         config = ch3_plot.PlotConfig(tgp_region_start=10, tgp_region_end=100)
         variants = ch3_plot.load_tgp_daf(tgp_store, config)
-        assert variants.position.tolist() == [60, 70, 80, 90]
-        assert variants.derived_count.tolist() == [1, 3, 7, 8]
-        assert variants.num_alleles.tolist() == [8, 8, 8, 8]
+        assert variants.position.tolist() == list(range(10, 100, 10))
+        assert variants.derived_count.tolist() == [2, 2, 2, 2, 2, 1, 3, 7, 8]
+        assert variants.num_alleles.tolist() == [8] * 9
 
     def test_counts_and_axes_match_simulation_conventions(self, tgp_store, monkeypatch):
         config = ch3_plot.PlotConfig(
@@ -56,7 +52,7 @@ class TestTgpDaf:
         ax = fig.axes[0]
         # Explicit counts include the singleton and the rightmost endpoint.
         expected = ndi.gaussian_filter1d(
-            np.array([1., 1., 0., 2.]), config.daf_smoothing_bins, mode="reflect"
+            np.array([1., 6., 0., 2.]), config.daf_smoothing_bins, mode="reflect"
         )
         tgp_line = ax.lines[-1]
         np.testing.assert_allclose(tgp_line.get_ydata(), expected)

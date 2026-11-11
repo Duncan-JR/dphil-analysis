@@ -22,7 +22,7 @@ def overlap_csv(tmp_path):
                     allele_frequency=frequency, num_errors=num_errors,
                     num_should_be_0=num_errors if site != 2 else 0,
                     num_should_be_1=num_errors if site == 2 else 0,
-                    overlap_span=overlap, side=side,
+                    overlap_span=overlap, overlap_site_span=10, side=side,
                     geno_multiplier=0, phase_ser=0, mispol_rate=0,
                 ))
     for profile in ("geno_multiplier", "phase_ser", "mispol_rate"):
@@ -47,6 +47,7 @@ def directional_comparisons():
         "true_focal_site": range(6),
         "allele_frequency": [0.01, 0.01, 0.01, 0.5, 1, 0.9],
         "overlap_span": [1, 9, 90, 500, 500, 1],
+        "overlap_site_span": [1, 9, 10, 5, 5, 1],
         "num_errors": [1, 1, 1, 1, 2, 198],
         "num_should_be_0": [1, 1, 0, 1, 1, 99],
         "num_should_be_1": [0, 0, 1, 0, 1, 99],
@@ -54,6 +55,20 @@ def directional_comparisons():
 
 
 class TestAncestorOverlapErrors:
+    def test_unsplit_burden_uses_total_rates_on_log_axis(self, overlap_comparisons, monkeypatch):
+        summary = ch3_plot.summarise_ancestor_overlap_errors(
+            overlap_comparisons, cutoffs=[0, 0.1, 0.5, 1],
+        )
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
+        fig = ch3_plot.plot_ancestor_overlap_errors(summary, split_error_types=False)
+        burden = fig.axes[1]
+        expected = summary.mismatch_fraction.to_numpy()
+        np.testing.assert_allclose([bar.get_height() for bar in burden.patches], expected, equal_nan=True)
+        assert burden.get_legend() is None
+        assert burden.get_yscale() == "log"
+        assert all(bar.get_hatch() is None for bar in burden.patches)
+        plt.close(fig)
+
     def test_burden_change_labels_use_reference_pooled_rates(self, overlap_comparisons, monkeypatch):
         frame = overlap_comparisons.copy()
         increased = (frame.version == "0.5.1") & (frame.true_focal_site == 0)
@@ -64,12 +79,12 @@ class TestAncestorOverlapErrors:
         config = ch3_plot.PlotConfig()
         figures = []
         monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: figures.append(fig))
-        ch3_plot.plot_ancestor_overlap_errors(summary, config=config, show_burden_change=True)
+        ch3_plot.plot_ancestor_overlap_errors(summary, config=config, show_mismatch_change=True)
         labels = figures[0].axes[1].texts
         assert [label.get_text() for label in labels] == ["+100.00%", "", "-50.00%"]
         assert all(label.get_color() == config.version_colors[1] for label in labels)
-        assert labels[0].xy[1] == pytest.approx(2 / 1000)
-        assert labels[2].xy[1] == pytest.approx(1 / 100)
+        assert labels[0].xy[1] == pytest.approx(2 / 20)
+        assert labels[2].xy[1] == pytest.approx(1 / 10)
         plt.close(figures[0])
 
     def test_loader_counts_whole_overlap_once_and_selects_error_free_profiles(self, overlap_comparisons):
@@ -85,14 +100,25 @@ class TestAncestorOverlapErrors:
         )
         old = summary.loc[summary.version == "0.4.1"].set_index("bin")
         new = summary.loc[summary.version == "0.5.1"].set_index("bin")
-        assert old.loc[0, "error_burden"] == pytest.approx(1 / 1000)
+        assert old.loc[0, "mismatch_fraction"] == pytest.approx(1 / 20)
         assert old.loc[0, "error_free_fraction"] == 0.5
         assert new.loc[0, "error_free_fraction"] == 1
         assert old.num_ancestors.tolist() == [2, 0, 1]
-        assert np.isnan(old.loc[1, "error_burden"])
+        assert np.isnan(old.loc[1, "mismatch_fraction"])
         assert np.isnan(old.loc[1, "error_free_fraction"])
-        assert old.loc[2, "error_burden"] == pytest.approx(2 / 100)
+        assert old.loc[2, "mismatch_fraction"] == pytest.approx(2 / 10)
         assert old.loc[2, "error_free_fraction"] == 0
+
+    def test_physical_length_does_not_change_mismatch_fraction(self, overlap_comparisons):
+        original = ch3_plot.summarise_ancestor_overlap_errors(overlap_comparisons)
+        changed = overlap_comparisons.copy()
+        changed["overlap_span"] *= 100
+        actual = ch3_plot.summarise_ancestor_overlap_errors(changed)
+        np.testing.assert_allclose(actual.mismatch_fraction, original.mismatch_fraction, equal_nan=True)
+        changed["overlap_site_span"] *= 2
+        actual = ch3_plot.summarise_ancestor_overlap_errors(changed)
+        np.testing.assert_allclose(actual.mismatch_fraction, original.mismatch_fraction / 2, equal_nan=True)
+        np.testing.assert_allclose(actual.error_free_fraction, original.error_free_fraction, equal_nan=True)
 
     def test_duplicate_side_rows_are_rejected(self, overlap_comparisons):
         repeated = pd.concat([overlap_comparisons, overlap_comparisons.iloc[:1]])
@@ -134,14 +160,14 @@ class TestAncestorOverlapErrors:
         assert [bar.get_height() for bar in fig.axes[2].patches] == [2, 0, 1]
         assert fig.axes[0].get_ylim() == (0, 1)
         assert fig.axes[1].get_yscale() == "log"
-        assert fig.axes[1].patches[0].get_height() == pytest.approx(1 / 1000)
+        assert fig.axes[1].patches[0].get_height() == pytest.approx(1 / 20)
         solid = fig.axes[1].patches[:3]
         hatched = fig.axes[1].patches[3:6]
         np.testing.assert_allclose(
-            [bar.get_height() for bar in solid], [1 / 1000, np.nan, 0], equal_nan=True,
+            [bar.get_height() for bar in solid], [1 / 20, np.nan, 0], equal_nan=True,
         )
         np.testing.assert_allclose(
-            [bar.get_height() for bar in hatched], [0, np.nan, 2 / 100], equal_nan=True,
+            [bar.get_height() for bar in hatched], [0, np.nan, 2 / 10], equal_nan=True,
         )
         for lower, upper in zip(solid, hatched):
             assert upper.get_hatch() == "///"
@@ -167,8 +193,8 @@ class TestAncestorErrorTypes:
         # Stored num_should_be_0 is true 1 / inferred 0, so it should be 1.
         assert summary.should_be_1_errors.tolist() == [2, 2]
         assert summary.should_be_0_errors.tolist() == [1, 1]
-        np.testing.assert_allclose(summary.should_be_1_burden, [0.02, 0.002])
-        np.testing.assert_allclose(summary.should_be_0_burden, [0.01, 0.001])
+        np.testing.assert_allclose(summary.should_be_1_mismatch_fraction, [0.1, 0.2])
+        np.testing.assert_allclose(summary.should_be_0_mismatch_fraction, [0.05, 0.1])
 
     def test_20_fixed_bins_include_boundaries_and_leave_empty_rates_undefined(self, directional_comparisons):
         frame = pd.concat([directional_comparisons.iloc[:1]] * 5, ignore_index=True)
@@ -181,8 +207,8 @@ class TestAncestorErrorTypes:
         assert summary.loc[1, "num_ancestors"] == 2
         assert summary.loc[19, "num_ancestors"] == 2
         assert summary.loc[2, "num_ancestors"] == 0
-        assert np.isnan(summary.loc[2, "should_be_0_burden"])
-        assert np.isnan(summary.loc[2, "should_be_1_burden"])
+        assert np.isnan(summary.loc[2, "should_be_0_mismatch_fraction"])
+        assert np.isnan(summary.loc[2, "should_be_1_mismatch_fraction"])
         np.testing.assert_allclose(summary.bin_right - summary.bin_left, 0.05)
         np.testing.assert_allclose(summary.daf, np.arange(20) * 0.05 + 0.025)
 
@@ -213,6 +239,7 @@ def demography_paths(overlap_csv, tmp_path):
     for index, model in enumerate(["out_of_africa", "admixture", "africa", "zigzag"]):
         selected = frame.copy()
         selected["overlap_span"] *= index + 1
+        selected["overlap_site_span"] *= index + 1
         path = tmp_path / f"{model}.csv"
         selected.to_csv(path, index=False)
         paths[model] = path
@@ -220,6 +247,33 @@ def demography_paths(overlap_csv, tmp_path):
 
 
 class TestDemographyComparisons:
+    def test_quantile_panels_use_full_data_and_linear_units(self, demography_paths, monkeypatch):
+        comparisons = ch3_plot.load_demography_comparisons(demography_paths)
+        labels = {model: model for model in demography_paths}
+        config = ch3_plot.PlotConfig()
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
+        fig = ch3_plot.plot_demography_overshoot_quantiles(comparisons, labels, config=config)
+        assert len(fig.axes) == 8
+        for row, model in enumerate(labels):
+            central, tails = fig.axes[2 * row:2 * row + 2]
+            assert central.get_xlim() == config.demography_quantile_center_limits_kb
+            assert tails.get_xlim() == config.demography_quantile_tail_limits_mb
+            assert central.get_xscale() == tails.get_xscale() == "linear"
+            assert central.get_ylabel() == labels[model]
+            for index, (version, color) in enumerate(zip(config.versions, config.version_colors)):
+                values = comparisons.loc[
+                    (comparisons.model == model) & (comparisons.version == version), "overshoot"
+                ]
+                expected = values.quantile([0.001, 0.01, 0.25, 0.5, 0.75, 0.99, 0.999])
+                iqr, median = central.lines[2 * index:2 * index + 2]
+                outer, inner = tails.lines[2 * index:2 * index + 2]
+                np.testing.assert_allclose(iqr.get_xdata(), expected.loc[[0.25, 0.75]] / config.bp_per_kb)
+                np.testing.assert_allclose(median.get_xdata(), [expected.loc[0.5] / config.bp_per_kb])
+                np.testing.assert_allclose(outer.get_xdata(), expected.loc[[0.001, 0.999]] / config.bp_per_mb)
+                np.testing.assert_allclose(inner.get_xdata(), expected.loc[[0.01, 0.99]] / config.bp_per_mb)
+                assert iqr.get_color() == median.get_color() == outer.get_color() == inner.get_color() == color
+        plt.close(fig)
+
     def test_loader_selects_error_free_profiles_and_retains_both_sides(self, demography_paths):
         comparisons = ch3_plot.load_demography_comparisons(demography_paths)
         assert len(comparisons) == 48
@@ -234,12 +288,12 @@ class TestDemographyComparisons:
             selected = summary.loc[summary.model == model].set_index("version")
             assert selected.num_ancestors.tolist() == [3, 3]
             assert selected.overlap_bp.tolist() == [1100 * (index + 1)] * 2
-            assert selected.loc["0.4.1", "error_burden"] == pytest.approx(3 / (1100 * (index + 1)))
-            assert selected.loc["0.5.1", "error_burden"] == pytest.approx(1 / (1100 * (index + 1)))
+            assert selected.loc["0.4.1", "mismatch_fraction"] == pytest.approx(3 / (30 * (index + 1)))
+            assert selected.loc["0.5.1", "mismatch_fraction"] == pytest.approx(1 / (30 * (index + 1)))
             assert selected.loc["0.4.1", "error_free_fraction"] == pytest.approx(1 / 3)
             np.testing.assert_allclose(
-                selected.should_be_0_burden + selected.should_be_1_burden,
-                selected.error_burden,
+                selected.should_be_0_mismatch_fraction + selected.should_be_1_mismatch_fraction,
+                selected.mismatch_fraction,
             )
 
     def test_categorical_plots_have_four_groups_and_no_count_panel(self, demography_paths, monkeypatch):
@@ -262,8 +316,8 @@ class TestDemographyComparisons:
         assert len(burden.axes[1].patches) == 16
         assert burden.axes[1].get_yscale() == "log"
         assert [text.get_text() for text in burden.axes[1].get_xticklabels()] == list(labels.values())
-        assert burden.axes[1].patches[0].get_height() == pytest.approx(1 / 1100)
-        assert burden.axes[1].patches[3].get_height() == pytest.approx(1 / 4400)
+        assert burden.axes[1].patches[0].get_height() == pytest.approx(1 / 30)
+        assert burden.axes[1].patches[3].get_height() == pytest.approx(1 / 120)
         for figure in captured:
             plt.close(figure)
 

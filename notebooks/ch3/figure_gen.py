@@ -21,18 +21,26 @@
 # Only cells marked #include export their referenced figure files to
 # dphil-thesis/figures/ch3. The tree illustration exports the PDF used by TeX;
 # SVG source stays in memory for notebook display without creating SVG files.
-# Simulation figures use the full alternative 0.5 aggregate in data/ch3, with
-# separate focal-site caches in data/ch3/alt_version. The multiple-demography
-# comparison uses the alternative Out-of-Africa aggregate and updated new-branch
+# Simulation figures use the updated 20 Mb aggregate in data/ch3, with
+# separate focal-site caches in data/ch3/current. The multiple-demography
+# comparison uses this Out-of-Africa aggregate and updated new-branch
 # aggregates for the other three models.
 # The plotting module is self-contained and does not import `tsinfer-paper`.
 # Run src/ch3_extract_data.py on the machine holding the variant Zarr stores.
 # Transfer PREFIX_zarr_data.csv alongside the aggregate CSV; the main plots
 # need no Zarrs locally. Per-focal-site tables are written to data_folder.
-# The separate phase-switch illustration still uses its chromosome 1 Zarrs.
+# The phase-switch illustration uses PREFIX_phase_runs.csv from the same simulation.
 # The empirical DAF comparison uses the local TGP chromosome 20 Zarr.
+#
+# To tweak a plot, edit its keyword arguments and rerun that cell. The imports
+# cell enables `%autoreload 2`, so saved changes to the plotting modules also
+# take effect without restarting the kernel or reloading the data. In an
+# already-running notebook, rerun the imports cell once to enable autoreload.
 
 # %%
+# %load_ext autoreload
+# %autoreload 2
+
 import shutil
 import subprocess
 import matplotlib.patches as mpatches
@@ -84,10 +92,12 @@ figure_folder.mkdir(parents=True, exist_ok=True)
 thesis_figure_folder.mkdir(parents=True, exist_ok=True)
 
 
-def export_thesis_figure(filename):
+def export_thesis_figure(filename, thesis_filename=None):
     """Copy a referenced figure to the thesis from a cell marked #include."""
     source = figure_folder / filename
-    destination = thesis_figure_folder / filename
+    if thesis_filename is None:
+        thesis_filename = filename
+    destination = thesis_figure_folder / thesis_filename
     shutil.copy2(source, destination)
 
 extension_config = ch3_ancestor_extension.FigureConfig(
@@ -390,18 +400,11 @@ ipd.display(ipd.SVG(extension_tree_svg))
 data_folder = pathlib.Path("~/work/dphil-analysis/data/ch3").expanduser()
 aggregated_folder = pathlib.Path("~/work/tsinfer-anc-eval/data/anc_eval/dataframes").expanduser()
 data_prefix = "OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1"
-standard_aggregated_path = aggregated_folder / f"{data_prefix}-aggregated.csv"
-aggregated_path = data_folder / f"{data_prefix}-aggregated_alt_version.csv"
-# Separate caches keep the original and alternative algorithm results distinct.
-focal_data_folder = data_folder / "alt_version"
+aggregated_path = data_folder / f"{data_prefix}-aggregated.csv"
+focal_data_folder = data_folder / "current"
 focal_data_folder.mkdir(exist_ok=True)
-# The preprocessing helper expects the canonical aggregate filename.
-preprocessing_input = focal_data_folder / f"{data_prefix}-aggregated.csv"
-if not preprocessing_input.exists():
-    preprocessing_input.symlink_to(aggregated_path)
 zarr_data_path = data_folder / f"{data_prefix}_zarr_data.csv"
-phasing_folder = pathlib.Path("~/work/tsinfer-anc-eval/data/phasing").expanduser()
-phasing_prefix = "OutOfAfrica_3G09-chr1-L0-R123400000-n20-s1"
+phase_runs_path = data_folder / f"{data_prefix}_phase_runs.csv"
 tgp_zarr_path = pathlib.Path("~/work/dphil-analysis/data/zarr_vcfs/tgp/chr20/data.zarr").expanduser()
 
 config = ch3_plot.PlotConfig(
@@ -412,13 +415,11 @@ config = ch3_plot.PlotConfig(
     tgp_region_start=0,
     tgp_region_end=20_000_000,
     jitter_alpha=0.15,  # Default opacity for all jitter points (alpha can override).
-    phase_ser=0.0003,
-    phase_right_mb=123.4,
-    phase_individuals=5,
+    phase_right_mb=20,
     workers=None,  # Use available CPU cores for focal-site preprocessing.
     dpi=300,
 )
-# Rebuild automatically when the full alternative simulation or truth changes.
+# Rebuild automatically when the updated simulation or truth changes.
 rebuild_focal_tables = False
 focal_paths = ch3_plot.FocalPaths(
     focal_data_folder / f"{data_prefix}_focal_overshoots.csv",
@@ -435,11 +436,11 @@ focal_cache_current = all(
 )
 if rebuild_focal_tables or not focal_cache_current:
     processed_paths = ch3_plot.preprocess_data(
-        preprocessing_input, zarr_data_path, focal_data_folder, config
+        aggregated_path, zarr_data_path, focal_data_folder, config
     )
 data = ch3_plot.load_data(focal_data_folder, data_prefix, config)
-# Available pure phase-error rates are included in the exported CSV.
-config.phase_rates = data.phase_rates
+# Read the current phase settings from the aggregate, not the older Zarr summary.
+config.phase_spacings = data.phase_spacings
 
 # %% [markdown]
 # ## Error-free results
@@ -454,6 +455,8 @@ config.phase_rates = data.phase_rates
 # overshoot per side. Sites remain separate when they share a true or inferred
 # ancestor, including when their polarisation states differ. Counts below the
 # boxes show focal sites per bin. Bins use each focal allele's observed frequency.
+# Jitter points between -1 and +1 Mb are sampled uniformly (up to 1,500 per
+# group); all points outside are shown. Boxes and quantile caps use every observation.
 
 # %%
 # Focal-site counts use a logarithmic scale, with exact counts above each bar.
@@ -536,8 +539,11 @@ export_thesis_figure("ancestor_span_frequency_tgp.png")
 # %%
 
 #include
+# Show every focal-site side with smaller markers; other boxplots retain their sampling settings.
+frequency_boxplot_config = dataclasses.replace(config, jitter_max_points=None, jitter_size=3.5)
+frequency_boxplot_data = dataclasses.replace(data, config=frequency_boxplot_config)
 ch3_plot.plot_ancestor_overshoot(
-    data,
+    frequency_boxplot_data,
     figure_folder=figure_folder,
     cutoffs=[0,0.001,0.003,0.02,0.5,1],
     conf=0.001,
@@ -547,20 +553,19 @@ ch3_plot.plot_ancestor_overshoot(
 export_thesis_figure("ancestor_overshoot_boxplot.png")
 
 # %% [markdown]
-# ### Pooled overlap error burden
+# ### Pooled overlap mismatch fraction
 #
 # Use the same error-free profiles and frequency bins as the overshoot plot.
 # Error counts and overlap lengths describe the whole shared overlap and are
 # repeated on left/right rows, so use only the left row of each focal-site
 # comparison. Comparisons sharing an ancestor remain separate, matching the
 # overshoot plot. The top panel shows the proportion with zero ancestral-state
-# errors. The middle panel pools `sum(num_errors) / sum(overlap_span)` within
+# errors. The middle panel pools `sum(num_errors) / sum(overlap_site_span)` within
 # each version and bin, rather than averaging per-comparison error rates.
-# Bars stack true 1 / observed 0 errors (solid) below true 0 / observed 1
-# errors (white with diagonal lines in the version colour). Separate legends
-# identify version colours and error directions.
-# Orange labels above the pooled-burden bars show 100 × (0.5 / 0.4 - 1),
-# using each version's total pooled error burden in that frequency bin.
+# Solid bars show total mismatch fraction without splitting error directions;
+# colours identify tsinfer versions and the mismatch-fraction axis is logarithmic.
+# Orange labels above the pooled-mismatch-fraction bars show 100 × (0.5 / 0.4 - 1),
+# using each version's total pooled mismatch fraction in that frequency bin.
 # The bottom panel counts focal-site comparisons, shared by both versions.
 # This figure is saved for the error-free results section of the thesis.
 
@@ -575,9 +580,11 @@ ancestor_error_summary = ch3_plot.summarise_ancestor_overlap_errors(
 ch3_plot.plot_ancestor_overlap_errors(
     ancestor_error_summary,
     figure_folder=figure_folder,
-    config=dataclasses.replace(config, ancestor_error_label_decimals=4),
+    config=dataclasses.replace(config, ancestor_error_label_decimals=4, ancestor_error_y_log=True),
     figsize=config.ancestor_error_size,
-    show_burden_change=True,
+    show_mismatch_change=True,
+    panel_labels=("A", "B", "C"),
+    split_error_types=False,
 )
 export_thesis_figure("ancestor_overlap_errors.png")
 
@@ -587,20 +594,21 @@ export_thesis_figure("ancestor_overlap_errors.png")
 # Compare error-free profiles from four simulations, each with 6,000 diploid
 # individuals across the first 20 Mb of chromosome 20. The American admixture
 # simulation samples 1,500 individuals from each of its four populations.
-# Both figures pool all focal allele frequencies within each demographic model.
+# All comparisons pool focal allele frequencies within each demographic model.
 # The usual overshoot boxes retain both sides per focal site, with the same
 # jitter and 0.1% tail quantiles as the error-free overshoot plot above.
-# The pooled burden uses each whole overlap once (left rows only), retaining
+# The pooled mismatch fraction uses each whole overlap once (left rows only), retaining
 # the error-free proportion and stacked error-direction panels without counts.
-# Both figures are exported to the thesis figure folder.
+# The two-column quantile summary and pooled mismatch fraction are exported to the thesis;
+# the original jitter boxplot remains in the notebook for comparison.
 #
-# Out of Africa uses the full alternative 0.5 aggregate in data/ch3; the
+# Out of Africa uses the updated 20 Mb aggregate in data/ch3; the
 # other three models use the replacement aggregates generated with the new branch.
 
 # %%
 demography_labels = {
     "OutOfAfrica_3G09": "Out of Africa\n(3G09)",
-    "AmericanAdmixture_4B18": "American admixture\n(4B18)",
+    "AmericanAdmixture_4B18": "American\nadmixture\n(4B18)",
     "Africa_1T12": "Africa\n(1T12)",
     "Zigzag_1S14": "Zigzag\n(1S14)",
 }
@@ -614,14 +622,25 @@ demography_comparisons = ch3_plot.load_demography_comparisons(
 )
 
 # %%
-#include
 ch3_plot.plot_demography_overshoot_box(
     demography_comparisons, demography_labels, config=config,
     figure_folder=figure_folder,
-    conf=0.001, conf_secondary=0.01, figsize=(8.5, 4.5),
-    y_log=False,
+    conf=0.001, conf_secondary=0.01, figsize=(7, 3.5),
+    y_log=True,
 )
-export_thesis_figure("demography_overshoot_box.png")
+
+# %% [markdown]
+# The thesis uses a separate two-column quantile summary: medians and IQRs
+# on a central kb axis, and extreme quantiles on a full-range Mb axis.
+# Each demographic model has its own row, with the usual version colours.
+
+# %%
+#include
+ch3_plot.plot_demography_overshoot_quantiles(
+    demography_comparisons, demography_labels, config=config,
+    figure_folder=figure_folder, figsize=(8, 4.5),
+)
+export_thesis_figure("demography_overshoot_quantiles.png", "demography_overshoot_box.png")
 
 # %% [markdown]
 # #### Verification: IQRs and tail quantiles used in the text
@@ -732,30 +751,45 @@ demography_tail_changes = pd.DataFrame(index=list(demography_labels))
 demography_tail_changes.index.name = "model"
 demography_tail_changes["lower_0_4_mb"] = demography_lower_primary[demography_old_version] / config.bp_per_mb
 demography_tail_changes["lower_0_5_mb"] = demography_lower_primary[demography_new_version] / config.bp_per_mb
-demography_tail_changes["primary_lower_change_kb"] = (
+demography_tail_changes["lower_0_4_bp"] = demography_lower_primary[demography_old_version]
+demography_tail_changes["lower_0_5_bp"] = demography_lower_primary[demography_new_version]
+demography_tail_changes["primary_lower_change_bp"] = (
     demography_lower_primary[demography_new_version] - demography_lower_primary[demography_old_version]
-) / demography_check_settings["bp_per_kb"]
+)
+demography_tail_changes["primary_lower_change_kb"] = (
+    demography_tail_changes.primary_lower_change_bp / demography_check_settings["bp_per_kb"]
+)
 demography_tail_changes["upper_0_4_mb"] = demography_upper_primary[demography_old_version] / config.bp_per_mb
 demography_tail_changes["upper_0_5_mb"] = demography_upper_primary[demography_new_version] / config.bp_per_mb
 demography_tail_changes["upper_reduction_kb"] = (
     demography_upper_primary[demography_old_version] - demography_upper_primary[demography_new_version]
 ) / demography_check_settings["bp_per_kb"]
-demography_tail_changes["secondary_lower_change_kb"] = (
+demography_tail_changes["secondary_lower_change_bp"] = (
     demography_lower_secondary[demography_new_version] - demography_lower_secondary[demography_old_version]
-) / demography_check_settings["bp_per_kb"]
+)
+demography_tail_changes["secondary_lower_change_kb"] = (
+    demography_tail_changes.secondary_lower_change_bp / demography_check_settings["bp_per_kb"]
+)
 assert demography_tail_changes.upper_reduction_kb.gt(0).all()
 ipd.display(demography_tail_changes.style.format("{:.5f}")
             .set_caption("Paired changes: positive lower change = less negative; positive upper reduction = shorter upper tail"))
+demography_lower_change_sum_bp = demography_tail_changes.primary_lower_change_bp.sum()
 demography_lower_change_sum_kb = demography_tail_changes.primary_lower_change_kb.sum()
 demography_num_models = len(demography_tail_changes)
+demography_mean_lower_change_bp = demography_lower_change_sum_bp / demography_num_models
 demography_mean_lower_change_kb = demography_lower_change_sum_kb / demography_num_models
 demography_lower_change_working = pd.DataFrame([{
+    "sum_of_primary_lower_changes_bp": demography_lower_change_sum_bp,
     "sum_of_primary_lower_changes_kb": demography_lower_change_sum_kb,
     "num_equally_weighted_models": demography_num_models,
+    "mean_primary_lower_change_bp": demography_mean_lower_change_bp,
     "mean_primary_lower_change_kb": demography_mean_lower_change_kb,
+    "mean_secondary_lower_change_bp": demography_tail_changes.secondary_lower_change_bp.mean(),
 }])
 ipd.display(demography_lower_change_working.style.format({
+    "sum_of_primary_lower_changes_bp": "{:.5f}", "mean_primary_lower_change_bp": "{:.5f}",
     "sum_of_primary_lower_changes_kb": "{:.5f}", "mean_primary_lower_change_kb": "{:.5f}",
+    "mean_secondary_lower_change_bp": "{:.5f}",
 }).set_caption("Working for the text: sum of four paired lower-tail changes / 4"))
 
 
@@ -771,21 +805,22 @@ demography_error_summary = ch3_plot.summarise_demography_overlap_errors(
     demography_comparisons,
 )
 ch3_plot.plot_ancestor_overlap_errors(
-    demography_error_summary, config=dataclasses.replace(config, ancestor_error_label_decimals=4), figsize=(8.5, 4.8),
+    demography_error_summary, config=dataclasses.replace(config, ancestor_error_label_decimals=4, ancestor_error_y_log=False), figsize=(8.5, 4.8),
     figure_folder=figure_folder,
     group_by="model", group_labels=demography_labels, show_counts=False,
-    name="demography_overlap_errors", show_burden_change=True,
+    name="demography_overlap_errors", show_mismatch_change=True,
+    panel_labels=("A", "B"),
 )
 export_thesis_figure("demography_overlap_errors.png")
 
 # %% [markdown]
-# #### Verification: error-containing comparisons and pooled burden
+# #### Verification: error-containing comparisons and pooled mismatch fraction
 #
 # The whole-overlap error counts and lengths are duplicated on left/right
 # rows. Keep only the **left** row, once per model, version, replicate and
 # focal site. Comparisons sharing an ancestor remain separate.
 # `error-containing fraction = count(num_errors > 0) / number of comparisons`;
-# `pooled burden = sum(num_errors) / sum(overlap_span)`.
+# `pooled mismatch fraction = sum(num_errors) / sum(overlap_site_span)`.
 # The increase in the fraction containing errors is reported in **percentage
 # points**, separately from the relative percentage increase.
 
@@ -798,27 +833,28 @@ demography_error_checks = demography_whole_overlaps.groupby(["model", "version"]
     num_with_errors=("contains_error", "sum"),
     total_errors=("num_errors", "sum"),
     total_overlap_bp=("overlap_span", "sum"),
+    total_overlap_sites=("overlap_site_span", "sum"),
     true_0_observed_1_errors=("num_should_be_1", "sum"),
     true_1_observed_0_errors=("num_should_be_0", "sum"),
 )
 demography_error_checks = demography_error_checks.reindex(demography_group_order)
 demography_error_checks["num_error_free"] = demography_error_checks.num_comparisons - demography_error_checks.num_with_errors
 demography_error_checks["fraction_with_errors"] = demography_error_checks.num_with_errors / demography_error_checks.num_comparisons
-demography_error_checks["pooled_burden_errors_per_bp"] = demography_error_checks.total_errors / demography_error_checks.total_overlap_bp
+demography_error_checks["pooled_mismatch_fraction"] = demography_error_checks.total_errors / demography_error_checks.total_overlap_sites
 demography_plotted_error_summary = demography_error_summary.set_index(["model", "version"])
 demography_plotted_error_summary = demography_plotted_error_summary.reindex(demography_group_order)
 np.testing.assert_array_equal(demography_error_checks.num_comparisons, demography_plotted_error_summary.num_ancestors)
 np.testing.assert_array_equal(demography_error_checks.num_error_free, demography_plotted_error_summary.num_error_free)
-np.testing.assert_allclose(demography_error_checks.pooled_burden_errors_per_bp, demography_plotted_error_summary.error_burden)
+np.testing.assert_allclose(demography_error_checks.pooled_mismatch_fraction, demography_plotted_error_summary.mismatch_fraction)
 ipd.display(demography_error_checks[[
     "num_comparisons", "num_error_free", "num_with_errors", "fraction_with_errors",
-    "total_errors", "total_overlap_bp", "pooled_burden_errors_per_bp",
+    "total_errors", "total_overlap_sites", "pooled_mismatch_fraction",
 ]].style.format({
     "num_comparisons": "{:,.0f}", "num_error_free": "{:,.0f}",
     "num_with_errors": "{:,.0f}", "fraction_with_errors": "{:.6f}",
-    "total_errors": "{:,.0f}", "total_overlap_bp": "{:,.0f}",
-    "pooled_burden_errors_per_bp": "{:.8e}",
-}).set_caption("Numerators and denominators: count of error-containing comparisons, and ratio-of-sums burden"))
+    "total_errors": "{:,.0f}", "total_overlap_sites": "{:,.0f}",
+    "pooled_mismatch_fraction": "{:.8e}",
+}).set_caption("Numerators and denominators: count of error-containing comparisons, and ratio-of-sums mismatch fraction"))
 
 # %%
 demography_error_fractions = demography_error_checks.fraction_with_errors.unstack("version")
@@ -834,6 +870,43 @@ demography_error_changes["relative_increase_pct"] = 100 * (
 )
 ipd.display(demography_error_changes.style.format("{:.5f}")
             .set_caption("Version comparison: absolute percentage-point change versus relative percentage increase"))
+
+# Reproduce the relative percentage changes labelled on the pooled-mismatch-fraction bars.
+demography_mismatch_fractions = demography_error_checks.pooled_mismatch_fraction.unstack("version")
+demography_error_totals = demography_error_checks.total_errors.unstack("version")
+demography_overlap_totals = demography_error_checks.total_overlap_sites.unstack("version")
+demography_error_counts = demography_error_checks.num_with_errors.unstack("version")
+demography_mismatch_changes = pd.DataFrame(index=list(demography_labels))
+demography_mismatch_changes.index.name = "model"
+demography_mismatch_changes["change_in_comparisons_with_errors"] = (
+    demography_error_counts[demography_new_version] - demography_error_counts[demography_old_version]
+)
+demography_mismatch_changes["change_in_total_errors"] = (
+    demography_error_totals[demography_new_version] - demography_error_totals[demography_old_version]
+)
+demography_mismatch_changes["change_in_total_overlap_sites"] = (
+    demography_overlap_totals[demography_new_version] - demography_overlap_totals[demography_old_version]
+)
+demography_mismatch_changes["relative_mismatch_increase_pct"] = 100 * (
+    demography_mismatch_fractions[demography_new_version] / demography_mismatch_fractions[demography_old_version] - 1
+)
+demography_plot_mismatch_fractions = demography_plotted_error_summary.mismatch_fraction.unstack("version")
+demography_plot_mismatch_changes = 100 * (
+    demography_plot_mismatch_fractions[demography_new_version] / demography_plot_mismatch_fractions[demography_old_version] - 1
+)
+np.testing.assert_allclose(
+    demography_mismatch_changes.relative_mismatch_increase_pct,
+    demography_plot_mismatch_changes.reindex(demography_labels),
+)
+demography_mismatch_changes["plot_label"] = demography_mismatch_changes.relative_mismatch_increase_pct.map(
+    f"{{:+.{config.ancestor_error_change_decimals}f}}%".format
+)
+ipd.display(demography_mismatch_changes.style.format({
+    "change_in_comparisons_with_errors": "{:+,.0f}",
+    "change_in_total_errors": "{:+,.0f}",
+    "change_in_total_overlap_sites": "{:+,.0f}",
+    "relative_mismatch_increase_pct": "{:+.8f}",
+}).set_caption("Pooled mismatch fraction: 100 × [(total errors / total compared inference sites) in 0.5 / that in 0.4 − 1]"))
 
 # %% [markdown]
 # **Error-direction check.** The aggregate writer's names are reversed:
@@ -853,32 +926,32 @@ np.testing.assert_array_equal(
 )
 demography_direction_checks["true_0_error_share_pct"] = 100 * demography_direction_checks.true_0_observed_1_errors / demography_direction_checks.total_errors
 demography_direction_checks["true_1_error_share_pct"] = 100 * demography_direction_checks.true_1_observed_0_errors / demography_direction_checks.total_errors
-demography_direction_checks["true_0_errors_per_bp"] = demography_direction_checks.true_0_observed_1_errors / demography_error_checks.total_overlap_bp
-demography_direction_checks["true_1_errors_per_bp"] = demography_direction_checks.true_1_observed_0_errors / demography_error_checks.total_overlap_bp
+demography_direction_checks["true_0_mismatch_fraction"] = demography_direction_checks.true_0_observed_1_errors / demography_error_checks.total_overlap_sites
+demography_direction_checks["true_1_mismatch_fraction"] = demography_direction_checks.true_1_observed_0_errors / demography_error_checks.total_overlap_sites
 assert demography_direction_checks.true_1_error_share_pct.gt(50).all()
-demography_derived_burdens = demography_direction_checks.true_1_errors_per_bp.unstack("version")
+demography_derived_mismatch_fractions = demography_direction_checks.true_1_mismatch_fraction.unstack("version")
 for version in config.versions:
-    african_burden = demography_derived_burdens.loc["Africa_1T12", version]
-    other_burdens = demography_derived_burdens.drop(index="Africa_1T12")[version]
-    assert other_burdens.gt(african_burden).all()
+    african_fraction = demography_derived_mismatch_fractions.loc["Africa_1T12", version]
+    other_fractions = demography_derived_mismatch_fractions.drop(index="Africa_1T12")[version]
+    assert other_fractions.gt(african_fraction).all()
 ipd.display(demography_direction_checks.style.format({
     "true_0_observed_1_errors": "{:,.0f}", "true_1_observed_0_errors": "{:,.0f}",
     "total_errors": "{:,.0f}", "true_0_error_share_pct": "{:.3f}",
-    "true_1_error_share_pct": "{:.3f}", "true_0_errors_per_bp": "{:.8e}",
-    "true_1_errors_per_bp": "{:.8e}",
-}).set_caption("Direction counts, shares and burdens; true 1 errors are the majority in every model/version"))
+    "true_1_error_share_pct": "{:.3f}", "true_0_mismatch_fraction": "{:.8e}",
+    "true_1_mismatch_fraction": "{:.8e}",
+}).set_caption("Direction counts, shares and mismatch fractions; true 1 errors are the majority in every model/version"))
 
 # %% [markdown]
 # ### Direction of ancestral-state errors in tsinfer 0.5
 #
 # Split the error-free tsinfer 0.5 focal-site comparisons into 20 fixed-width
 # DAF bins, each covering 5 percentage points. Plot rates at bin midpoints,
-# pooling each error type over the bin's total overlapping bp. Include DAF 1
+# pooling each error type over the bin's total compared inference sites. Include DAF 1
 # in the final bin; empty bins have undefined rates.
 # The aggregate writer's names are reversed: `num_should_be_0` counts true 1
 # inferred as 0, and `num_should_be_1` counts true 0 inferred as 1. Legend labels
 # describe the true and observed states of each error direction.
-# Colours match the genotype-transition plot; zero burdens are gaps on the log
+# Colours match the genotype-transition plot; zero mismatch fractions are gaps on the log
 # scale. This exploratory figure is saved in dphil-analysis/figures/ch3.
 
 # %%
@@ -911,6 +984,207 @@ ch3_plot.plot_genotype_error_scaling(
 export_thesis_figure("genotype_error_scaling.png")
 
 # %% [markdown]
+# ### Published genotype error benchmarks: working for the thesis requests
+#
+# Count a dosage mismatch once per diploid genotype and pool numerators and
+# denominators across replicates. Use **true** frequencies, as in the extraction
+# code. DAF and MAF are different: MAF = min(DAF, 1 - DAF), so Masaki's
+# MAF > 0.001 restriction also excludes DAF >= 0.999. Retain the requested DAF
+# split and calculate the matching MAF split separately. Include all stored
+# sites in the unstratified rate, including sites monomorphic in this sample.
+#
+# Published inputs checked against the original articles:
+#
+# - Masaki, Browning & Browning (2024), [doi:10.1371/journal.pgen.1011297](https://doi.org/10.1371/journal.pgen.1011297):
+#   UKB WGS, MAF > 0.001, total genotype error probability 0.00032 (0.032%;
+#   90% CI 0.028-0.062%). This **includes** errors attributed to uncalled
+#   deletions; it is not the residual rate after subtracting their 77% share.
+# - 1000 Genomes Project Consortium (2015), [doi:10.1038/nature15393](https://doi.org/10.1038/nature15393):
+#   SNP heterozygous-genotype accuracy 99.4%, giving 0.6% error. The exported
+#   simulation counts do not identify all errors conditional on a true
+#   heterozygote, so an exactly matched simulation denominator is unavailable.
+# - Browning & Browning (2022), [doi:10.1016/j.ajhg.2022.04.019](https://doi.org/10.1016/j.ajhg.2022.04.019):
+#   UKB SNP-array genotype error 0.060%, estimated using all autosomal markers
+#   and 1,064 trios, without marker filtering. This is a per-genotype estimate,
+#   distinct from the 0.13% duplicate discordance reported by Bycroft et al.
+# - Baes et al. (2014), [doi:10.1186/1471-2164-15-948](https://doi.org/10.1186/1471-2164-15-948):
+#   65 Swiss dairy cattle; average WGS-versus-array genotype concordance 99.2%
+#   at correctly identified SNVs, giving 0.8% discordance. Both assay errors
+#   and ascertainment can contribute, so this is a nominal stress-test target.
+#
+# The review misattributes *Genotype and SNP calling from next-generation
+# sequencing data* (doi:10.1038/nrg2986) to Li; its first author is Nielsen.
+#
+# For a published target r between measured simulation rates r_a and r_b at
+# multipliers a and b, interpolate on the original probability scale:
+# lambda = a + (r - r_a) * (b - a) / (r_b - r_a).
+# Include (0, 0) explicitly. This differs from the small-error approximation
+# lambda = r / r_1; calculate both below. Use the matching MAF stratum for
+# Masaki and the unstratified simulation for unstratified studies. Matching
+# the numerical 1000GP and cattle targets does not match their denominators
+# or establish equivalent error processes. The cattle interpolation spans
+# the wide interval 10-100 and should be treated as coarse.
+
+# %%
+genotype_benchmark_settings = {
+    "frequency_cutoff": 0.001,
+    "multipliers": (1, 2, 5, 10, 100),
+    "percent": 100,
+    "bp_per_kb": 1000,
+    "benchmarks": [
+        {"study": "UKB WGS (Masaki 2024)", "published_rate": 0.00032,
+         "simulation_stratum": "MAF > 0.001", "nominal_only": False},
+        {"study": "1000GP SNP heterozygotes (2015)", "published_rate": 0.006,
+         "simulation_stratum": "All sites", "nominal_only": True},
+        {"study": "UKB SNP arrays (Browning 2022)", "published_rate": 0.0006,
+         "simulation_stratum": "All sites", "nominal_only": False},
+        {"study": "Dairy cattle WGS vs array (Baes 2014)", "published_rate": 0.008,
+         "simulation_stratum": "All sites", "nominal_only": True},
+    ],
+}
+genotype_benchmark_counts = data.zarr_data.loc[
+    (data.zarr_data.record_type == "genotype")
+    & (data.zarr_data.phase_ser == 0)
+    & (data.zarr_data.mispol_rate == 0)
+    & data.zarr_data.geno_multiplier.isin(genotype_benchmark_settings["multipliers"])
+].copy()
+genotype_benchmark_count_columns = [
+    "changed", "total", "homozygous_0", "homozygous_2",
+    "to_heterozygous_0", "to_heterozygous_2",
+]
+genotype_benchmark_counts[genotype_benchmark_count_columns] = (
+    genotype_benchmark_counts[genotype_benchmark_count_columns].astype("int64")
+)
+assert not genotype_benchmark_counts.duplicated([
+    "replicate", "geno_multiplier", "derived_count",
+]).any()
+genotype_benchmark_counts["daf"] = (
+    genotype_benchmark_counts.derived_count / genotype_benchmark_counts.num_alleles
+)
+# Classify using integer allele counts to include both boundary counts exactly.
+genotype_minor_counts = np.minimum(
+    genotype_benchmark_counts.derived_count,
+    genotype_benchmark_counts.num_alleles - genotype_benchmark_counts.derived_count,
+)
+genotype_frequency_boundary = (
+    genotype_benchmark_settings["frequency_cutoff"] * genotype_benchmark_counts.num_alleles
+)
+genotype_benchmark_masks = {
+    "All sites": genotype_benchmark_counts.total > 0,
+    "DAF <= 0.001": genotype_benchmark_counts.derived_count <= genotype_frequency_boundary,
+    "DAF > 0.001": genotype_benchmark_counts.derived_count > genotype_frequency_boundary,
+    "MAF <= 0.001": genotype_minor_counts <= genotype_frequency_boundary,
+    "MAF > 0.001": genotype_minor_counts > genotype_frequency_boundary,
+}
+genotype_frequency_tables = []
+for stratum, mask in genotype_benchmark_masks.items():
+    stratum_counts = genotype_benchmark_counts.loc[mask]
+    pooled = stratum_counts.groupby("geno_multiplier")[genotype_benchmark_count_columns].sum()
+    pooled["stratum"] = stratum
+    pooled["error_rate"] = pooled.changed / pooled.total
+    pooled["error_pct"] = genotype_benchmark_settings["percent"] * pooled.error_rate
+    genotype_frequency_tables.append(pooled.reset_index())
+genotype_frequency_checks = pd.concat(genotype_frequency_tables, ignore_index=True)
+genotype_frequency_checks = genotype_frequency_checks.rename(columns={"geno_multiplier": "multiplier"})
+genotype_frequency_checks["homozygous_0_fraction"] = (
+    genotype_frequency_checks.homozygous_0 / genotype_frequency_checks.total
+)
+for frequency_type in ["DAF", "MAF"]:
+    partition = genotype_frequency_checks.loc[
+        genotype_frequency_checks.stratum.isin([
+            f"{frequency_type} <= 0.001", f"{frequency_type} > 0.001",
+        ])
+    ].groupby("multiplier")[["changed", "total"]].sum()
+    unstratified = genotype_frequency_checks.loc[
+        genotype_frequency_checks.stratum == "All sites"
+    ].set_index("multiplier")[["changed", "total"]]
+    pd.testing.assert_frame_equal(partition, unstratified)
+genotype_baseline_checks = genotype_frequency_checks.loc[
+    genotype_frequency_checks.multiplier == 1
+].set_index("stratum")
+ipd.display(genotype_baseline_checks[[
+    "changed", "total", "error_pct", "homozygous_0_fraction",
+]])
+
+# %%
+genotype_benchmark_rows = []
+for benchmark in genotype_benchmark_settings["benchmarks"]:
+    stratum_rates = genotype_frequency_checks.loc[
+        genotype_frequency_checks.stratum == benchmark["simulation_stratum"]
+    ].sort_values("multiplier")
+    interpolation_rates = np.r_[0, stratum_rates.error_rate.to_numpy()]
+    interpolation_multipliers = np.r_[0, stratum_rates.multiplier.to_numpy()]
+    assert np.all(np.diff(interpolation_rates) > 0)
+    target_rate = benchmark["published_rate"]
+    assert interpolation_rates[0] <= target_rate <= interpolation_rates[-1]
+    upper_index = np.searchsorted(interpolation_rates, target_rate, side="left")
+    lower_index = upper_index - 1
+    lower_rate = interpolation_rates[lower_index]
+    upper_rate = interpolation_rates[upper_index]
+    lower_multiplier = interpolation_multipliers[lower_index]
+    upper_multiplier = interpolation_multipliers[upper_index]
+    interpolation_fraction = (target_rate - lower_rate) / (upper_rate - lower_rate)
+    interpolated_multiplier = (
+        lower_multiplier + interpolation_fraction * (upper_multiplier - lower_multiplier)
+    )
+    baseline_rate = genotype_baseline_checks.loc[
+        benchmark["simulation_stratum"], "error_rate"
+    ]
+    genotype_benchmark_rows.append({
+        **benchmark,
+        "published_pct": genotype_benchmark_settings["percent"] * target_rate,
+        "simulation_1x_pct": genotype_benchmark_settings["percent"] * baseline_rate,
+        "lower_multiplier": lower_multiplier,
+        "upper_multiplier": upper_multiplier,
+        "lower_error_pct": genotype_benchmark_settings["percent"] * lower_rate,
+        "upper_error_pct": genotype_benchmark_settings["percent"] * upper_rate,
+        "interpolation_fraction": interpolation_fraction,
+        "interpolated_multiplier": interpolated_multiplier,
+        "linear_from_1x_multiplier": target_rate / baseline_rate,
+    })
+genotype_benchmark_checks = pd.DataFrame(genotype_benchmark_rows)
+ipd.display(genotype_benchmark_checks)
+
+# %% [markdown]
+# The existing comparison sentence explicitly refers to DAF > 0.001, so its
+# percentage contrasts below use that stratum throughout. The table uses
+# MAF > 0.001 for Masaki and all sites for the other studies. These are relative
+# percentage differences, 100 * (simulation / published - 1), rather than
+# percentage-point differences. In particular, the 1000GP heterozygote-only
+# and unstratified UKB-array comparisons do not establish an accuracy ranking
+# for matched genotypes. MAF > 0.001 gives a nearly identical, but distinct,
+# Masaki comparison; retain the exact calculation below.
+#
+# The low DAF-bin aggregate error rate is compatible with higher conditional
+# error rates for rare non-reference genotypes: almost all diploid calls in
+# this bin are ancestral homozygotes. Changes in genotype composition and the
+# empirical frequency-dependent error probabilities both affect the aggregate.
+
+# %%
+genotype_daf_comparison_rate = genotype_baseline_checks.loc["DAF > 0.001", "error_rate"]
+genotype_comparison_checks = genotype_benchmark_checks[[
+    "study", "published_rate", "published_pct",
+]].copy()
+genotype_comparison_checks["daf_gt_0_001_simulation_pct"] = (
+    genotype_benchmark_settings["percent"] * genotype_daf_comparison_rate
+)
+genotype_comparison_checks["relative_difference_pct"] = (
+    genotype_benchmark_settings["percent"]
+    * (genotype_daf_comparison_rate / genotype_comparison_checks.published_rate - 1)
+)
+genotype_comparison_checks["difference_percentage_points"] = (
+    genotype_comparison_checks.daf_gt_0_001_simulation_pct
+    - genotype_comparison_checks.published_pct
+)
+genotype_masaki_target = genotype_benchmark_settings["benchmarks"][0]["published_rate"]
+genotype_masaki_maf_relative_difference_pct = (
+    genotype_benchmark_settings["percent"]
+    * (genotype_baseline_checks.loc["MAF > 0.001", "error_rate"] / genotype_masaki_target - 1)
+)
+ipd.display(genotype_comparison_checks)
+print(f"MAF-matched relative difference from Masaki: {genotype_masaki_maf_relative_difference_pct:.6f}%")
+
+# %% [markdown]
 # Transition rates divide 00 → 01/10 and 11 → 01/10 counts by the number of
 # original 00 and 11 calls, respectively, in each true DAF bin. Empty denominator
 # bins are gaps in the curves. The panels share a logarithmic vertical scale.
@@ -928,9 +1202,10 @@ export_thesis_figure("genotype_error_transitions.png")
 # %% [markdown]
 # Confirmation histogram layout: tsinfer 0.4 above, 0.5 below, mirrored
 # logarithmic counts and common physical overshoot bins. Negative overshoot
-# means stopping within the true ancestor. Colours run from 1× to 100×.
+# means stopping within the true ancestor. Colours run from 0× to 10×.
 # Each histogram is followed by a separate grouped boxplot. White boxes with
-# black borders and whiskers overlay sampled central jitter and all tail points.
+# black borders and whiskers overlay sampled jitter within -1 to +1 Mb and
+# all points outside that interval.
 # Every point has the same opacity, coloured by version. Dashed caps show the
 # conf and 1-conf quantiles; the solid black line marks zero. Each comparison
 # also has two tail panels with separate x ranges for negative and positive
@@ -941,32 +1216,103 @@ export_thesis_figure("genotype_error_transitions.png")
 # supply the denominator.
 
 # %% [markdown]
-# Bars show mean signed overshoot by genotype error, coloured by version,
-# after averaging each focal site's two sides. The dashed black line marks zero.
+# ### Genotype-error overshoot summary
+#
+# Pool both signed focal-site sides for each version and tested multiplier.
+# A shows the median and IQR; B shows the fraction strictly below -10 Mb.
 
 # %%
-#include: right of plot
-ch3_plot.plot_genotype_overshoot_mean(
-    data,
-    figure_folder=figure_folder,
-    figsize=(5, 4.5),
+genotype_overshoot_config = dataclasses.replace(config, genotype_multipliers=(0, 1, 2, 5, 10))
+genotype_overshoot_data = dataclasses.replace(data, config=genotype_overshoot_config)
+genotype_summary_multipliers = genotype_overshoot_config.genotype_multipliers
+genotype_overshoot_summary = ch3_plot.summarise_overshoots(
+    ch3_plot._genotype_overshoots(data), "geno_multiplier", genotype_summary_multipliers, config,
 )
-export_thesis_figure("genotype_error_overshoot_mean.png")
 
 # %%
-#include: left of plot
-# Smaller legends keep the narrow histogram panels visible.
+#include: median/IQR and negative-tail summary
+ch3_plot.plot_overshoot_summary(
+    genotype_overshoot_summary, "geno_multiplier", genotype_summary_multipliers,
+    {rate: rf"$\lambda = {rate:g}$" for rate in genotype_summary_multipliers},
+    "genotype_error_overshoot_summary", figure_folder=figure_folder, config=config,
+)
+export_thesis_figure("genotype_error_overshoot_summary.png")
+
+# %%
 ch3_plot.plot_genotype_overshoot_hist(
-    data,
-    figure_folder=figure_folder,
-    figsize=(5, 4.5),
-    legend_fontsize=7.5,
+    genotype_overshoot_data, figure_folder=figure_folder, figsize=(5, 4.5), legend_fontsize=7.5,
 )
-export_thesis_figure("genotype_error_overshoot_hist.png")
+
+# %% [markdown]
+# ### Overshoot count differences
+#
+# Top step lines show tsinfer 0.4 counts. Bottom step lines show `100 × (count_0.5 − count_0.4) / count_0.4` on shared bins across versions and error profiles, using the histogram binning
+# method. Each call explicitly sets `num_bins`; change that argument to tune a particular plot. Panels have equal heights and both increase upwards. The count panel uses a log scale; the signed percentage panel uses symmetric log (linear within ±1%) to retain decreases and zeros. Bins with zero 0.4 count have undefined percentage changes and appear as gaps. Each error profile is counted separately, retaining both focal-site sides. All count-difference plots use equally spaced viridis colours from 0 to 0.8
+# for their ordered error settings, shared between panels A and B, with a legend
+# on the right. The genotype and all-frequency mispolarisation comparisons are
+# exported to the thesis.
+
+# %%
+#include: full-width count-difference figure
+ch3_plot.plot_genotype_overshoot_diff(
+    genotype_overshoot_data,
+    figure_folder=figure_folder,
+    num_bins=100,
+    figsize=(8.5, 5),
+    legend_fontsize=10,
+)
+export_thesis_figure("genotype_error_overshoot_diff.png")
+
+
+# %% [markdown]
+# ### Extreme negative histogram bin
+#
+# Reconstruct the shared edges from the same selected profiles and bin count
+# as each histogram. Counts include both sides per focal site. The leftmost
+# bin includes its left edge and excludes its right edge. Percentages use all
+# focal-site sides in the same error profile and version as the denominator.
+
+# %%
+def summarise_leftmost_overshoot_bin(frame, by, rates):
+    """Return bin boundaries, width, counts and percentages by profile/version."""
+    selected = frame.loc[frame[by].isin(rates)]
+    values_mb = selected.overshoot.to_numpy() / config.bp_per_mb
+    edges_mb = np.histogram_bin_edges(values_mb, bins=config.histogram_bins)
+    left_bp = edges_mb[0] * config.bp_per_mb
+    right_bp = edges_mb[1] * config.bp_per_mb
+    rows = []
+    for rate in rates:
+        for version in config.versions:
+            profile = selected.loc[(selected[by] == rate) & (selected.version == version)]
+            counts = np.histogram(profile.overshoot / config.bp_per_mb, edges_mb)[0]
+            rows.append({
+                by: rate, "version": version,
+                "left_edge_bp": left_bp, "right_edge_bp": right_bp,
+                "bin_width_bp": right_bp - left_bp,
+                "num_sides_in_leftmost_bin": int(counts[0]),
+                "total_num_sides": len(profile),
+                "percentage_in_leftmost_bin": 100 * int(counts[0]) / len(profile),
+            })
+    return pd.DataFrame(rows).set_index([by, "version"])
+
+
+genotype_leftmost_bin = summarise_leftmost_overshoot_bin(
+    ch3_plot._genotype_overshoots(genotype_overshoot_data), "geno_multiplier",
+    genotype_overshoot_config.genotype_multipliers,
+)
+ipd.display(genotype_leftmost_bin)
+genotype_leftmost_bin_comparison = genotype_leftmost_bin[[
+    "num_sides_in_leftmost_bin", "percentage_in_leftmost_bin",
+]].unstack("version")
+ipd.display(genotype_leftmost_bin_comparison.style.format({
+    ("num_sides_in_leftmost_bin", version): "{:,.0f}" for version in config.versions
+}).format({
+    ("percentage_in_leftmost_bin", version): "{:.6f}%" for version in config.versions
+}))
 
 # %%
 ch3_plot.plot_genotype_overshoot_box(
-    data,
+    genotype_overshoot_data,
     figure_folder=figure_folder,
     conf=0.001,
     figsize=(8.5, 3.5),
@@ -975,7 +1321,7 @@ ch3_plot.plot_genotype_overshoot_box(
 
 # %%
 ch3_plot.plot_genotype_overshoot_tails(
-    data,
+    genotype_overshoot_data,
     figure_folder=figure_folder,
     figsize=(8.5, 4.5),
     fraction_above=True,
@@ -988,53 +1334,55 @@ ch3_plot.plot_genotype_overshoot_tails(
 # show absolute site counts in 200 equal-width bins, smoothed by a Gaussian
 # kernel with a one-bin standard deviation. This keeps regeneration practical
 # for larger datasets. Counts are pooled across replicates.
-# Singletons are included in the simulation DAF plot, although the simulation
-# error generator does not mispolarise them. Retain them in the TGP spectrum too.
-# Both panels use the same bins, smoothing, x limits and logarithmic count scale.
+# Singletons are included and eligible for mispolarisation. Reconstruct the
+# segregating-site spectrum from current focal records and exported truth counts.
+# Simulation and empirical curves share one set of axes, bins and smoothing.
 # Counts are absolute: the simulation pools replicates and has 12,000 haplotypes;
 # TGP has 6,404 haplotypes from all 3,202 individuals.
 
 # %%
-#include: left of plot
+#include: combined simulation and empirical DAF
+simulation_daf_counts = ch3_plot.mispolarisation_daf_counts(data)
+tgp_variants = ch3_plot.load_tgp_daf(tgp_zarr_path, config=config)
 ch3_plot.plot_mispolarisation_daf(
     data,
+    frequencies=simulation_daf_counts,
     figure_folder=figure_folder,
-    figsize=config.daf_size,
+    tgp_variants=tgp_variants,
+    figsize=config.combined_daf_size,
 )
 export_thesis_figure("mispolarisation_daf.png")
 
 # %% [markdown]
 # ### TGP: first 20 Mbp of chromosome 20
 #
-# Apply `variant_duplicate_position_mask`, `variant_not_biallelic_mask` and
-# `variant_not_snps_mask`. Also exclude `variant_bad_ancestral_mask` and
-# `variant_no_ancestral_allele_mask`, since DAF needs a valid ancestral allele
-# present at the site. No low-allele-count, density or low-confidence ancestral
-# allele mask is applied. Stored all-sample derived counts are already polarised;
-# divide by ancestral plus derived counts to use called alleles as the denominator.
+# No variant filters or masks are applied within the region. Stored all-sample
+# derived counts are already polarised; divide by ancestral plus derived counts
+# to use called alleles as the denominator.
 # This is the recorded TGP spectrum, with no additional simulated mispolarisation.
 
 # %%
 tgp_variants = ch3_plot.load_tgp_daf(tgp_zarr_path, config=config)
-print(f"Retained TGP SNPs: {len(tgp_variants):,}")
+print(f"TGP variants in region: {len(tgp_variants):,}")
 print(f"Retained derived singletons: {(tgp_variants.derived_count == 1).sum():,}")
 
 # %%
-#include: right of plot
+# Standalone empirical diagnostic; the thesis uses the combined axes above.
 ch3_plot.plot_tgp_daf(
     tgp_variants,
     figure_folder=figure_folder,
     config=config,
     figsize=config.daf_size,
 )
-export_thesis_figure("tgp_daf.png")
 
 # %% [markdown]
 # Overshoot plots use true focal DAF from the error-free variant store, with
 # 0.5 included only in the high-frequency figure. The all-frequency plots pool
 # high and low DAFs. Pure mispolarisation profiles include the error-free
-# reference; mixed error profiles are excluded. The low-count histogram includes
-# only mispolarised focal sites with true derived count ≤ 5.
+# reference; mixed error profiles are excluded. The exported all-frequency diff
+# uses only correctly polarised focal sites. The second exported histogram uses
+# all mispolarised focal sites without a DAF or derived-count filter. Exported
+# filenames distinguish correctly polarised and flipped focal sites.
 
 # %%
 ch3_plot.plot_mispolarisation_overshoot_hist(
@@ -1042,6 +1390,24 @@ ch3_plot.plot_mispolarisation_overshoot_hist(
     figure_folder=figure_folder,
     frequency="high",
     figsize=(7, 4.5),
+)
+
+# %%
+ch3_plot.plot_mispolarisation_overshoot_diff(
+    data,
+    figure_folder=figure_folder,
+    num_bins=100,
+    frequency="high",
+    figsize=(8.5, 5),
+    legend_fontsize=10,
+)
+
+# %%
+ch3_plot.plot_mispolarisation_overshoot_scatter(
+    data,
+    figure_folder=figure_folder,
+    frequency="high",
+    figsize=(5, 4.5),
 )
 
 # %%
@@ -1069,6 +1435,24 @@ ch3_plot.plot_mispolarisation_overshoot_hist(
     figure_folder=figure_folder,
     frequency="low",
     figsize=(7, 4.5),
+)
+
+# %%
+ch3_plot.plot_mispolarisation_overshoot_diff(
+    data,
+    figure_folder=figure_folder,
+    num_bins=100,
+    frequency="low",
+    figsize=(8.5, 5),
+    legend_fontsize=10,
+)
+
+# %%
+ch3_plot.plot_mispolarisation_overshoot_scatter(
+    data,
+    figure_folder=figure_folder,
+    frequency="low",
+    figsize=(5, 4.5),
 )
 
 # %%
@@ -1096,6 +1480,27 @@ ch3_plot.plot_mispolarisation_overshoot_hist(
     figure_folder=figure_folder,
     frequency="all",
     figsize=(7, 4.5),
+)
+
+# %%
+#include: full-width mispolarisation count-difference figure
+ch3_plot.plot_mispolarisation_overshoot_diff(
+    data,
+    focal_site_mispolarised=False,
+    figure_folder=figure_folder,
+    num_bins=100,
+    frequency="all",
+    figsize=(8.5, 5),
+    legend_fontsize=10,
+)
+export_thesis_figure("mispolarisation_overshoot_correct_focal_diff.png")
+
+# %%
+ch3_plot.plot_mispolarisation_overshoot_scatter(
+    data,
+    figure_folder=figure_folder,
+    frequency="all",
+    figsize=(5, 4.5),
 )
 
 # %%
@@ -1114,10 +1519,9 @@ ch3_plot.plot_mispolarisation_overshoot_box(
 # Combine variants without splitting by true DAF. Keep the same
 # negative/positive tail curves and focal-site count
 # bars, pooling the underlying observations across both frequency groups.
-# Export this combined figure to the thesis.
+# The all-frequency diff plot above is exported to the thesis; these tail curves remain local.
 
 # %%
-#include
 ch3_plot.plot_mispolarisation_overshoot_tails(
     data,
     figure_folder=figure_folder,
@@ -1125,104 +1529,255 @@ ch3_plot.plot_mispolarisation_overshoot_tails(
     figsize=(8.5, 4.5),
     show_counts=True,
 )
-export_thesis_figure("mispolarisation_overshoot_all_frequency_tails.png")
 
 # %%
 #include
-# Top rate legend and version label mirror the bottom panel.
-ch3_plot.plot_mispolarisation_low_count_overshoot_hist(
+# Narrow overshoot panels retain the blue/orange rate palettes. Panel C plots
+# the full true DAC spectrum with straight lines joining occupied integer bins
+# and markers only at AC 1–10, on log x and y axes using the tsinfer 0.5 palette.
+# Rates are drawn largest first.
+ch3_plot.plot_mispolarised_focal_overshoot_hist(
     data,
     figure_folder=figure_folder,
-    figsize=(7, 4.5),
+    figsize=(9, 4.5),
 )
-export_thesis_figure("mispolarisation_overshoot_derived_count_le_5_hist.png")
+export_thesis_figure("mispolarisation_overshoot_flipped_focal_hist.png")
+
+# %% [markdown]
+# True singleton and doubleton counts among all mispolarised focal sites at
+# each rate, using the same tsinfer 0.5 cohort as panel C. Each focal is counted
+# once; proportions use all mispolarised focal sites at that rate as denominator.
+
+# %%
+mispolarised_focal_count_table = ch3_plot.summarise_mispolarised_focal_counts(data)
+ipd.display(mispolarised_focal_count_table.style.format({
+    "mispol_rate": "{:g}",
+    "num_mispol_focal_sites": "{:,.0f}",
+    "num_true_singletons": "{:,.0f}",
+    "num_true_doubletons": "{:,.0f}",
+    "proportion_true_singletons": "{:.3%}",
+    "proportion_true_doubletons": "{:.3%}",
+}))
+
+# %% [markdown]
+# ### Haplotype accuracy by focal-site polarisation
+#
+# Use the usual whole-overlap error panels, comparing no mispolarisation with
+# rates 0.01 and 0.1, each split into non-mispolarised then mispolarised focal
+# sites, with each pair bracketed by its dataset mispolarisation rate. Each
+# focal site contributes one overlap; errors and compared inference sites are pooled before division.
+# Truth is already recoded to the observed polarisation by tsinfer-anc-eval.
+
+# %%
+#include
+mispolarisation_overlap_comparisons = ch3_plot.load_mispolarisation_overlap_errors(
+    aggregated_path, config=config,
+)
+mispolarisation_overlap_summary = ch3_plot.summarise_mispolarisation_overlap_errors(
+    mispolarisation_overlap_comparisons,
+)
+ch3_plot.plot_mispolarisation_overlap_errors(
+    mispolarisation_overlap_summary,
+    figure_folder=figure_folder,
+    config=config,
+)
+export_thesis_figure("mispolarisation_overlap_errors.png")
+
+# %%
+ch3_plot.plot_mispolarisation_low_count_overshoot_diff(
+    data,
+    figure_folder=figure_folder,
+    num_bins=100,
+    figsize=(8.5, 5),
+    legend_fontsize=10,
+)
+
+# %%
+ch3_plot.plot_mispolarisation_low_count_overshoot_scatter(
+    data,
+    figure_folder=figure_folder,
+    figsize=(5, 4.5),
+)
+
+# %% [markdown]
+# ### DAF-stratified mismatch fraction by focal-site polarisation
+#
+# For tsinfer 0.5, compare no error, mispolarised focal sites and non-mispolarised
+# focal sites, with both latter groups from the pure rate-0.1 simulation.
+# A: pooled errors / pooled overlapping inference sites in five equal-width
+# true-DAF bins . B: grouped focal-site counts
+# in the same bins. True DAFs come from exported error-free variants, including
+# true singletons absent from error-free inference sites. Both panels use log y;
+# set `y_scale="linear"` to change the mismatch-fraction axis.
+# This exploratory figure stays in the notebook and local figure folder.
+
+# %%
+mispolarisation_mismatch_comparisons = ch3_plot.load_mispolarisation_overlap_errors(
+    aggregated_path, config=config,
+)
+mispolarisation_mismatch_summary = ch3_plot.summarise_mispolarisation_mismatch_by_daf(
+    mispolarisation_mismatch_comparisons,
+    true_frequencies=ch3_plot._true_focal_frequencies(data.zarr_data),
+    config=config, num_bins=5,
+)
+ch3_plot.plot_mispolarisation_mismatch_by_daf(
+    mispolarisation_mismatch_summary, figure_folder=figure_folder, config=config,
+    y_scale="log",
+)
 
 # %% [markdown]
 # ## Phase-switch errors
 #
-# Aligned chromosome pairs compare correct and erroneous phasing for the first
-# five individuals on chromosome 1's p arm (0–123.4 Mb, SER = 3e-4).
-# Colours track true haplotype identity using `call_genotype_phase`, including
-# homozygous sites. The two overview columns share a haplotype legend on the right.
-# Here SER applies to adjacent variant rows that are both heterozygous for the
-# individual, as defined by the simulation code.
+# All phase plots use the updated 20 Mb simulation. Each pair of illustration
+# rows shows the same two individuals at one target spacing (0.2, 2 or 20 Mb).
+# Colours follow the exported true haplotype identity, including homozygous sites.
+# The summary table includes the no-switch baseline and every tested spacing.
 
 # %%
-#include
+phase_settings = data.phase_settings.loc[lambda frame: frame.space_per_switch > 0].copy()
+phase_settings["mean_gap_mb"] = phase_settings.space_per_switch / config.bp_per_mb
+phase_settings = phase_settings[["mean_gap_mb", "phase_ser"]]
+ipd.display(phase_settings.style.format({"mean_gap_mb": "{:g}", "phase_ser": "{:.8g}"}))
+
+# %%
+#include: illustration, with grouped spacing/SER labels
 ch3_plot.plot_phase_switch_illustration(
-    phasing_folder, phasing_prefix,
+    phase_runs_path,
     figure_folder=figure_folder,
     config=config,
-    figsize=(8, 2.8),
+    figsize=(8.5, 4.5),
 )
 export_thesis_figure("phase_switch_illustration.png")
 
+# %%
+#include: median/IQR and negative-tail summary
+phase_summary_spacings = (0, *sorted(gap for gap in config.phase_spacings if gap != 0)[::-1])
+phasing_overshoot_summary = ch3_plot.summarise_overshoots(
+    ch3_plot._phasing_overshoots(data), "space_per_switch", phase_summary_spacings, config,
+)
+phase_summary_labels = {
+    gap: "No switches" if gap == 0 else f"{gap / config.bp_per_mb:g} Mb"
+    for gap in phase_summary_spacings
+}
+ch3_plot.plot_overshoot_summary(
+    phasing_overshoot_summary, "space_per_switch", phase_summary_spacings,
+    phase_summary_labels, "phasing_error_overshoot_summary", figure_folder=figure_folder,
+    config=config,
+)
+export_thesis_figure("phasing_error_overshoot_summary.png")
+
+# %%
+#include: second result plot
+ch3_plot.plot_phasing_overshoot_diff(
+    data,
+    figure_folder=figure_folder,
+    num_bins=100,
+    figsize=(8.5, 5),
+    legend_fontsize=10,
+)
+export_thesis_figure("phasing_error_overshoot_diff.png")
+
 # %% [markdown]
-# Switch error rates are read from the exported profiles. The histograms use
-# the same mirrored version layout as the genotype-error histogram, followed
-# by separate boxplots and negative/positive tail fractions.
+# ### Additional phase plots (not exported to the thesis)
+#
+# Histograms, boxes and tails use the same updated aggregate and label
+# settings by mean gap in Mb. The no-switch baseline is labelled "No errors".
 
 # %%
-#include left
 ch3_plot.plot_phasing_overshoot_hist(
-    data,
-    figure_folder=figure_folder,
-    figsize=(5, 4.5),
-    legend_fontsize=7.5,
+    data, figure_folder=figure_folder, figsize=(5, 4.5), legend_fontsize=7.5,
 )
-export_thesis_figure("phasing_error_overshoot_hist.png")
 
 # %%
-#include right
-ch3_plot.plot_phasing_overshoot_mean(
-    data,
-    figure_folder=figure_folder,
-    figsize=(5, 4.5),
+phasing_leftmost_bin = summarise_leftmost_overshoot_bin(
+    ch3_plot._phasing_overshoots(data), "space_per_switch", config.phase_spacings,
 )
-export_thesis_figure("phasing_error_overshoot_mean.png")
+ipd.display(phasing_leftmost_bin)
+phasing_leftmost_bin_comparison = phasing_leftmost_bin[[
+    "num_sides_in_leftmost_bin", "percentage_in_leftmost_bin",
+]].unstack("version")
+ipd.display(phasing_leftmost_bin_comparison.style.format({
+    ("num_sides_in_leftmost_bin", version): "{:,.0f}" for version in config.versions
+}).format({
+    ("percentage_in_leftmost_bin", version): "{:.6f}%" for version in config.versions
+}))
 
 # %%
-(0.0003+0.006)/2
-
-# %%
-# don't include anymore
 ch3_plot.plot_phasing_overshoot_box(
-    data,
-    figure_folder=figure_folder,
-    conf=0.001,
-    figsize=(8.5, 3.5),
-    y_log=False,
+    data, figure_folder=figure_folder, conf=0.001, figsize=(8.5, 3.5), y_log=False,
 )
 
 # %%
 ch3_plot.plot_phasing_overshoot_tails(
-    data,
-    figure_folder=figure_folder,
-    figsize=(8.5, 4.5),
+    data, figure_folder=figure_folder, figsize=(8.5, 4.5),
+)
+
+# %% [markdown]
+# ## Combined errors
+#
+# Compare the aggregate's named `none` and `all` profiles, pooling every
+# available replicate. The `all` profile combines the 1× empirical genotype
+# error model, a 2 Mb mean phase-switch spacing, and 1% mispolarisation.
+# Display the stored switch error rate below: it differs slightly from the
+# phasing-only profile because the combined input also has genotype errors.
+# Accuracy uses one whole overlap per focal site (left rows only); mismatch fraction
+# divides summed errors by summed compared inference sites. Overshoot counts retain
+# both sides and use 100 shared physical bins across profiles and versions.
+# The standalone plots remain here; the thesis export combines A–B on the
+# left (40% width) and C–D on the right with the usual viridis endpoint colours.
+# All panels exclude mispolarised focal sites. Panel B uses a linear mismatch-fraction axis.
+
+# %%
+combined_error_comparisons = ch3_plot.load_combined_error_comparisons(
+    aggregated_path, config=config,
+)
+combined_error_parameters = combined_error_comparisons[[
+    "error_profile", "replicate", "geno_multiplier", "space_per_switch",
+    "phase_ser", "mispol_rate",
+]].drop_duplicates().sort_values(["error_profile", "replicate"])
+ipd.display(combined_error_parameters)
+combined_error_summary = ch3_plot.summarise_combined_overlap_errors(
+    combined_error_comparisons,
+)
+ipd.display(combined_error_summary)
+
+# %%
+ch3_plot.plot_combined_overlap_errors(
+    combined_error_summary, figure_folder=figure_folder, config=config,
+    figsize=(4.4, 5.6),
 )
 
 # %%
+ch3_plot.plot_combined_overshoot_diff(
+    combined_error_comparisons, figure_folder=figure_folder, config=config,
+    num_bins=100, figsize=(8.5, 5),
+)
 
 # %%
-
-# %%
+#include
+ch3_plot.plot_combined_errors(
+    combined_error_comparisons, figure_folder=figure_folder, config=config,
+    num_bins=100,
+)
+export_thesis_figure("combined_errors.png")
 
 # %% [markdown]
 # ## Inference performance: tsinfer 0.4 versus 0.5
 #
 # These cells run independently of the simulation and Zarr analyses above.
-# The aggregate contains one run per sample size, version and stage, all with
-# 196 configured threads on the same host, over a 28.1 Mb region. No replicate
-# uncertainty is estimated. Version labels follow the benchmark CSV: the run
-# labelled 0.5.1 reports provenance version `0.5.2.dev1` (0.4.1 reports 0.4.1).
-# Speedup is `elapsed_0.4 / elapsed_0.5`: above 1 means faster in 0.5.
-# The elapsed-time stacks sum the three stages; each sample-size panel has its
-# own linear y scale in minutes so smaller runs remain visible.
-# Parentheses above the tsinfer 0.5 bars show speedup for the summed elapsed time.
-# Add 1KGP chr20p as a fifth group (6,404 haplotypes from 3,202 individuals).
-# The 1KGP comparison uses the threaded API and 504,149 filtered sites.
-# Alternative 0.5 runs are used for both datasets; original 0.4 rows are retained.
-# Both plots retain the original figure dimensions; the extra group narrows bars.
+# All plots read the benchmark's data/dataframes/perf_combined.csv, retaining
+# rep0, rep1 and rep2 for n=100, n=1,000 and 1KGP; n=10,000 and n=100,000
+# have one run each. Repetitions rerun inference on the same fixed inputs,
+# using 196 configured threads on the same host. Simulations cover 28.1 Mb;
+# 1KGP chr20p has 6,404 haplotypes and 504,149 filtered sites.
+# CSV labels 0.4 and 0.5 retain provenance versions 0.4.1 and 0.5.2.dev1.
+# Speedup bars show the mean of paired rep-wise elapsed_0.4 / elapsed_0.5,
+# with a jittered point for each rep. Values above 1 mean faster in 0.5.
+# Stacked bars show mean stage times; points at each cumulative boundary show
+# individual runs in the stage colour with black borders, with the same
+# horizontal jitter across stages within a run.
+# Parentheses show the mean paired total-time speedup; totals are mean minutes.
+# Each sample-size panel has its own linear y scale so smaller runs stay visible.
 
 # %%
 import pathlib
@@ -1233,24 +1788,17 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 perf_config = ch3_anc_perf.PlotConfig(
+    versions=("0.4", "0.5"),
     sample_labels={6404: "6,404 (1KGP)"},
     sample_titles={6404: "6,404 haplotypes\n(1KGP)"},
 )
-perf_folder = pathlib.Path("~/work/dphil-analysis/data/ch3/results").expanduser()
-perf_sources = [perf_folder / "perf_0.4.1.csv", perf_folder / "perf_0.5_alt.csv"]
-perf_frames = [pd.read_csv(path, comment="~") for path in perf_sources]
-perf_combined_alt = pd.concat(perf_frames, ignore_index=True)
-perf_combined_alt_path = perf_folder / "perf_combined_alt.csv"
-perf_combined_alt.to_csv(perf_combined_alt_path, index=False)
-original_tgp_perf = pd.read_csv(perf_folder.parent / "tgp_perf.csv")
-alternative_tgp_perf = pd.read_csv(perf_folder.parent / "tgp_perf_0.5_alt.csv")
-retained_tgp_perf = original_tgp_perf.loc[original_tgp_perf.version == perf_config.versions[0]]
-tgp_perf_alt = pd.concat([retained_tgp_perf, alternative_tgp_perf], ignore_index=True)
-tgp_perf_alt_path = perf_folder.parent / "tgp_perf_alt.csv"
-tgp_perf_alt.to_csv(tgp_perf_alt_path, index=False)
-perf_data = ch3_anc_perf.load_performance(perf_combined_alt_path, perf_config)
-tgp_perf_data = ch3_anc_perf.load_performance(tgp_perf_alt_path, perf_config)
-perf_comparison_data = pd.concat([perf_data, tgp_perf_data]).sort_index()
+perf_path = pathlib.Path(
+    "~/work/tsinfer-perf-benchmark/data/dataframes/perf_combined.csv"
+).expanduser()
+perf_comparison_data = ch3_anc_perf.load_performance(perf_path, perf_config)
+tgp_rows = perf_comparison_data.prefix.eq("1kgp-chr20-L0-R2.81e7")
+perf_data = perf_comparison_data.loc[~tgp_rows]
+tgp_perf_data = perf_comparison_data.loc[tgp_rows]
 
 # %%
 #include
@@ -1279,10 +1827,14 @@ export_thesis_figure("inference_performance_elapsed.png")
 # Peak resident memory from each stage's provenance, converted from bytes to
 # GiB. Memory is not additive across stages. Each stage runs in a fresh process;
 # its high-water mark includes setup and input loading. Log-log axes show
-# scaling across the four sample sizes, with shared limits for all stages.
+# scaling across the four simulation sample sizes, with shared stage limits.
+# Lines connect means across reps; small jittered points retain individual runs.
+# Triangles mark mean 1KGP chr20p values, with its individual reps also shown.
 
 # %%
-perf_memory_figure = ch3_anc_perf.plot_resources(perf_data, "memory_gib", perf_config)
+perf_memory_figure = ch3_anc_perf.plot_resources(
+    perf_data, "memory_gib", perf_config, reference_data=tgp_perf_data,
+)
 perf_memory_figure.savefig(
     figure_folder / "inference_performance_memory.png",
     dpi=300, bbox_inches="tight", facecolor="white",
@@ -1298,8 +1850,11 @@ plt.show()
 # This measures achieved CPU concurrency, not
 # speedup from threading: there is no single-threaded baseline here. Shared
 # linear y axes allow comparison between stages; the dotted line marks the
-# 196 configured threads.
-# Triangles show 1KGP chr20p (6,404 haplotypes), with colours identifying
+# 192-core reference.
+# Lines connect mean per-run concurrency; capped error bars span min to max
+# across reps, without individual jittered points. Single runs have zero range.
+# Triangles show mean 1KGP chr20p (6,404 haplotypes) with the same min–max
+# error bars, with colours identifying
 # tsinfer versions in both datasets. Both datasets use the threaded API.
 
 # %%
@@ -1317,9 +1872,9 @@ export_thesis_figure("inference_performance_parallelism.png")
 # %% [markdown]
 # ### Verification: performance numbers used in the text
 #
-# Ratios compare unchanged 0.4.1 runs with alternative 0.5 runs. CPU time
-# includes user and system time; total elapsed time sums all three stages.
-# These are single runs without uncertainty estimates.
+# Stage rows retain every repetition and compare matching rep IDs.
+# CPU time includes user and system time. Totals sum stages within each run;
+# the second table reports mean total minutes and mean paired total speedup.
 # The old scheduler replay caches describe the original 0.5 ancestor files.
 # New ancestor files and logs are needed before repeating that analysis.
 # Their group statistics must not be combined with the alternative timings.
@@ -1338,11 +1893,14 @@ for metric, output_name in [
     new_values = perf_text_checks[(metric, perf_config.versions[1])]
     perf_text_checks[(output_name, "0.4 / 0.5")] = old_values / new_values
 ipdisplay.display(perf_text_checks.style.format("{:.4f}"))
-perf_total_seconds = perf_comparison_data.elapsed_time.groupby(["num_samples", "version"]).sum()
+perf_total_seconds = perf_comparison_data.elapsed_time.groupby(
+    ["num_samples", "version", "rep"]
+).sum()
 perf_totals = perf_total_seconds.unstack("version")
-perf_total_checks = perf_totals / perf_config.seconds_per_minute
+perf_total_checks = perf_totals.groupby("num_samples").mean() / perf_config.seconds_per_minute
 perf_total_checks.columns = [f"{version}_minutes" for version in perf_total_checks.columns]
-perf_total_checks["total_speedup"] = perf_totals[perf_config.versions[0]] / perf_totals[perf_config.versions[1]]
+perf_total_speedup = perf_totals[perf_config.versions[0]] / perf_totals[perf_config.versions[1]]
+perf_total_checks["total_speedup"] = perf_total_speedup.groupby("num_samples").mean()
 ipdisplay.display(perf_total_checks.style.format("{:.4f}"))
 perf_site_checks = perf_comparison_data.num_sites.unstack("version")
 assert perf_site_checks[perf_config.versions[0]].equals(perf_site_checks[perf_config.versions[1]])
@@ -1352,8 +1910,8 @@ assert perf_site_checks[perf_config.versions[0]].equals(perf_site_checks[perf_co
 #
 # Count focal sites separately, but ancestor IDs once within each replicate.
 # Rare-tail cutoffs pool both focal-site sides, matching the overshoot plot.
-# Overall error fractions count each focal-site overlap once; error burden
-# divides summed errors by summed overlapping bp, without averaging bin rates.
+# Overall error fractions count each focal-site overlap once; mismatch fraction
+# divides summed errors by summed compared inference sites, without averaging bin rates.
 
 # %%
 text_check_settings = {"rare_frequency": 0.001, "tail_probability": 0.001, "percent": 100}
@@ -1381,12 +1939,13 @@ whole_overlap_checks = ancestor_overlap_errors.groupby("version").agg(
     with_errors=("num_errors", lambda values: values.gt(0).sum()),
     total_errors=("num_errors", "sum"),
     overlap_bp=("overlap_span", "sum"),
+    overlap_sites=("overlap_site_span", "sum"),
 )
 whole_overlap_checks["with_errors_pct"] = (
     text_check_settings["percent"] * whole_overlap_checks.with_errors / whole_overlap_checks.comparisons
 )
-whole_overlap_checks["pooled_error_burden_pct"] = (
-    text_check_settings["percent"] * whole_overlap_checks.total_errors / whole_overlap_checks.overlap_bp
+whole_overlap_checks["pooled_mismatch_fraction_pct"] = (
+    text_check_settings["percent"] * whole_overlap_checks.total_errors / whole_overlap_checks.overlap_sites
 )
 span_pattern_checks = ancestor_span_curve_summary.pivot(
     index=["dataset", "bin", "bin_left", "bin_right"], columns="version", values="mean_span_mb",
@@ -1435,6 +1994,7 @@ for name, table in text_check_tables.items():
 # which skips sites with no derived carriers in the current sample set.
 # Bright red denotes tsinfer 0.5 (alt) throughout. These comparisons retain
 # original 0.5 results and save to dphil-analysis/figures/ch3/error_buffering.
+# These historical algorithm comparisons keep their separate original input files.
 
 # %%
 buffering_figure_folder = figure_folder / "error_buffering"
@@ -1456,7 +2016,7 @@ buffering_config = dataclasses.replace(
 )
 buffering_multipliers = (0, *config.genotype_multipliers)
 buffering_inputs = {
-    "standard": standard_aggregated_path,
+    "standard": aggregated_folder / f"{data_prefix}-aggregated.csv",
     "alternative": data_folder / f"{data_prefix}-aggregated_alt_version.csv",
 }
 buffering_overshoot_frames = []
@@ -1482,6 +2042,7 @@ for algorithm, path in buffering_inputs.items():
         pl.col("num_should_be_1").filter(left).sum().alias("should_be_0_errors"),
         pl.col("num_should_be_0").filter(left).sum().alias("should_be_1_errors"),
         pl.col("overlap_span").filter(left).sum().alias("overlap_bp"),
+        pl.col("overlap_site_span").filter(left).sum().alias("overlap_sites"),
     )
     table = grouped.collect(engine="streaming")
     buffering_summary_frames.append(pd.DataFrame(table.to_dict(as_series=False)))
@@ -1616,7 +2177,7 @@ plot_buffering_frequency_overshoots(10)
 #
 # Pool all focal frequencies within each multiplier. The top row shows the
 # fraction of whole-overlap comparisons with no errors; the bottom row shows
-# total errors divided by total overlapping bp, stacked by error direction.
+# total errors divided by total compared inference sites, stacked by error direction.
 # Each focal site contributes once, retaining the usual two-row format.
 
 # %%
@@ -1627,15 +2188,15 @@ buffering_error_summary = buffering_summary.copy()
 buffering_error_summary["error_free_fraction"] = (
     buffering_error_summary.num_error_free / buffering_error_summary.num_ancestors
 )
-buffering_overlap_bp = buffering_error_summary.overlap_bp.replace(0, np.nan)
-buffering_error_summary["error_burden"] = (
-    buffering_error_summary.num_errors / buffering_overlap_bp
+buffering_overlap_sites = buffering_error_summary.overlap_sites.replace(0, np.nan)
+buffering_error_summary["mismatch_fraction"] = (
+    buffering_error_summary.num_errors / buffering_overlap_sites
 )
-buffering_error_summary["should_be_0_burden"] = (
-    buffering_error_summary.should_be_0_errors / buffering_overlap_bp
+buffering_error_summary["should_be_0_mismatch_fraction"] = (
+    buffering_error_summary.should_be_0_errors / buffering_overlap_sites
 )
-buffering_error_summary["should_be_1_burden"] = (
-    buffering_error_summary.should_be_1_errors / buffering_overlap_bp
+buffering_error_summary["should_be_1_mismatch_fraction"] = (
+    buffering_error_summary.should_be_1_errors / buffering_overlap_sites
 )
 buffering_error_figure, buffering_error_axes = plt.subplots(
     2, 1, sharex=True, figsize=buffering_settings["error_size"], layout="constrained",
@@ -1658,18 +2219,18 @@ for index, (version, color) in enumerate(zip(
         padding=config.ancestor_error_label_padding,
     )
     buffering_error_axes[1].bar(
-        offsets, rows.should_be_1_burden, width=buffering_bar_width,
+        offsets, rows.should_be_1_mismatch_fraction, width=buffering_bar_width,
         facecolor=color, edgecolor=color,
     )
     buffering_error_axes[1].bar(
-        offsets, rows.should_be_0_burden, bottom=rows.should_be_1_burden,
+        offsets, rows.should_be_0_mismatch_fraction, bottom=rows.should_be_1_mismatch_fraction,
         width=buffering_bar_width, facecolor="white", edgecolor=color,
         hatch=config.ancestor_error_hatch,
     )
 buffering_error_axes[0].set_ylim(0, 1)
 buffering_error_axes[0].yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1))
 buffering_error_axes[0].set_ylabel("Proportion of\nerror-free ancestors")
-buffering_error_axes[1].set_ylabel("Pooled error burden\n(errors/bp)")
+buffering_error_axes[1].set_ylabel("Pooled mismatch fraction")
 buffering_error_axes[1].set_yscale("log")
 buffering_error_axes[1].set_xticks(buffering_positions, buffering_group_labels.values())
 buffering_error_axes[1].set_xlabel("Genotype error multiplier")
@@ -1824,3 +2385,5 @@ plot_buffering_negative_lines(
 plot_buffering_negative_lines(
     "weighted_negative_overshoot_score_mb", "Weighted negative overshoot score (Mb)",
 )
+
+# %%

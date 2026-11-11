@@ -13,7 +13,6 @@ import multiprocessing
 import pathlib
 
 import ch5_perf_scaling
-import matplotlib.pyplot as plt
 import numcodecs
 import numpy as np
 import pandas as pd
@@ -165,9 +164,13 @@ def root_edge_summary(config: dict) -> pd.DataFrame:
     keys = ['dataset', 'af_cutoff', 'method', 'category']
     summary = edges.groupby(keys).agg(edge_count=('span_bp', 'size'), span_bp=('span_bp', 'sum'))
     sizes = ch5_perf_scaling.cohort_table(config)
-    cutoffs = sorted({run['af_cutoff'] for dataset in config['manifest']['datasets'] for run in dataset['runs']})
-    index = pd.MultiIndex.from_product([sizes.dataset, cutoffs,
-                                       ['full_hmm', 'greedy'], categories], names=keys)
+    combinations = []
+    for dataset in config['manifest']['datasets']:
+        for run in dataset['runs']:
+            for method in ['full_hmm', 'greedy']:
+                for category in categories:
+                    combinations.append((dataset['name'], run['af_cutoff'], method, category))
+    index = pd.MultiIndex.from_tuples(combinations, names=keys)
     summary = summary.reindex(index, fill_value=0).reset_index()
     summary = summary.merge(sizes[['dataset', 'num_samples', 'num_haplotypes']],
                             on='dataset', validate='many_to_one')
@@ -179,10 +182,11 @@ def root_edge_summary(config: dict) -> pd.DataFrame:
 
 def totals(plot, summary, metric, ylabel):
     """Stack the same location classes for Full HMM and stitched whole edges."""
-    figure, axes = plot.panels(rows=len(plot.cutoffs), columns=len(plot.datasets),
+    figure, axes = plot.panels(rows=len(plot.panel_cutoffs), columns=len(plot.datasets),
                                title='Direct ultimate-root → sample copying · observed extent')
-    for row, cutoff in enumerate(plot.cutoffs):
+    for row, panel_cutoff in enumerate(plot.panel_cutoffs):
         for col, dataset in enumerate(plot.datasets):
+            cutoff = plot.dataset_cutoff(dataset, panel_cutoff)
             ax = axes[row, col]
             values = summary.loc[summary.dataset.eq(dataset['name']) & summary.af_cutoff.eq(cutoff)]
             bottom = np.zeros(2)
@@ -192,7 +196,7 @@ def totals(plot, summary, metric, ylabel):
                 ax.bar([0, 1], heights, bottom=bottom, color=style['color'],
                        width=plot.style['bar_width'], label=style['label'])
                 bottom += heights
-            ax.set(title=f'n = {plot.sample_sizes[col]:,} · {plot.cutoff_label(cutoff, plot.sample_sizes[col])}',
+            ax.set(title=f'{plot.dataset_label(dataset)} · {plot.cutoff_label(cutoff, plot.sample_sizes[col])}',
                    xticks=[0, 1], xticklabels=['Full HMM', 'Stitched'], ylabel=ylabel, ylim=(0, None))
     handles, labels = axes[0, 0].get_legend_handles_labels()
     figure.legend(handles, labels, loc='outside lower center', ncol=len(labels), fontsize='small')
@@ -202,12 +206,12 @@ def totals(plot, summary, metric, ylabel):
 def additional(plot, summary):
     """Show category-wise signed differences; their sum is the net excess."""
     metrics = {'edge_count_per_haplotype': 'Additional root edges per haplotype',
-               'span_kb_per_haplotype': 'Additional root-copying span (kb per haplotype)'}
-    figure, axes = plot.panels(rows=len(plot.cutoffs), columns=len(metrics),
+               'span_kb_per_haplotype': 'Additional root-copying span\n(kb per haplotype)'}
+    figure, axes = plot.panels(rows=len(plot.panel_cutoffs), columns=len(metrics),
                                title='Stitched − Full HMM · signed root-copying differences')
     x = np.arange(len(plot.sample_sizes))
-    for row, cutoff in enumerate(plot.cutoffs):
-        source = summary.loc[summary.af_cutoff.eq(cutoff)]
+    for row, panel_cutoff in enumerate(plot.panel_cutoffs):
+        source = summary if panel_cutoff is None else summary.loc[summary.af_cutoff.eq(panel_cutoff)]
         for col, (metric, ylabel) in enumerate(metrics.items()):
             ax = axes[row, col]
             positive = np.zeros(len(x))
@@ -226,8 +230,8 @@ def additional(plot, summary):
             ax.scatter(x, net, color=plot.style['full_color'], marker='D',
                        s=plot.style['marker_size'] ** 2, zorder=3, label='Net difference')
             ax.axhline(0, color=plot.style['full_color'], linewidth=1)
-            ax.set(title=plot.cutoff_label(cutoff), xticks=x,
-                   xticklabels=[f'{n:,}' for n in plot.sample_sizes],
+            ax.set(title=plot.cutoff_label(panel_cutoff), xticks=x,
+                   xticklabels=plot.sample_labels,
                    xlabel='Samples (diploid individuals)', ylabel=ylabel)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     figure.legend(handles, labels, loc='outside lower center', ncol=len(labels), fontsize='small')
@@ -244,10 +248,11 @@ def span_histograms(plot):
     minimum = edges.span_bp.min()
     maximum = edges.span_bp.max()
     bins = np.geomspace(minimum, maximum, plot.style['root_edge_histogram_bins'] + 1)
-    figure, axes = plot.panels(rows=len(plot.cutoffs), columns=len(plot.datasets),
+    figure, axes = plot.panels(rows=len(plot.panel_cutoffs), columns=len(plot.datasets),
                                title='Root → sample edge spans · Full HMM and stitched locations')
-    for row, cutoff in enumerate(plot.cutoffs):
+    for row, panel_cutoff in enumerate(plot.panel_cutoffs):
         for col, dataset in enumerate(plot.datasets):
+            cutoff = plot.dataset_cutoff(dataset, panel_cutoff)
             ax = axes[row, col]
             selected = edges.loc[edges.dataset.eq(dataset['name']) & edges.af_cutoff.eq(cutoff)]
             samples = 2 * plot.sample_sizes[col]
@@ -268,7 +273,7 @@ def span_histograms(plot):
                     linewidth=plot.style['line_width'], label='Full HMM total')
             ax.set(xscale='log', yscale='log', xlabel='Observed edge span (bp)',
                    ylabel='Edges per haplotype per bin',
-                   title=f'n = {plot.sample_sizes[col]:,} · {plot.cutoff_label(cutoff, plot.sample_sizes[col])}')
+                   title=f'{plot.dataset_label(dataset)} · {plot.cutoff_label(cutoff, plot.sample_sizes[col])}')
     handles, labels = axes[0, 0].get_legend_handles_labels()
     figure.legend(handles, labels, loc='outside lower center', ncol=2, fontsize='small')
     return figure

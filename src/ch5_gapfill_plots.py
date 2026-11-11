@@ -1,4 +1,4 @@
-"""Compact hpc_perf3 figures, extending :mod:`ch5_perf_scaling_plots`."""
+"""Compact stage and cohort figures, extending :mod:`ch5_perf_scaling_plots`."""
 
 import logging
 
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 class GapfillPlots(ch5_perf_scaling_plots.ScalingPlots):
-    """Keep the pt9 analyses with compact layouts for three cohorts."""
+    """Keep the pt9 analyses with compact layouts for saved cohorts."""
 
     def panels(self, rows=1, columns=2, title=None):
         figure, axes = super().panels(rows=rows, columns=columns, title=title)
@@ -18,7 +18,7 @@ class GapfillPlots(ch5_perf_scaling_plots.ScalingPlots):
 
     def bar_axis(self, ax, ylabel):
         ax.set(xticks=np.arange(len(self.sample_sizes)),
-               xticklabels=[f'{n:,}' for n in self.sample_sizes],
+               xticklabels=self.sample_labels,
                xlabel='Samples (diploid individuals)', ylabel=ylabel, ylim=(0, None))
 
     def stage_stack(self, ax, table, metric, settings):
@@ -65,7 +65,8 @@ class GapfillPlots(ch5_perf_scaling_plots.ScalingPlots):
         cases = [('truth', None, 'Truth', self.style['truth_color']),
                  ('full_hmm', None, 'Full HMM', self.style['full_color'])]
         for cutoff in self.cutoffs:
-            cases.append(('greedy', cutoff, 'Stitched', self.colors[cutoff]))
+            label = 'Stitched' if len(self.cutoffs) == 1 else f'Stitched · AF ≤ {cutoff:g}'
+            cases.append(('greedy', cutoff, label, self.colors[cutoff]))
         metrics = {'recurrent_sites': 'Number of recurrent sites',
                    'mean_mutations_per_recurrent_site': 'Mean mutations per recurrent site'}
         width = self.style['bar_width'] / len(cases)
@@ -75,11 +76,12 @@ class GapfillPlots(ch5_perf_scaling_plots.ScalingPlots):
                 selected = table.method.eq(method)
                 if cutoff is not None:
                     selected &= table.af_cutoff.eq(cutoff)
-                values = table.loc[selected].set_index('num_samples').loc[self.sample_sizes]
+                values = table.loc[selected].set_index('num_samples').reindex(self.sample_sizes)
                 positions = x + (index - (len(cases) - 1) / 2) * width
                 bars = ax.bar(positions, values[metric], width=width, color=color, label=label)
                 if metric == 'recurrent_sites':
-                    labels = [f'({value:.1f}%)' for value in values.recurrent_site_percentage]
+                    labels = [f'({value:.1f}%)' if np.isfinite(value) else ''
+                              for value in values.recurrent_site_percentage]
                     ax.bar_label(bars, labels=labels, padding=3, fontsize='x-small', rotation=90)
             self.bar_axis(ax, ylabel)
             ax.margins(y=self.style['stage_label_margin'])
@@ -111,7 +113,7 @@ class GapfillPlots(ch5_perf_scaling_plots.ScalingPlots):
                     bottom += heights
                 ticks.extend(positions)
                 method_label = 'Full HMM' if method == 'full_hmm' else 'Stitched'
-                labels.extend([f'{n:,}\n{method_label}' for n in self.sample_sizes])
+                labels.extend([f'{label}\n{method_label}' for label in self.sample_labels])
             ax.set(xticks=ticks, xticklabels=labels, ylabel=ylabel,
                    xlabel='Samples (diploid individuals) and method', ylim=(0, None))
             ax.tick_params(axis='x', labelsize='x-small', rotation=30)

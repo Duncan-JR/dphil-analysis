@@ -97,7 +97,8 @@ class TestExtraction:
                 actual = summary.transitions.loc[summary.transitions.transition == transition]
                 np.testing.assert_array_equal(actual.total, expected_total * 2)
                 np.testing.assert_array_equal(actual.changed, expected_changed * 2)
-            assert data.phase_rates == (0, 0.01)
+            profiles = frame.loc[frame.record_type == "profile"]
+            assert set(profiles.phase_ser) == {0, 0.01}
 
     def test_parallel_matches_serial(self, variant_data, exported_data, tmp_path):
         folder = variant_data.folder
@@ -136,7 +137,7 @@ class TestCsvOnlyPlots:
                     overshoots = [-7, 9] if focal_site == 0 else [4, -2]
                     side_index = 0 if side == "left" else 1
                     rows.append(dict(
-                        replicate=0, version=version, geno_multiplier=0, phase_ser=0,
+                        replicate=0, version=version, geno_multiplier=0, phase_ser=0, space_per_switch=0,
                         mispol_rate=0.1, inferred_node=0, true_node=42, side=side,
                         allele_frequency=0 if focal_site == 0 else 0.75,
                         inferred_span=100, true_span=50 + 25 * focal_site,
@@ -210,6 +211,40 @@ def focal_plot_data():
 
 
 class TestFocalSitePlots:
+    def test_daf_counts_include_flipped_singletons_and_unflipped_nonfocal_sites(self):
+        truth = pd.DataFrame({
+            "record_type": ["truth"] * 4,
+            "replicate": [0] * 4,
+            "derived_count": [1, 1, 2, 6],
+            "num_alleles": [8] * 4,
+        })
+        focal = pd.DataFrame({
+            "version": ["0.4.1", "0.4.1", "0.5.1"],
+            "replicate": [0] * 3,
+            "geno_multiplier": [0] * 3,
+            "phase_ser": [0] * 3,
+            "mispol_rate": [0.1] * 3,
+            "focal_site_mispolarised": [True] * 3,
+            "true_derived_count": [1, 6, 1],
+        })
+        config = ch3_plot.PlotConfig(mispol_rates=(0, 0.1))
+        data = ch3_plot.ChapterData(pd.DataFrame(), focal, truth, config)
+        counts = ch3_plot.mispolarisation_daf_counts(data)
+        assert counts.groupby("mispol_rate").num_sites.sum().tolist() == [4, 4]
+        selected = counts.loc[counts.mispol_rate == 0.1]
+        flipped = selected.loc[selected.mispolarised].set_index("derived_count")
+        unflipped = selected.loc[~selected.mispolarised].set_index("derived_count")
+        assert flipped.num_sites.to_dict() == {1: 1, 2: 0, 6: 1}
+        assert unflipped.num_sites.to_dict() == {1: 1, 2: 1, 6: 0}
+
+    def test_diff_selects_only_correctly_polarised_focal_sites(self, focal_plot_data, monkeypatch):
+        monkeypatch.setattr(ch3_plot, "_overshoot_diff", lambda config, frame, *args, **kwargs: frame)
+        frame = ch3_plot.plot_mispolarisation_overshoot_diff(
+            focal_plot_data, focal_site_mispolarised=False,
+        )
+        assert frame.true_focal_site.tolist() == [0, 0, 2, 2] * 2
+        assert not frame.focal_site_mispolarised.any()
+
     def test_mean_gives_each_focal_site_equal_weight(self, focal_plot_data, monkeypatch):
         monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: fig)
         fig = ch3_plot._overshoot_mean(
@@ -241,8 +276,14 @@ class TestFocalSitePlots:
         plt.close(fig)
 
     def test_mispolarised_filter_does_not_include_neighbouring_focal_sites(self, focal_plot_data, monkeypatch):
-        monkeypatch.setattr(ch3_plot, "_overshoot_histogram", lambda data, frame, *args, **kwargs: frame)
-        frame = ch3_plot.plot_mispolarisation_low_count_overshoot_hist(focal_plot_data)
+        focal_plot_data.overshoots.loc[
+            focal_plot_data.overshoots.focal_site_mispolarised, "true_derived_count"
+        ] = 6000
+        captured = []
+        monkeypatch.setattr(ch3_plot, "_overshoot_histogram", lambda data, frame, *args, **kwargs: captured.append(frame))
+        monkeypatch.setattr(ch3_plot, "save_figure", lambda fig, *args: plt.close(fig))
+        ch3_plot.plot_mispolarised_focal_overshoot_hist(focal_plot_data)
+        frame = captured[0]
         assert frame.true_focal_site.tolist() == [1, 1, 1, 1]
         assert frame.overshoot.tolist() == [0, 0, 0, 0]
 
