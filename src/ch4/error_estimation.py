@@ -53,13 +53,17 @@ class EstimationConfig:
         self.window_sizes = np.array(self.window_sizes, dtype=float, copy=True)
         windows = self.window_sizes
         if windows.ndim != 1 or windows.size == 0:
-            raise ValueError('window_sizes must be a nonempty one-dimensional array')
-        if np.any(~np.isfinite(windows)) or np.any(windows <= 0) or np.any(np.diff(windows) <= 0):
-            raise ValueError('window_sizes must be positive, finite and increasing')
+            raise ValueError("window_sizes must be a nonempty one-dimensional array")
+        if (
+            np.any(~np.isfinite(windows))
+            or np.any(windows <= 0)
+            or np.any(np.diff(windows) <= 0)
+        ):
+            raise ValueError("window_sizes must be positive, finite and increasing")
         if self.num_doubletons <= 0:
-            raise ValueError('num_doubletons must be positive')
+            raise ValueError("num_doubletons must be positive")
         if not 0 <= self.exclude_high_mismatch_proportion < 1:
-            raise ValueError('exclude_high_mismatch_proportion must be in [0, 1)')
+            raise ValueError("exclude_high_mismatch_proportion must be in [0, 1)")
 
 
 @dataclasses.dataclass
@@ -157,8 +161,8 @@ class _Store:
 
 def _open_store(zarr_path, variant_mask_name=None):
     """Open a store and select variants not excluded by the requested masks."""
-    group = zarr.open_group(zarr_path, mode='r')
-    all_positions = np.asarray(group['variant_position'][:], dtype=float)
+    group = zarr.open_group(zarr_path, mode="r")
+    all_positions = np.asarray(group["variant_position"][:], dtype=float)
     excluded = np.zeros(len(all_positions), dtype=bool)
     if variant_mask_name is not None:
         mask_names = variant_mask_name
@@ -166,16 +170,16 @@ def _open_store(zarr_path, variant_mask_name=None):
             mask_names = [mask_names]
         elif not isinstance(mask_names, collections.abc.Sequence):
             raise TypeError(
-                'variant_mask_name must be a string or a sequence of strings'
+                "variant_mask_name must be a string or a sequence of strings"
             )
         for mask_name in mask_names:
             excluded |= np.asarray(group[mask_name][:], dtype=bool)
     site_indices = np.flatnonzero(~excluded)
     positions = all_positions[site_indices]
     if len(positions) == 0:
-        raise ValueError('Variant masks exclude every site')
+        raise ValueError("Variant masks exclude every site")
     if np.any(np.diff(positions) == 0):
-        raise ValueError('Duplicate variant positions are unsupported')
+        raise ValueError("Duplicate variant positions are unsupported")
     return _Store(group, positions, site_indices)
 
 
@@ -188,7 +192,7 @@ def _sample_doubletons(G, ac, positions, config):
     dbtn_pos = dbtn_pos[keep]
     num_eligible = len(dbtn_sites)
     if num_eligible == 0:
-        raise ValueError('No doubletons have complete max-L windows')
+        raise ValueError("No doubletons have complete max-L windows")
     rng = np.random.default_rng(config.random_seed)
     n = min(config.num_doubletons, num_eligible)
     if n < num_eligible:
@@ -201,22 +205,27 @@ def _sample_doubletons(G, ac, positions, config):
     dbtn_G = G[dbtn_sites]
     _, samples_long, ploidies_long = np.nonzero(dbtn_G)
     return Doubletons(
-        dbtn_sites, dbtn_pos, samples_long.reshape(n, 2),
-        ploidies_long.reshape(n, 2), num_eligible,
+        dbtn_sites,
+        dbtn_pos,
+        samples_long.reshape(n, 2),
+        ploidies_long.reshape(n, 2),
+        num_eligible,
     )
 
 
 def _load_doubletons_csv(path):
     """Load fixed doubletons from the CSV written by error validation code."""
-    with pathlib.Path(path).expanduser().open(newline='') as source:
+    with pathlib.Path(path).expanduser().open(newline="") as source:
         rows = list(csv.DictReader(source))
-    site_indices = np.array([row['site_index'] for row in rows], dtype=np.int64)
-    positions = np.array([row['position'] for row in rows], dtype=float)
+    site_indices = np.array([row["site_index"] for row in rows], dtype=np.int64)
+    positions = np.array([row["position"] for row in rows], dtype=float)
     sample_indices = np.array(
-        [[row['sample_0'], row['sample_1']] for row in rows], dtype=np.int64,
+        [[row["sample_0"], row["sample_1"]] for row in rows],
+        dtype=np.int64,
     )
     ploidy_indices = np.array(
-        [[row['ploidy_0'], row['ploidy_1']] for row in rows], dtype=np.int64,
+        [[row["ploidy_0"], row["ploidy_1"]] for row in rows],
+        dtype=np.int64,
     )
     order = np.argsort(site_indices)
     return Doubletons(
@@ -224,7 +233,7 @@ def _load_doubletons_csv(path):
         positions=positions[order],
         sample_indices=sample_indices[order],
         ploidy_indices=ploidy_indices[order],
-        num_eligible=int(rows[0]['num_eligible']),
+        num_eligible=int(rows[0]["num_eligible"]),
     )
 
 
@@ -251,8 +260,8 @@ def _mismatch_chunk(
     """
     start = index * genotype.chunks[0]
     stop = min(start + genotype.chunks[0], len(site_indices))
-    first = np.searchsorted(right_sites[-1], start, side='right')
-    last = np.searchsorted(left_sites[-1], stop, side='left')
+    first = np.searchsorted(right_sites[-1], start, side="right")
+    last = np.searchsorted(left_sites[-1], stop, side="left")
     if first == last:
         return None
     raw_site_indices = site_indices[start:stop]
@@ -276,13 +285,19 @@ def _mismatch_chunk(
 def _mismatch_worker(path, site_indices, left, right, focal, carriers, jobs, results):
     """Open once and consume mismatch chunk indices from the work queue."""
     try:
-        genotype = zarr.open_group(path, mode='r')['call_genotype']
+        genotype = zarr.open_group(path, mode="r")["call_genotype"]
         while True:
             index = jobs.get()
             if index is None:
                 return
             result = _mismatch_chunk(
-                genotype, site_indices, index, left, right, focal, carriers,
+                genotype,
+                site_indices,
+                index,
+                left,
+                right,
+                focal,
+                carriers,
             )
             results.put(result)
     except Exception as exc:
@@ -309,12 +324,18 @@ def _mismatch_counts(
     if workers == 1:
         for index in range(num_chunks):
             result = _mismatch_chunk(
-                genotype, site_indices, index, left, right, focal, carriers,
+                genotype,
+                site_indices,
+                index,
+                left,
+                right,
+                focal,
+                carriers,
             )
             if result is not None:
-                counts[:, result.first:result.last] += result.counts
+                counts[:, result.first : result.last] += result.counts
         return counts
-    context = multiprocessing.get_context('spawn')
+    context = multiprocessing.get_context("spawn")
     capacity = workers * config.queue_depth
     jobs = context.Queue(maxsize=capacity)
     results = context.Queue(maxsize=capacity)
@@ -322,7 +343,14 @@ def _mismatch_counts(
         context.Process(
             target=_mismatch_worker,
             args=(
-                path, site_indices, left, right, focal, carriers, jobs, results,
+                path,
+                site_indices,
+                left,
+                right,
+                focal,
+                carriers,
+                jobs,
+                results,
             ),
         )
         for _ in range(workers)
@@ -340,12 +368,12 @@ def _mismatch_counts(
                 result = results.get(timeout=config.worker_poll_seconds)
             except queue.Empty:
                 if any(process.exitcode is not None for process in processes):
-                    raise RuntimeError('Mismatch worker exited unexpectedly')
+                    raise RuntimeError("Mismatch worker exited unexpectedly")
                 continue
             if isinstance(result, Exception):
                 raise result
             if result is not None:
-                counts[:, result.first:result.last] += result.counts
+                counts[:, result.first : result.last] += result.counts
             completed += 1
         for _ in processes:
             jobs.put(None)
@@ -365,11 +393,13 @@ def _summarise_mismatches(path, store, doubletons, recombination, config):
     """Prepare full windows and map distances, then run bounded mismatch work."""
     windows = config.window_sizes[:, None]
     positions = doubletons.positions[None, :]
-    left = np.searchsorted(store.positions, positions - windows, side='left')
-    right = np.searchsorted(store.positions, positions + windows, side='right')
+    left = np.searchsorted(store.positions, positions - windows, side="left")
+    right = np.searchsorted(store.positions, positions + windows, side="right")
     if isinstance(recombination, (str, pathlib.Path)):
         recombination = msprime.RateMap.read_hapmap(
-            recombination, position_col=1, rate_col=2,
+            recombination,
+            position_col=1,
+            rate_col=2,
         )
     if isinstance(recombination, msprime.RateMap):
         cumulative = recombination.get_cumulative_mass(store.positions)
@@ -377,7 +407,7 @@ def _summarise_mismatches(path, store, doubletons, recombination, config):
         cumulative = store.positions * recombination
     distances = cumulative[right - 1] - cumulative[left]
     rates = distances / (2 * windows)
-    genotype = store.group['call_genotype']
+    genotype = store.group["call_genotype"]
     carriers = doubletons.sample_indices * genotype.shape[2] + doubletons.ploidy_indices
     counts = _mismatch_counts(
         path,
@@ -423,7 +453,7 @@ def _fitted_means(mu, sigma_sq, epsilon, lengths, rates, pi):
 
 
 def _objective(params, lengths, observed, mean_r, pi, config):
-    with np.errstate(over='ignore', divide='ignore', invalid='ignore'):
+    with np.errstate(over="ignore", divide="ignore", invalid="ignore"):
         mu = np.exp(params[0])
         sigma_sq = mu**2 + np.exp(params[1])
         epsilon = np.exp(params[2])
@@ -435,7 +465,9 @@ def _objective(params, lengths, observed, mean_r, pi, config):
         return config.objective_penalty
     scale = np.maximum(np.abs(observed), 1)
     residuals = (observed - fitted) / scale
-    if np.any(~np.isfinite(residuals)) or np.any(np.abs(residuals) > config.residual_guard):
+    if np.any(~np.isfinite(residuals)) or np.any(
+        np.abs(residuals) > config.residual_guard
+    ):
         return config.objective_penalty
     value = np.sum(residuals**2)
     if not np.isfinite(value):
@@ -451,10 +483,10 @@ def _fit_doubleton_indices(summary, config):
         L_mismatch_trim = summary.window_sizes[0]
     matches = np.flatnonzero(summary.window_sizes == L_mismatch_trim)
     if len(matches) != 1:
-        raise ValueError('L_mismatch_trim must be one of window_sizes')
+        raise ValueError("L_mismatch_trim must be one of window_sizes")
     trim_counts = summary.counts[matches[0]]
-    order = np.argsort(trim_counts, kind='stable')
-    fit_indices = order[:num_doubletons - num_excluded]
+    order = np.argsort(trim_counts, kind="stable")
+    fit_indices = order[: num_doubletons - num_excluded]
     return fit_indices, float(L_mismatch_trim)
 
 
@@ -483,23 +515,35 @@ def fit_error_model(summary, *, pi, config):
             for log_epsilon in config.start_log_epsilon:
                 initial = np.array([np.log(mu), np.log(excess), log_epsilon])
                 result = scipy.optimize.minimize(
-                    _objective, x0=initial, args=(summary.window_sizes, observed, mean_r, pi, config),
-                    method='L-BFGS-B', bounds=config.optimizer_bounds,
+                    _objective,
+                    x0=initial,
+                    args=(summary.window_sizes, observed, mean_r, pi, config),
+                    method="L-BFGS-B",
+                    bounds=config.optimizer_bounds,
                 )
                 if np.isfinite(result.fun) and result.fun < config.objective_penalty:
                     if best is None or result.fun < best.fun:
                         best = result
     if best is None:
-        raise RuntimeError('Error-model fitting failed: every optimisation trial was invalid or penalised')
+        raise RuntimeError(
+            "Error-model fitting failed: every optimisation trial was invalid or penalised"
+        )
     mu = float(np.exp(best.x[0]))
     sigma_sq = float(mu**2 + np.exp(best.x[1]))
     epsilon = float(np.exp(best.x[2]))
     fitted = _fitted_means(mu, sigma_sq, epsilon, summary.window_sizes, mean_r, pi)
     return ErrorRateFit(
-        epsilon=epsilon, mu=mu, sigma_sq=sigma_sq, objective=float(best.fun),
-        success=bool(best.success), message=str(best.message),
-        observed_means=observed, fitted_means=fitted, pi=pi,
-        num_doubletons=len(fit_indices), L_mismatch_trim=L_mismatch_trim,
+        epsilon=epsilon,
+        mu=mu,
+        sigma_sq=sigma_sq,
+        objective=float(best.fun),
+        success=bool(best.success),
+        message=str(best.message),
+        observed_means=observed,
+        fitted_means=fitted,
+        pi=pi,
+        num_doubletons=len(fit_indices),
+        L_mismatch_trim=L_mismatch_trim,
     )
 
 
@@ -531,7 +575,7 @@ def estimate_error_rate(
     config = dataclasses.replace(config, random_seed=seed)
     store = _open_store(path, variant_mask_name=variant_mask_name)
     selection = (store.site_indices, slice(None), slice(None))
-    genotype = store.group['call_genotype']
+    genotype = store.group["call_genotype"]
     G = np.asarray(genotype.get_orthogonal_selection(selection))
     ac = G.sum(axis=(1, 2))
     if fixed_doubletons_path is None:
@@ -540,13 +584,12 @@ def estimate_error_rate(
         doubletons = _load_doubletons_csv(fixed_doubletons_path)
         expected_positions = store.positions[doubletons.site_indices]
         if not np.array_equal(doubletons.positions, expected_positions):
-            raise ValueError(
-                'Fixed doubleton CSV does not match the selected variants'
-            )
+            raise ValueError("Fixed doubleton CSV does not match the selected variants")
     H = G.shape[1] * G.shape[2]
     site_diversity = 2 * ac * (H - ac) / (H * (H - 1))
     diversity = Diversity(
-        num_sites=len(store.positions), num_haplotypes=H,
+        num_sites=len(store.positions),
+        num_haplotypes=H,
         span_bp=float(store.positions[-1] - store.positions[0]),
         global_difference_sum=float(site_diversity.sum()),
     )

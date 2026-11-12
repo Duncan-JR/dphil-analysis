@@ -33,20 +33,30 @@ import pathlib
 import subprocess
 
 import IPython.display as display
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
+from ch5 import nb_plot
+
+repository_dir = pathlib.Path.cwd()
+
 # %%
-notebook_dir = pathlib.Path(__file__).resolve().parent if '__file__' in globals() else pathlib.Path.cwd()
-repository_dir = notebook_dir if (notebook_dir / 'data/ch5/tie_breaking').is_dir() else notebook_dir.parent.parent
-artifact_dir = repository_dir / 'data/ch5/tie_breaking'
-settings = json.loads((artifact_dir / 'experiment_config.json').read_text())
-provenance = json.loads((artifact_dir / 'provenance.json').read_text())
-summary = pd.read_csv(artifact_dir / 'summary.csv')
-paired = pd.read_csv(artifact_dir / 'paired_haplotypes.csv')
-archive = pd.read_csv(artifact_dir / 'archive_summary.csv')
-toys = pd.read_csv(artifact_dir / 'toy_results.csv')
+notebook_dir = (
+    pathlib.Path(__file__).resolve().parent
+    if "__file__" in globals()
+    else pathlib.Path.cwd()
+)
+repository_dir = (
+    notebook_dir
+    if (notebook_dir / "data/ch5/tie_breaking").is_dir()
+    else notebook_dir.parent.parent
+)
+artifact_dir = repository_dir / "data/ch5/tie_breaking"
+settings = json.loads((artifact_dir / "experiment_config.json").read_text())
+provenance = json.loads((artifact_dir / "provenance.json").read_text())
+summary = pd.read_csv(artifact_dir / "summary.csv")
+paired = pd.read_csv(artifact_dir / "paired_haplotypes.csv")
+archive = pd.read_csv(artifact_dir / "archive_summary.csv")
+toys = pd.read_csv(artifact_dir / "toy_results.csv")
 
 # %% [markdown]
 # ## Context and what counts as the root
@@ -78,8 +88,17 @@ toys = pd.read_csv(artifact_dir / 'toy_results.csv')
 # positions. Artificial chromosome flanks are excluded.
 
 # %%
-display.display(archive[['dataset', 'haplotypes', 'root_edges', 'root_span_bp',
-                         'literal_node0_sample_edges']])
+display.display(
+    archive[
+        [
+            "dataset",
+            "haplotypes",
+            "root_edges",
+            "root_span_bp",
+            "literal_node0_sample_edges",
+        ]
+    ]
+)
 
 # %% [markdown]
 # ## Intervention: maximum selection only
@@ -118,11 +137,15 @@ display.display(archive[['dataset', 'haplotypes', 'root_edges', 'root_span_bp',
 # represented implicitly by an older state.
 
 # %%
-display.display(display.Markdown('```diff\n' + (artifact_dir / 'youngest.diff').read_text() + '\n```'))
+display.display(
+    display.Markdown(
+        "```diff\n" + (artifact_dir / "youngest.diff").read_text() + "\n```"
+    )
+)
 display.display(display.Markdown(f"tsinfer revision: `{provenance['tsinfer_commit']}`"))
-assert provenance['source_control_matches_checkout']
-assert provenance['compressed_likelihood_function_unchanged']
-assert provenance['original_tracked_diff'] == ''
+assert provenance["source_control_matches_checkout"]
+assert provenance["compressed_likelihood_function_unchanged"]
+assert provenance["original_tracked_diff"] == ""
 
 # %% [markdown]
 # ## Paired experiment design and control validation
@@ -160,20 +183,37 @@ assert provenance['original_tracked_diff'] == ''
 
 # %%
 case_rows = []
-for case in settings['datasets']:
-    case_rows.append({key: case[key] for key in [
-        'name', 'scope', 'num_selected_haplotypes', 'num_sites',
-        'num_reference_nodes', 'left_bp', 'right_bp']})
+for case in settings["datasets"]:
+    case_rows.append(
+        {
+            key: case[key]
+            for key in [
+                "name",
+                "scope",
+                "num_selected_haplotypes",
+                "num_sites",
+                "num_reference_nodes",
+                "left_bp",
+                "right_bp",
+            ]
+        }
+    )
 display.display(pd.DataFrame(case_rows))
-whole_names = [case['name'] for case in settings['datasets'] if case['scope'] == 'whole_chr20p']
-controls = paired.loc[paired['mode'].eq('control') & paired.dataset.isin(whole_names)]
+whole_names = [
+    case["name"] for case in settings["datasets"] if case["scope"] == "whole_chr20p"
+]
+controls = paired.loc[paired["mode"].eq("control") & paired.dataset.isin(whole_names)]
 assert len(controls) == 768
 assert controls.archived_parent_differences.sum() == 0
-all_320 = summary.loc[summary.dataset.eq('tgp_chr20p_n320') & summary['mode'].eq('control')].iloc[0]
-archived_320 = archive.loc[archive.dataset.eq('tgp_chr20p_n320')].iloc[0]
+all_320 = summary.loc[
+    summary.dataset.eq("tgp_chr20p_n320") & summary["mode"].eq("control")
+].iloc[0]
+archived_320 = archive.loc[archive.dataset.eq("tgp_chr20p_n320")].iloc[0]
 assert all_320.root_edges == archived_320.root_edges
 assert all_320.root_span_bp == archived_320.root_span_bp
-print(f'Archived whole-region controls reproduced: {len(controls)} / {len(controls)} haplotypes.')
+print(
+    f"Archived whole-region controls reproduced: {len(controls)} / {len(controls)} haplotypes."
+)
 
 # %% [markdown]
 # ## Whole-region results
@@ -191,31 +231,38 @@ print(f'Archived whole-region controls reproduced: {len(controls)} / {len(contro
 
 # %%
 whole = summary.loc[summary.dataset.isin(whole_names)].copy()
-columns = ['dataset', 'mode', 'haplotypes', 'root_edges', 'root_span_bp',
-           'root_edge_reduction_percentage', 'root_span_reduction_percentage']
+columns = [
+    "dataset",
+    "mode",
+    "haplotypes",
+    "root_edges",
+    "root_span_bp",
+    "root_edge_reduction_percentage",
+    "root_span_reduction_percentage",
+]
 display.display(whole[columns].round(3))
 
 # %%
-mode_order = settings['modes']
-mode_labels = {'control': 'Control', 'youngest': 'Youngest explicit', 'last_tie': 'Last stored (>=)'}
-colors = {'control': '#666666', 'youngest': '#0072B2', 'last_tie': '#D55E00'}
-figure, axes = plt.subplots(1, 2, figsize=(11, 4.1), constrained_layout=True)
-cohort_labels = ['n = 320\n640 haplotypes', 'n = 1,012\n64 haplotypes', 'n = 3,202\n64 haplotypes']
-x = np.arange(len(whole_names))
-for ax, metric, scale, title, ylabel in zip(
-    axes, ['root_edges', 'root_span_bp'], [1, 1000],
-    ['Root-to-sample edges', 'Observed root-copying span'],
-    ['Edges per tested haplotype', 'kb per tested haplotype'], strict=True
-):
-    for offset, mode in enumerate(mode_order):
-        table = whole.loc[whole['mode'].eq(mode)].set_index('dataset').loc[whole_names]
-        values = table[metric] / table.haplotypes / scale
-        ax.bar(x + (offset-1)*0.23, values, width=0.23, color=colors[mode], label=mode_labels[mode])
-    ax.set(title=title, ylabel=ylabel, xticks=x, xticklabels=cohort_labels, ylim=(0, None))
-    ax.spines[['top', 'right']].set_visible(False)
-axes[0].legend(frameon=False, fontsize=9)
-figure.savefig(artifact_dir / 'whole_region_comparison.png', dpi=180)
-plt.show()
+mode_order = settings["modes"]
+mode_labels = {
+    "control": "Control",
+    "youngest": "Youngest explicit",
+    "last_tie": "Last stored (>=)",
+}
+colors = {"control": "#666666", "youngest": "#0072B2", "last_tie": "#D55E00"}
+nb_plot.plot_whole_region_results(
+    artifact_dir=artifact_dir,
+    colors=colors,
+    mode_labels=mode_labels,
+    mode_order=mode_order,
+    whole=whole,
+    whole_names=whole_names,
+    figsize=(11, 4.1),
+    width=0.23,
+    ylim=(0, None),
+    fontsize=9,
+    dpi=180,
+)
 
 # %% [markdown]
 # ## Small real-data controls with pre-existing root edges
@@ -226,27 +273,22 @@ plt.show()
 # window, with an unchanged reference and unchanged likelihood compression.
 
 # %%
-windows = summary.loc[summary.scope.eq('independent_1mb_window')].copy()
+windows = summary.loc[summary.scope.eq("independent_1mb_window")].copy()
 display.display(windows[columns].round(3))
 window_names = windows.dataset.drop_duplicates().tolist()
-figure, axes = plt.subplots(1, 2, figsize=(10, 4.3))
-x = np.arange(len(window_names))
-for ax, metric, scale, title, ylabel in zip(
-    axes, ['root_edges', 'root_span_bp'], [1, 1000],
-    ['Root-edge counts · 64 haplotypes', 'Root-copying span · 64 haplotypes'],
-    ['Edges', 'Summed span (kb)'], strict=True
-):
-    for offset, mode in enumerate(mode_order):
-        table = windows.loc[windows['mode'].eq(mode)].set_index('dataset').loc[window_names]
-        ax.bar(x + (offset-1)*0.23, table[metric]/scale, width=0.23,
-               color=colors[mode], label=mode_labels[mode])
-    ax.set(title=title, ylabel=ylabel, xticks=x, xticklabels=['1–2 Mb', '10–11 Mb'], ylim=(0, None))
-    ax.spines[['top', 'right']].set_visible(False)
-handles, labels = axes[0].get_legend_handles_labels()
-figure.legend(handles, labels, loc='lower center', ncol=3, frameon=False, fontsize=9)
-figure.tight_layout(rect=(0, 0.12, 1, 1))
-figure.savefig(artifact_dir / 'small_window_comparison.png', dpi=180)
-plt.show()
+nb_plot.plot_small_real_data_controls_with_pre_existing_root_edges(
+    artifact_dir=artifact_dir,
+    colors=colors,
+    mode_labels=mode_labels,
+    mode_order=mode_order,
+    window_names=window_names,
+    windows=windows,
+    figsize=(10, 4.3),
+    width=0.23,
+    ylim=(0, None),
+    fontsize=9,
+    dpi=180,
+)
 
 # %% [markdown]
 # ## Tiny examples: when the comparison can and cannot help
@@ -273,7 +315,9 @@ plt.show()
 #    diagnostic, not a proposed matching parameter setting.
 
 # %%
-display.display(toys[['example', 'mode', 'root_edges', 'root_span_bp', 'mismatches', 'path']])
+display.display(
+    toys[["example", "mode", "root_edges", "root_span_bp", "mismatches", "path"]]
+)
 
 # %% [markdown]
 # ## Likelihood and copying checks
@@ -299,16 +343,24 @@ display.display(toys[['example', 'mode', 'root_edges', 'root_span_bp', 'mismatch
 assert summary.log_likelihood_max_abs_difference.max() == 0
 assert summary.mutations.sum() == 0
 assert summary.node0_edges.sum() == 0
-assert summary.loc[summary['mode'].eq('control'), 'root_edges'].gt(0).all()
-youngest = paired.loc[paired['mode'].eq('youngest')]
+assert summary.loc[summary["mode"].eq("control"), "root_edges"].gt(0).all()
+youngest = paired.loc[paired["mode"].eq("youngest")]
 assert youngest.root_edge_change.le(0).all()
 assert youngest.root_span_change_bp.le(0).all()
-age_checks = summary[['dataset', 'mode', 'changed_parent_sites',
-                      'changed_to_younger_sites', 'changed_to_older_sites',
-                      'root_sites_removed', 'root_sites_added',
-                      'log_likelihood_max_abs_difference']]
+age_checks = summary[
+    [
+        "dataset",
+        "mode",
+        "changed_parent_sites",
+        "changed_to_younger_sites",
+        "changed_to_older_sites",
+        "root_sites_removed",
+        "root_sites_added",
+        "log_likelihood_max_abs_difference",
+    ]
+]
 display.display(age_checks)
-print('All paired real-data likelihood, mismatch and root-edge checks passed.')
+print("All paired real-data likelihood, mismatch and root-edge checks passed.")
 
 # %% [markdown]
 # ## Interpretation and limits
@@ -351,21 +403,36 @@ print('All paired real-data likelihood, mismatch and root-edge checks passed.')
 run_experiments = False
 if run_experiments:
     command = [
-        'uv', 'run', '--no-project', '--python', settings['matching_python'],
-        'python', str(artifact_dir / 'source/reproduce.py'),
-        '--config', str(artifact_dir / 'experiment_config.json'),
-        '--output', str(artifact_dir / 'reproduced'),
+        "uv",
+        "run",
+        "--no-project",
+        "--python",
+        settings["matching_python"],
+        "python",
+        str(artifact_dir / "source/reproduce.py"),
+        "--config",
+        str(artifact_dir / "experiment_config.json"),
+        "--output",
+        str(artifact_dir / "reproduced"),
     ]
     subprocess.run(command, check=True)
 
 # %%
-display.display(pd.Series({
-    'date': settings['date'],
-    'tsinfer_commit': provenance['tsinfer_commit'],
-    'recombination': settings['recombination'],
-    'mismatch': settings['mismatch'],
-    'matching_workers': settings['workers'],
-    'real_data_requests_per_arm': len(paired.loc[paired['mode'].eq('control')]),
-    'original_source_matches_control_copy': provenance['source_control_matches_checkout'],
-    'likelihood_compression_unchanged': provenance['compressed_likelihood_function_unchanged'],
-}))
+display.display(
+    pd.Series(
+        {
+            "date": settings["date"],
+            "tsinfer_commit": provenance["tsinfer_commit"],
+            "recombination": settings["recombination"],
+            "mismatch": settings["mismatch"],
+            "matching_workers": settings["workers"],
+            "real_data_requests_per_arm": len(paired.loc[paired["mode"].eq("control")]),
+            "original_source_matches_control_copy": provenance[
+                "source_control_matches_checkout"
+            ],
+            "likelihood_compression_unchanged": provenance[
+                "compressed_likelihood_function_unchanged"
+            ],
+        }
+    )
+)

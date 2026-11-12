@@ -5,7 +5,7 @@ import dataclasses
 import pathlib
 import warnings
 
-import error_estimation
+from . import error_estimation
 import numpy as np
 import scipy.optimize
 import scipy.special
@@ -170,7 +170,7 @@ def classify_doubletons(classifier, profiles, summary, *, baseline_excluded=0.25
         num_excluded = int(baseline_excluded * len(scores))
         order = np.argsort(counts, kind="stable")
         retained = np.zeros(len(scores), dtype=bool)
-        retained[order[:len(scores) - num_excluded]] = True
+        retained[order[: len(scores) - num_excluded]] = True
         return scores, retained
     features = doubleton_features(profiles)
     scores = doubleton_scores(classifier, features)
@@ -392,12 +392,10 @@ def cumulative_mismatch_profiles(
         local_right = np.clip(right[:, first:last] - start, 0, len(block))
         local_focal_boundary = np.clip(local_focal, 0, len(block))
         left_count[:, first:last] += (
-            cumulative[local_focal_boundary, columns]
-            - cumulative[local_left, columns]
+            cumulative[local_focal_boundary, columns] - cumulative[local_left, columns]
         )
         right_count[:, first:last] += (
-            cumulative[local_right, columns]
-            - cumulative[local_focal_boundary, columns]
+            cumulative[local_right, columns] - cumulative[local_focal_boundary, columns]
         )
 
         mismatch_rows, mismatch_columns = np.nonzero(mismatch)
@@ -408,12 +406,8 @@ def cumulative_mismatch_profiles(
         within = np.abs(displacement) <= max_L
         on_left = within & (displacement < 0)
         on_right = within & (displacement > 0)
-        np.minimum.at(
-            left_first, doubleton_columns[on_left], -displacement[on_left]
-        )
-        np.minimum.at(
-            right_first, doubleton_columns[on_right], displacement[on_right]
-        )
+        np.minimum.at(left_first, doubleton_columns[on_left], -displacement[on_left])
+        np.minimum.at(right_first, doubleton_columns[on_right], displacement[on_right])
 
     left_censored = np.isinf(left_first)
     right_censored = np.isinf(right_first)

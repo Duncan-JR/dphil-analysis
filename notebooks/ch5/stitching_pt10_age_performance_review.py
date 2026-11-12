@@ -27,26 +27,41 @@ import pathlib
 import IPython.display as display
 import pandas as pd
 
+repository_dir = pathlib.Path.cwd()
+
 # %%
-notebook_dir = pathlib.Path(__file__).resolve().parent if '__file__' in globals() else pathlib.Path.cwd()
-repository_dir = notebook_dir if (notebook_dir / 'data').is_dir() else notebook_dir.parent.parent
-artifact_dir = repository_dir / 'data/ch5/mutation_age_performance_review_2026_10_22'
-display.HTML((artifact_dir / 'mutation_age_performance_report.html').read_text())
+notebook_dir = (
+    pathlib.Path(__file__).resolve().parent
+    if "__file__" in globals()
+    else pathlib.Path.cwd()
+)
+repository_dir = (
+    notebook_dir if (notebook_dir / "data").is_dir() else notebook_dir.parent.parent
+)
+artifact_dir = repository_dir / "data/ch5/mutation_age_performance_review_2026_10_22"
+display.HTML((artifact_dir / "mutation_age_performance_report.html").read_text())
 
 # %% [markdown]
 # The following cells expose the evidence tables for inspection. No original
 # experiment caches are changed and no ARG metrics are calculated.
 
 # %%
-age_metrics = pd.read_csv(artifact_dir / 'age_metrics.csv')
+age_metrics = pd.read_csv(artifact_dir / "age_metrics.csv")
 display.display(age_metrics)
 
 # %%
-for name in ['root_copying', 'preprocessing', 'root_error', 'large_control_metrics', 'control_metrics', 'cache_audit']:
-    display.display(display.Markdown(f'**{name}**'))
-    display.display(pd.read_csv(artifact_dir / f'{name}.csv'))
+for name in [
+    "root_copying",
+    "preprocessing",
+    "root_error",
+    "large_control_metrics",
+    "control_metrics",
+    "cache_audit",
+]:
+    display.display(display.Markdown(f"**{name}**"))
+    display.display(pd.read_csv(artifact_dir / f"{name}.csv"))
 
 # %%
-for path in sorted(artifact_dir.glob('micro_*_summary.csv')):
-    display.display(display.Markdown(f'**{path.stem}**'))
+for path in sorted(artifact_dir.glob("micro_*_summary.csv")):
+    display.display(display.Markdown(f"**{path.stem}**"))
     display.display(pd.read_csv(path))

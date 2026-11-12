@@ -37,24 +37,48 @@
 import logging
 import pathlib
 
-import ch5_perf_scaling
-import ch5_perf_scaling_plots
-import ch5_root_edges
-import ch5_gap_parents
 import IPython.display as ipython_display
 import pandas as pd
 
+from ch5 import nb_plot, nb_utils
+
+repository_dir = pathlib.Path.cwd()
 logger = logging.getLogger(__name__)
 
 # %%
-notebook_dir = pathlib.Path(__file__).resolve().parent if '__file__' in globals() else pathlib.Path.cwd()
-repository_dir = notebook_dir
-if not (repository_dir / 'experiments').is_dir():
-    repository_dir = notebook_dir.parent.parent
-config_path = repository_dir / 'experiments/ch5/stitching_pt9_hpc_perf2_config.yaml'
-config = ch5_perf_scaling.load_config(config_path)
-plot = ch5_perf_scaling_plots.ScalingPlots(config)
-logging.basicConfig(level=logging.INFO, format='%(message)s')
+repository_dir = pathlib.Path.cwd()
+config_path = {
+    "cache_subdir": "for_plots",
+    "workers": None,
+    "helper_threads": 1,
+    "dating": {
+        "post_process": {"split_ultimate": True, "erase_flanks": True},
+        "preprocess": {"delete_intervals": [], "split_disjoint": True},
+        "estimation": {
+            "method": "variational_gamma",
+            "time_units": "generations",
+            "set_metadata": True,
+            "progress": False,
+            "singletons_phased": True,
+        },
+    },
+    "frequency_bins": {
+        "cutoffs": [0.01, 0.5],
+        "labels": ["DAF < 0.01", "0.01 ≤ DAF < 0.5", "DAF ≥ 0.5"],
+    },
+    "title": "hpc_perf2",
+    "description": "1000 Genomes Project · chr20p",
+    "data_dir": repository_dir / "data/ch5/hpc_perf2_diagnostics",
+    "mutation_rate": 1.29e-08,
+    "population_groups": {
+        "African": ["AFR"],
+        "Non-African": ["EUR", "EAS", "SAS", "AMR"],
+    },
+}
+config_path["base_dir"] = repository_dir
+config = nb_utils.paramsearch_load_config(config_path)
+plot_data = nb_utils.prepare_scaling_data(config)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 # %% [markdown]
 # ## Archived run checks
@@ -65,13 +89,22 @@ logging.basicConfig(level=logging.INFO, format='%(message)s')
 # coverage uses the observed inference-site extent, excluding chromosome flanks.
 
 # %%
-if __name__ == '__main__':
-    cohorts = ch5_perf_scaling.cohort_table(config)
-    performance = ch5_perf_scaling.performance_runs(config)
-    summary = ch5_perf_scaling.diagnostic_summary(config)
+if __name__ == "__main__":
+    cohorts = nb_utils.cohort_table(config)
+    performance = nb_utils.performance_runs(config)
+    summary = nb_utils.diagnostic_summary(config)
     ipython_display.display(cohorts)
-    columns = ['num_samples', 'method', 'af_cutoff', 'wall_s', 'wall_ms_per_haplotype',
-               'speedup', 'cpu_s', 'effective_cores', 'trial_peak_private_gib']
+    columns = [
+        "num_samples",
+        "method",
+        "af_cutoff",
+        "wall_s",
+        "wall_ms_per_haplotype",
+        "speedup",
+        "cpu_s",
+        "effective_cores",
+        "trial_peak_private_gib",
+    ]
     ipython_display.display(performance[columns].round(3))
 
 # %% [markdown]
@@ -86,24 +119,113 @@ if __name__ == '__main__':
 # The sample-size axis is logarithmic; every measured size is labelled.
 
 # %%
-if __name__ == '__main__':
-    metrics = {'wall_s': 'End-to-end wall time (s)',
-               'wall_ms_per_haplotype': 'Wall time per haplotype (ms)'}
-    plot.save(plot.scaling(performance, metrics, 'Performance vs sample size',
-                           include_full=True, log_y=True), 'performance_wall_throughput')
+if __name__ == "__main__":
+    metrics = {
+        "wall_s": "End-to-end wall time (s)",
+        "wall_ms_per_haplotype": "Wall time per haplotype (ms)",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            performance,
+            metrics,
+            "Performance vs sample size",
+            include_full=True,
+            log_y=True,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "performance_wall_throughput",
+        export_dpi=180,
+    )
 
 # %%
-if __name__ == '__main__':
-    metrics = {'trial_peak_private_gib': 'Whole-trial peak private memory (GiB)',
-               'effective_cores': 'Average CPU cores used'}
-    plot.save(plot.scaling(performance, metrics, 'Memory and CPU vs sample size',
-                           include_full=True), 'performance_memory_cpu')
+if __name__ == "__main__":
+    metrics = {
+        "trial_peak_private_gib": "Whole-trial peak private memory (GiB)",
+        "effective_cores": "Average CPU cores used",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            performance,
+            metrics,
+            "Memory and CPU vs sample size",
+            include_full=True,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "performance_memory_cpu",
+        export_dpi=180,
+    )
 
 # %%
-if __name__ == '__main__':
-    metrics = {'speedup': 'Wall-time speedup over Full HMM', 'cpu_s': 'User + system CPU time (s)'}
-    plot.save(plot.scaling(performance, metrics, 'Speedup and total CPU cost',
-                           include_full=True), 'performance_speedup_cpu_cost')
+if __name__ == "__main__":
+    metrics = {
+        "speedup": "Wall-time speedup over Full HMM",
+        "cpu_s": "User + system CPU time (s)",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            performance,
+            metrics,
+            "Speedup and total CPU cost",
+            include_full=True,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "performance_speedup_cpu_cost",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Recorded workload
@@ -113,10 +235,39 @@ if __name__ == '__main__':
 # are workload measures, not timing decompositions.
 
 # %%
-if __name__ == '__main__':
-    metrics = {'focal_site_coverage_percentage': 'Retained focal inference sites (%)',
-               'gap_calls_per_haplotype': 'Gap HMM calls per haplotype'}
-    plot.save(plot.scaling(performance, metrics, 'Workload vs sample size'), 'workload_scaling')
+if __name__ == "__main__":
+    metrics = {
+        "focal_site_coverage_percentage": "Retained focal inference sites (%)",
+        "gap_calls_per_haplotype": "Gap HMM calls per haplotype",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            performance,
+            metrics,
+            "Workload vs sample size",
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "workload_scaling",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Extra switches and parent agreement
@@ -129,18 +280,92 @@ if __name__ == '__main__':
 # displayed means and SEMs rather than starting at zero.
 
 # %%
-if __name__ == '__main__':
-    metrics = {'num_extra_switches_mean': 'Extra switches per haplotype',
-               'switch_increase_percentage_mean': 'Extra switches vs Full HMM (%)'}
-    plot.save(plot.scaling(summary, metrics, 'Extra switches vs sample size', sem=True), 'extra_switches_scaling')
-    plot.save(plot.extra_switch_distributions(), 'extra_switch_distributions')
+if __name__ == "__main__":
+    metrics = {
+        "num_extra_switches_mean": "Extra switches per haplotype",
+        "switch_increase_percentage_mean": "Extra switches vs Full HMM (%)",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            summary,
+            metrics,
+            "Extra switches vs sample size",
+            sem=True,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "extra_switches_scaling",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_extra_switch_distributions(
+            plot_data,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            kde_grid_size=256,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+        ),
+        "extra_switch_distributions",
+        export_dpi=180,
+    )
 
 # %%
-if __name__ == '__main__':
-    metrics = {'focal_agreement_percentage_mean': 'Parent agreement in focal regions (%)',
-               'gap_agreement_percentage_mean': 'Parent agreement in gaps (%)'}
-    plot.save(plot.scaling(summary, metrics, 'Parent agreement vs sample size', sem=True, zoom=True),
-              'parent_agreement_scaling')
+if __name__ == "__main__":
+    metrics = {
+        "focal_agreement_percentage_mean": "Parent agreement in focal regions (%)",
+        "gap_agreement_percentage_mean": "Parent agreement in gaps (%)",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            summary,
+            metrics,
+            "Parent agreement vs sample size",
+            sem=True,
+            zoom=True,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "parent_agreement_scaling",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Physical focal coverage and region lengths
@@ -158,17 +383,92 @@ if __name__ == '__main__':
 # density curves and dashed median markers, with no histogram or coverage plot.
 
 # %%
-if __name__ == '__main__':
-    population_coverage = ch5_perf_scaling.population_coverage(config)
-    lengths = ch5_perf_scaling.length_counts(config)
-    plot.save(plot.coverage(population_coverage), 'focal_population_coverage')
+if __name__ == "__main__":
+    population_coverage = nb_utils.population_coverage(config)
+    lengths = nb_utils.perf_scaling_length_counts(config)
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_coverage(
+            plot_data,
+            population_coverage,
+            cohort_labels={},
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            panel_height=3.6,
+            panel_width=5.1,
+            population_colors={"African": "#009E73", "Non-African": "#CC79A7"},
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "focal_population_coverage",
+        export_dpi=180,
+    )
 
 # %%
-if __name__ == '__main__':
+if __name__ == "__main__":
     num_bins = 120
-    plot.save(plot.focal_lengths(lengths, unit='sites', num_bins=num_bins), 'focal_lengths_sites')
-    plot.save(plot.focal_lengths(lengths, unit='kb', num_bins=num_bins), 'focal_lengths_kb')
-    plot.save(plot.gap_lengths(lengths), 'gap_lengths_kb')
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_focal_lengths(
+            plot_data,
+            lengths,
+            unit="sites",
+            num_bins=num_bins,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            histogram_alpha=0.25,
+            kde_grid_size=256,
+            length_display_quantile=0.99,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            panel_height=3.6,
+            panel_width=5.1,
+        ),
+        "focal_lengths_sites",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_focal_lengths(
+            plot_data,
+            lengths,
+            unit="kb",
+            num_bins=num_bins,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            histogram_alpha=0.25,
+            kde_grid_size=256,
+            length_display_quantile=0.99,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            panel_height=3.6,
+            panel_width=5.1,
+        ),
+        "focal_lengths_kb",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_gap_lengths(
+            plot_data,
+            lengths,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            kde_grid_size=256,
+            length_display_quantile=0.99,
+            line_width=1.7,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            panel_height=3.6,
+            panel_width=5.1,
+        ),
+        "gap_lengths_kb",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ### One-site gaps
@@ -179,8 +479,23 @@ if __name__ == '__main__':
 # sample size has a column; each AF cutoff has a bar at the fixed kb minimum.
 
 # %%
-if __name__ == '__main__':
-    plot.save(plot.one_site_gaps(lengths), 'one_site_gaps')
+if __name__ == "__main__":
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_one_site_gaps(
+            plot_data,
+            lengths,
+            bar_width=0.65,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+        ),
+        "one_site_gaps",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Switch composition
@@ -190,8 +505,25 @@ if __name__ == '__main__':
 # total does not change with the mask. All columns display their y-axis ticks.
 
 # %%
-if __name__ == '__main__':
-    plot.save(plot.switch_composition(summary), 'switch_composition')
+if __name__ == "__main__":
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_switch_composition(
+            plot_data,
+            summary,
+            bar_width=0.65,
+            cohort_labels={},
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            switch_categories=["focal", "gap", "seam"],
+            switch_colors=["#009E73", "#E69F00", "#7B61A8"],
+            switch_labels=["Within focal coverage", "Within gaps", "At gap seams"],
+        ),
+        "switch_composition",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Which ancestors supply the gap copying paths?
@@ -227,13 +559,51 @@ if __name__ == '__main__':
 # Site-weighted and copying-segment-weighted percentages are also cached.
 
 # %%
-if __name__ == '__main__':
-    gap_parents = ch5_gap_parents.gap_parent_composition(config)
-    columns = ['num_samples', 'method', 'af_cutoff', 'category',
-               'span_bp_percentage_mean', 'distinct_parents_percentage_mean']
+if __name__ == "__main__":
+    gap_parents = nb_utils.gap_parent_composition(config)
+    columns = [
+        "num_samples",
+        "method",
+        "af_cutoff",
+        "category",
+        "span_bp_percentage_mean",
+        "distinct_parents_percentage_mean",
+    ]
     ipython_display.display(gap_parents[columns].round(2))
-    for weight in config['plot']['gap_parent_weightings']:
-        plot.save(plot.gap_parents(gap_parents, weight), f'gap_parents_{weight}')
+    for weight in {
+        "span_bp": "Gap sequence in bp",
+        "distinct_parents": "Distinct gap parents",
+    }:
+        nb_plot.save_cohort_figure(
+            plot_data,
+            nb_plot.plot_gap_parents(
+                plot_data,
+                gap_parents,
+                weight,
+                bar_width=0.65,
+                gap_parent_categories={
+                    "older": {"label": "Older than cutoff", "color": "#0072B2"},
+                    "recent_nonfocal": {
+                        "label": "Recent, not focal for haplotype",
+                        "color": "#E69F00",
+                    },
+                    "focal": {
+                        "label": "Focal candidate for haplotype",
+                        "color": "#009E73",
+                    },
+                },
+                gap_parent_label_minimum_percentage=5,
+                gap_parent_weightings={
+                    "span_bp": "Gap sequence in bp",
+                    "distinct_parents": "Distinct gap parents",
+                },
+                method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+                panel_height=3.6,
+                panel_width=5.1,
+            ),
+            f"gap_parents_{weight}",
+            export_dpi=180,
+        )
 
 # %% [markdown]
 # ## Direct ultimate-root to sample edges
@@ -262,17 +632,107 @@ if __name__ == '__main__':
 # axes are logarithmic, and counts are edges per haplotype per bin.
 
 # %%
-if __name__ == '__main__':
-    root_edges = ch5_root_edges.root_edge_summary(config)
-    columns = ['num_samples', 'af_cutoff', 'method', 'category', 'edge_count',
-               'span_bp', 'edge_count_per_haplotype', 'span_kb_per_haplotype']
+if __name__ == "__main__":
+    root_edges = nb_utils.root_edge_summary(config)
+    columns = [
+        "num_samples",
+        "af_cutoff",
+        "method",
+        "category",
+        "edge_count",
+        "span_bp",
+        "edge_count_per_haplotype",
+        "span_kb_per_haplotype",
+    ]
     ipython_display.display(root_edges[columns].round(3))
-    plot.save(ch5_root_edges.totals(plot, root_edges, 'edge_count_per_haplotype',
-                                  'Root edges per haplotype'), 'root_edges_counts')
-    plot.save(ch5_root_edges.totals(plot, root_edges, 'span_kb_per_haplotype',
-                                  'Root-copying span (kb per haplotype)'), 'root_edges_spans')
-    plot.save(ch5_root_edges.additional(plot, root_edges), 'root_edges_additional')
-    plot.save(ch5_root_edges.span_histograms(plot), 'root_edges_span_histograms')
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_root_edge_totals(
+            plot_data,
+            root_edges,
+            "edge_count_per_haplotype",
+            "Root edges per haplotype",
+            bar_width=0.65,
+            cohort_labels={},
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            root_edge_categories={
+                "seam": {"label": "Touches a focal/gap seam", "color": "#7B61A8"},
+                "gap_interior": {"label": "Gap interior", "color": "#E69F00"},
+                "focal": {"label": "Focal only", "color": "#009E73"},
+            },
+        ),
+        "root_edges_counts",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_root_edge_totals(
+            plot_data,
+            root_edges,
+            "span_kb_per_haplotype",
+            "Root-copying span (kb per haplotype)",
+            bar_width=0.65,
+            cohort_labels={},
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            root_edge_categories={
+                "seam": {"label": "Touches a focal/gap seam", "color": "#7B61A8"},
+                "gap_interior": {"label": "Gap interior", "color": "#E69F00"},
+                "focal": {"label": "Focal only", "color": "#009E73"},
+            },
+        ),
+        "root_edges_spans",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_root_edge_differences(
+            plot_data,
+            root_edges,
+            bar_width=0.65,
+            cohort_labels={},
+            full_color="#555555",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            root_edge_categories={
+                "seam": {"label": "Touches a focal/gap seam", "color": "#7B61A8"},
+                "gap_interior": {"label": "Gap interior", "color": "#E69F00"},
+                "focal": {"label": "Focal only", "color": "#009E73"},
+            },
+        ),
+        "root_edges_additional",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_root_edge_spans(
+            plot_data,
+            cohort_labels={},
+            full_color="#555555",
+            line_width=1.7,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            root_edge_categories={
+                "seam": {"label": "Touches a focal/gap seam", "color": "#7B61A8"},
+                "gap_interior": {"label": "Gap interior", "color": "#E69F00"},
+                "focal": {"label": "Focal only", "color": "#009E73"},
+            },
+            root_edge_histogram_alpha=0.65,
+            root_edge_histogram_bins=55,
+        ),
+        "root_edges_span_histograms",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Saved tree counts and mutation dating
@@ -290,13 +750,55 @@ if __name__ == '__main__':
 # their dated outputs are cached.
 
 # %%
-if __name__ == '__main__':
-    dated = ch5_perf_scaling.date_all(config)
-    ipython_display.display(dated[['dataset', 'method', 'af_cutoff', 'raw_sites', 'dated_sites',
-                                  'num_edges', 'num_trees', 'benchmark_paths_identical']])
-    metrics = {'edges_change_percentage': 'Change in raw edges vs Full HMM (%)',
-               'trees_change_percentage': 'Change in raw trees vs Full HMM (%)'}
-    plot.save(plot.scaling(dated, metrics, 'Raw tree counts', zoom=True), 'raw_tree_counts')
+if __name__ == "__main__":
+    dated = nb_utils.perf_scaling_date_all(config)
+    ipython_display.display(
+        dated[
+            [
+                "dataset",
+                "method",
+                "af_cutoff",
+                "raw_sites",
+                "dated_sites",
+                "num_edges",
+                "num_trees",
+                "benchmark_paths_identical",
+            ]
+        ]
+    )
+    metrics = {
+        "edges_change_percentage": "Change in raw edges vs Full HMM (%)",
+        "trees_change_percentage": "Change in raw trees vs Full HMM (%)",
+    }
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            dated,
+            metrics,
+            "Raw tree counts",
+            zoom=True,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            range_margin=0.08,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "raw_tree_counts",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Mutation ages: association and calibration
@@ -318,21 +820,78 @@ if __name__ == '__main__':
 # have undefined correlation and remain blank in the plots.
 
 # %%
-if __name__ == '__main__':
-    ages = ch5_perf_scaling.mutation_correlations(config, dated)
-    checks = ages.groupby(['dataset', 'frequency_bin']).matched_mutations.agg(['min', 'max'])
-    assert checks['min'].eq(checks['max']).all()
-    ipython_display.display(checks['min'].rename('matched_mutations').unstack('frequency_bin'))
-    retention_paths = sorted((config['cache_dir'] / 'age_pairs').glob('*_retention.csv'))
-    retention = pd.concat([pd.read_csv(path) for path in retention_paths], ignore_index=True)
+if __name__ == "__main__":
+    ages = nb_utils.perf_scaling_mutation_correlations(config, dated)
+    checks = ages.groupby(["dataset", "frequency_bin"]).matched_mutations.agg(
+        ["min", "max"]
+    )
+    assert checks["min"].eq(checks["max"]).all()
+    ipython_display.display(
+        checks["min"].rename("matched_mutations").unstack("frequency_bin")
+    )
+    retention_paths = sorted(
+        (config["cache_dir"] / "age_pairs").glob("*_retention.csv")
+    )
+    retention = pd.concat(
+        [pd.read_csv(path) for path in retention_paths], ignore_index=True
+    )
     ipython_display.display(retention.round(2))
-    ipython_display.display(ages.loc[ages.frequency_bin.eq('all')].round(4))
-    plot.save(plot.age_correlations(ages), 'mutation_age_correlations')
+    ipython_display.display(ages.loc[ages.frequency_bin.eq("all")].round(4))
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_age_correlations(
+            plot_data,
+            ages,
+            cohort_labels={},
+            cutoff_colors=["#0072B2", "#D55E00"],
+            full_color="#555555",
+            line_width=1.7,
+            marker="o",
+            marker_size=5,
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+            real_data_marker="o",
+            sample_tick_alignments={
+                "tgp_chr20p_n3202": "right",
+                "out_of_africa_n5000_28_1mbp_error": "left",
+            },
+            sample_tick_rotation=0,
+        ),
+        "mutation_age_correlations",
+        export_dpi=180,
+    )
 
 # %%
-if __name__ == '__main__':
-    for index, label in enumerate(config['frequency_bins']['labels']):
-        plot.save(plot.age_correlations(ages, label), f'mutation_age_daf_{index}')
+if __name__ == "__main__":
+    for index, label in enumerate(config["frequency_bins"]["labels"]):
+        nb_plot.save_cohort_figure(
+            plot_data,
+            nb_plot.plot_age_correlations(
+                plot_data,
+                ages,
+                label,
+                cohort_labels={},
+                cutoff_colors=["#0072B2", "#D55E00"],
+                full_color="#555555",
+                line_width=1.7,
+                marker="o",
+                marker_size=5,
+                method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+                method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+                panel_height=3.6,
+                panel_width=5.1,
+                real_data_marker="o",
+                sample_tick_alignments={
+                    "tgp_chr20p_n3202": "right",
+                    "out_of_africa_n5000_28_1mbp_error": "left",
+                },
+                sample_tick_rotation=0,
+            ),
+            f"mutation_age_daf_{index}",
+            export_dpi=180,
+        )
 
 # %% [markdown]
 # ## Paired mutation ages
@@ -343,7 +902,41 @@ if __name__ == '__main__':
 # including display tails. The annotated N is the complete common intersection.
 
 # %%
-if __name__ == '__main__':
+if __name__ == "__main__":
     if cohorts.has_truth.all():
-        plot.save(plot.age_density(ages, 'truth'), 'mutation_ages_vs_truth')
-    plot.save(plot.age_density(ages, 'full_hmm'), 'mutation_ages_vs_full_hmm')
+        nb_plot.save_cohort_figure(
+            plot_data,
+            nb_plot.plot_age_density(
+                plot_data,
+                ages,
+                "truth",
+                age_hexbin_gridsize=65,
+                age_maximum_quantile=0.999,
+                age_minimum=1,
+                cohort_labels={},
+                method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+                method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+                panel_height=3.6,
+                panel_width=5.1,
+            ),
+            "mutation_ages_vs_truth",
+            export_dpi=180,
+        )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_age_density(
+            plot_data,
+            ages,
+            "full_hmm",
+            age_hexbin_gridsize=65,
+            age_maximum_quantile=0.999,
+            age_minimum=1,
+            cohort_labels={},
+            method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
+            method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+            panel_height=3.6,
+            panel_width=5.1,
+        ),
+        "mutation_ages_vs_full_hmm",
+        export_dpi=180,
+    )

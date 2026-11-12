@@ -16,6 +16,7 @@ dependencies = [
     "polars>=1.44.2",
     "tscompare>=0.2.1",
     "tsinfer",
+    "tsls",
     "tsdate>=0.2.7",
     "tszip>=0.3.1",
 ]
@@ -33,8 +34,8 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-only-include = ["src"]
-sources = ["src"]
+packages = ["src/ch3", "src/ch4", "src/ch5"]
 
 [tool.uv.sources]
-tsinfer = { path = "../tsinfer", editable = true }
+tsinfer = { git = "https://github.com/Duncan-JR/tsinfer", rev = "e2f8de7c950179215ece27e1d31c7b096308b4c8" }
+tsls = { git = "file:///Users/duncan/work/tsls", rev = "c560b405761ae09625e266d39c2356ccc4b54b69" }

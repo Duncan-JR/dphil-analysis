@@ -766,8 +766,8 @@ table as an unverified checklist.
 | Phase | Exact commit title | Status | Commit | Evidence or precise blocker |
 | --- | --- | --- | --- | --- |
 | 1 | Document the repository structure and refactor plan | Complete | a1334c7 | [Inventory](refactor_inventory.md), hashes and external recovery archive; read both sides of all 19 pairs and thesis claims. |
-| 2 | Remove old analysis tests | Complete | this commit | Removed every old test and checkpoint/cache, including protected untracked CH5 test; original list in inventory. No suite is claimed at this intermediate stage. |
-| 3 | Reorganise chapter code and notebook helpers | Planned | — | — |
+| 2 | Remove old analysis tests | Complete | 8b0caa3 | Removed every old test and checkpoint/cache, including protected untracked CH5 test; original list in inventory. No suite is claimed at this intermediate stage. |
+| 3 | Reorganise chapter code and notebook helpers | Complete | this commit | Direct Hatch packages installed; 297 source definitions and all notebook definitions assigned to owners; all 19 pairs migrated with exact visible-record hashes. Import, reference, compilation and call-signature checks pass. Shared grid/benchmark geometries consolidated. CH3 toy cells and perf5 first eight code cells ran separately; figures visually inspected. |
 | 4 | Move standalone scripts and remove experiments | Planned | — | — |
 | 5 | Preserve notebook outputs and document chapter analyses | Planned | — | — |
 | 6 | Add the CH3 thesis plot and statistics workflow | Planned | — | — |

@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Migration in progress: phase 1 inventory and preservation complete. The structure below is the target until phase 8; see `plans/refactor_project.md` for phase evidence.
+Migration in progress: phases 1–3 complete. The structure below is the target until phase 8; see `plans/refactor_project.md` for phase evidence.
 ## Git usage
 
 - Don't include Co-authored-By lines in git commits.

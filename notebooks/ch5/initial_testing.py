@@ -24,18 +24,16 @@
 # %%
 import pathlib
 
-import matplotlib.pyplot as plt
-import mpl_toolkits.axes_grid1 as axes_grid1
 import numpy as np
 import pandas as pd
-import scipy.stats
+
+from ch5 import nb_plot
+
+repository_dir = pathlib.Path.cwd()
 
 # %%
 match_eval_dir = pathlib.Path("~/work/tsinfer-match-eval/data/match_eval").expanduser()
-dataset_names = {
-    "stdpopsim": "out_of_africa_n100_10mbp",
-    "1KGP": "tgp_chr20_n100",
-}
+dataset_names = {"stdpopsim": "out_of_africa_n100_10mbp", "1KGP": "tgp_chr20_n100"}
 focal_stats_by_dataset = {}
 focal_ancestors_by_dataset = {}
 haplotype_counts = {}
@@ -81,59 +79,15 @@ num_haploid_samples = haplotype_counts["stdpopsim"]
 
 
 # %%
-def plot_cumulative_focal_ancestors(
-    ax: plt.Axes,
-    dataframe: pd.DataFrame,
-    num_haploid_samples: int,
-    ac_cutoffs: list[int],
-) -> plt.Axes:
-    """Plot cumulative inferred ancestors by focal AF, marking count cutoffs.
-
-    The dataframe has one row per ancestor and a derived_ac column from the
-    focal-ancestor NPZ used for coverage evaluation. Divide by the total number
-    of haplotypes to put both datasets on the same count-based frequency axis.
-    This equals called-haplotype AF when there are no missing calls.
-    Cutoffs use the same conversion, so the curve counts eligible ancestors
-    at each dashed line, including ancestors equal to the cutoff.
-    """
-    focal_frequencies = dataframe["derived_ac"] / num_haploid_samples
-    counts_by_frequency = focal_frequencies.value_counts().sort_index()
-    cumulative_counts = counts_by_frequency.cumsum()
-    x = np.concatenate(([1 / num_haploid_samples], counts_by_frequency.index, [1]))
-    y = np.concatenate(([0], cumulative_counts, [len(dataframe)]))
-    ax.step(x, y, where="post")
-    for cutoff in ac_cutoffs:
-        cutoff_frequency = cutoff / num_haploid_samples
-        ax.axvline(cutoff_frequency, linestyle="--", color="0.5", linewidth=1)
-        ax.text(
-            cutoff_frequency,
-            0.98,
-            f"AC ≤ {cutoff}",
-            transform=ax.get_xaxis_transform(),
-            rotation=90,
-            va="top",
-            ha="right",
-            color="0.4",
-            fontsize=9,
-        )
-    ax.set_xscale("log")
-    ax.set_xlim(1 / num_haploid_samples, 1)
-    ax.set_ylim(bottom=0)
-    ax.set_xlabel("Focal allele frequency")
-    ax.set_ylabel("Cumulative count of inferred ancestors")
-    return ax
-
 
 # %%
-fig, axes = plt.subplots(
-    1, 2, figsize=(14, 5), sharex=True, sharey=True, layout="constrained"
+nb_plot.plot_cumulative_inferred_ancestors_by_focal_frequency(
+    ac_cutoffs=ac_cutoffs,
+    dataset_names=dataset_names,
+    focal_ancestors_by_dataset=focal_ancestors_by_dataset,
+    haplotype_counts=haplotype_counts,
+    figsize=(14, 5),
 )
-for ax, label in zip(axes, dataset_names, strict=True):
-    plot_cumulative_focal_ancestors(
-        ax, focal_ancestors_by_dataset[label], haplotype_counts[label], ac_cutoffs
-    )
-    ax.set_title(label)
-plt.show()
 
 # %% [markdown]
 # ## Focal coverage across haploid samples
@@ -144,22 +98,13 @@ plt.show()
 # these fractions at the same frequency cutoffs in both datasets.
 
 # %%
-fig, axes = plt.subplots(
-    1, 2, figsize=(14, 5), sharex=True, sharey=True, layout="constrained"
+nb_plot.plot_focal_coverage_across_haploid_samples(
+    ac_cutoffs=ac_cutoffs,
+    dataset_names=dataset_names,
+    focal_stats_by_dataset=focal_stats_by_dataset,
+    num_haploid_samples=num_haploid_samples,
+    figsize=(14, 5),
 )
-frequency_labels = [f"{cutoff / num_haploid_samples:g}" for cutoff in ac_cutoffs]
-for ax, label in zip(axes, dataset_names, strict=True):
-    stats = focal_stats_by_dataset[label]
-    coverage_groups = []
-    for cutoff in ac_cutoffs:
-        cutoff_rows = stats.loc[stats["ac_cutoff"] == cutoff]
-        coverage_groups.append(cutoff_rows["fraction_covered_sites"].to_numpy())
-    ax.boxplot(coverage_groups, tick_labels=frequency_labels)
-    ax.set_xlabel("Cumulative focal frequency cutoff")
-    ax.set_ylabel("Fraction of covered inference sites per haplotype")
-    ax.set_ylim(0, 1)
-    ax.set_title(label)
-plt.show()
 
 # %% [markdown]
 # ## Match score and focal coverage at each frequency cutoff
@@ -178,144 +123,17 @@ plt.show()
 
 
 # %%
-def plot_focal_match_stats(
-    ax: plt.Axes,
-    dataframe: pd.DataFrame,
-    cutoff: int,
-    score_bins: np.ndarray,
-    coverage_bins: np.ndarray,
-    population_colors: dict[str, str],
-    title: str,
-) -> plt.Axes:
-    """Plot one cutoff's score/coverage association with marginal histograms.
-
-    The dataframe contains one row per haplotype and cutoff. Use common bin
-    edges across calls to compare distributions at different cutoffs. The
-    histograms are attached to ax and share its corresponding coordinate axis.
-    Population colours identify points, within-population fits and stacked
-    histograms; the dashed grey line shows the pooled fit.
-    """
-    cutoff_rows = dataframe.loc[dataframe["ac_cutoff"] == cutoff]
-    scores = cutoff_rows["path_log_likelihood"].to_numpy()
-    coverage = cutoff_rows["fraction_covered_sites"].to_numpy()
-    pooled_correlation_label = "n/a"
-    if len(scores) > 1 and np.ptp(scores) > 0:
-        regression = scipy.stats.linregress(scores, coverage)
-        if np.isfinite(regression.rvalue):
-            pooled_correlation_label = f"{regression.rvalue:.3f}"
-        fitted_scores = np.array([scores.min(), scores.max()])
-        fitted_coverage = regression.intercept + regression.slope * fitted_scores
-        ax.plot(
-            fitted_scores, fitted_coverage, color="0.5", linestyle="--", linewidth=1.5
-        )
-    score_groups = []
-    coverage_groups = []
-    histogram_colors = []
-    for population, color in population_colors.items():
-        population_rows = cutoff_rows.loc[cutoff_rows["population"] == population]
-        if population_rows.empty:
-            continue
-        population_scores = population_rows["path_log_likelihood"].to_numpy()
-        population_coverage = population_rows["fraction_covered_sites"].to_numpy()
-        population_fit = None
-        correlation_label = "n/a"
-        if len(population_scores) > 1 and np.ptp(population_scores) > 0:
-            population_fit = scipy.stats.linregress(
-                population_scores, population_coverage
-            )
-            if np.isfinite(population_fit.rvalue):
-                correlation_label = f"{population_fit.rvalue:.3f}"
-        ax.scatter(
-            population_scores,
-            population_coverage,
-            s=18,
-            alpha=0.6,
-            color=color,
-            label=(f"{population}: r = {correlation_label}, n = {len(population_rows)}"),
-        )
-        if population_fit is not None:
-            fitted_scores = np.array([population_scores.min(), population_scores.max()])
-            fitted_coverage = (
-                population_fit.intercept + population_fit.slope * fitted_scores
-            )
-            ax.plot(fitted_scores, fitted_coverage, color=color, linewidth=2)
-        score_groups.append(population_scores)
-        coverage_groups.append(population_coverage)
-        histogram_colors.append(color)
-    ax.legend(loc="lower right", fontsize=8)
-    ax.text(
-        0.04,
-        0.20,
-        f"Pooled r = {pooled_correlation_label}\nn = {len(cutoff_rows)} haplotypes",
-        transform=ax.transAxes,
-        va="top",
-        bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
-    )
-    ax.set_xlabel("Path log likelihood (higher is better)")
-    ax.set_ylabel("Fraction of covered inference sites")
-    ax.set_xlim(score_bins[0], score_bins[-1])
-    ax.set_ylim(coverage_bins[0], coverage_bins[-1])
-
-    divider = axes_grid1.make_axes_locatable(ax)
-    score_ax = divider.append_axes("top", size="25%", pad=0.12, sharex=ax)
-    coverage_ax = divider.append_axes("right", size="25%", pad=0.12, sharey=ax)
-    score_ax.hist(
-        score_groups, bins=score_bins, stacked=True, color=histogram_colors, alpha=0.7
-    )
-    coverage_ax.hist(
-        coverage_groups,
-        bins=coverage_bins,
-        orientation="horizontal",
-        stacked=True,
-        color=histogram_colors,
-        alpha=0.7,
-    )
-    score_ax.tick_params(axis="x", labelbottom=False)
-    coverage_ax.tick_params(axis="y", labelleft=False)
-    score_ax.set_ylabel("Haplotypes")
-    coverage_ax.set_xlabel("Haplotypes")
-    score_ax.set_title(title)
-    return ax
-
 
 # %%
 combined_stats = pd.concat(focal_stats_by_dataset.values(), ignore_index=True)
 population_names = sorted(combined_stats["population"].unique())
-color_cycle = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-population_colors = {
-    population: color_cycle[index % len(color_cycle)]
-    for index, population in enumerate(population_names)
-}
-score_range = combined_stats["path_log_likelihood"].agg(["min", "max"])
-score_padding = (score_range["max"] - score_range["min"]) * 0.05
-score_bins = np.linspace(
-    score_range["min"] - score_padding,
-    score_range["max"] + score_padding,
-    21,
+nb_plot.plot_match_score_and_focal_coverage_at_each_frequency_cutoff(
+    ac_cutoffs=ac_cutoffs,
+    combined_stats=combined_stats,
+    dataset_names=dataset_names,
+    focal_stats_by_dataset=focal_stats_by_dataset,
+    num_haploid_samples=num_haploid_samples,
+    population_names=population_names,
 )
-coverage_bins = np.linspace(0, 1, 21)
-fig, axes = plt.subplots(
-    len(ac_cutoffs),
-    2,
-    figsize=(15, 6 * len(ac_cutoffs)),
-    squeeze=False,
-    sharex=True,
-    sharey=True,
-)
-fig.subplots_adjust(left=0.08, right=0.97, bottom=0.03, top=0.98, wspace=0.4, hspace=0.5)
-for row, cutoff in enumerate(ac_cutoffs):
-    frequency = cutoff / num_haploid_samples
-    for column, label in enumerate(dataset_names):
-        plot_focal_match_stats(
-            axes[row, column],
-            focal_stats_by_dataset[label],
-            cutoff,
-            score_bins,
-            coverage_bins,
-            population_colors,
-            title=f"{label}: focal frequency ≤ {frequency:g} (AC ≤ {cutoff})",
-        )
-        axes[row, column].tick_params(labelbottom=True, labelleft=True)
-plt.show()
 
 # %%

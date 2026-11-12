@@ -42,18 +42,73 @@
 import logging
 import pathlib
 
-import ch5_conditioning
-import ch5_conditioning_plots
 import IPython.display as ipython_display
 
+from ch5 import nb_plot, nb_utils
+
+repository_dir = pathlib.Path.cwd()
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(message)s")
-
-notebook_dir = pathlib.Path(__file__).resolve().parent if "__file__" in globals() else pathlib.Path.cwd()
-repository_dir = notebook_dir if (notebook_dir / "experiments").is_dir() else notebook_dir.parent.parent
-config_path = repository_dir / "experiments/ch5/stitching_pt12_conditioning_config.yaml"
-config = ch5_conditioning.load_config(config_path)
-plot = ch5_conditioning_plots.ConditioningPlots(config)
+config_path = {
+    "pipeline_dir": repository_dir.parent / "tsinfer-match-eval",
+    "output_dir": repository_dir / "data/ch5/stitching_pt12_conditioning",
+    "epsilon_per_haplotype_bp": 1e-05,
+    "recombination_map": repository_dir
+    / "data/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt",
+    "datasets": [
+        {
+            "name": "tgp_chr20_n100_500kb",
+            "label": "1KGP chr20 · 100 individuals",
+            "zarr_path": repository_dir / "data/zarr_vcfs/tgp/chr20/data.zarr",
+            "sample_list": "../../../tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
+            "region": [1000000, 1500000],
+            "ancestral_field": "variant_ancestral_allele",
+            "exclude_masks": [
+                "variant_not_snps_mask",
+                "variant_not_biallelic_mask",
+                "variant_bad_ancestral_mask",
+                "variant_duplicate_position_mask",
+            ],
+            "truth_path": None,
+            "raw_zarr_path": None,
+        },
+        {
+            "name": "out_of_africa_n300_500kb_error",
+            "label": "Simulation · 300 individuals",
+            "zarr_path": repository_dir.parent
+            / "tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-geno-1.0-phase3e-4-mispol0.zarr",
+            "sample_list": None,
+            "region": [1000000, 1500000],
+            "ancestral_field": "variant_mispolarised_ancestral_state",
+            "exclude_masks": [],
+            "truth_path": repository_dir.parent
+            / "tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees",
+            "raw_zarr_path": repository_dir.parent
+            / "tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-raw.zarr",
+        },
+    ],
+    "pipeline": {
+        "focal_choice": "left",
+        "af_cutoff": 0.1,
+        "min_region_size_kb": 25,
+        "ancestor_chunk_size": 5000,
+        "inference_threads": 18,
+        "matching_threads": 9,
+        "sample_reader_threads": 1,
+        "sample_prefetch_chunks": 2,
+        "max_pending_haplotypes": None,
+        "helper_threads": {
+            "blosc_threads": 1,
+            "zarr_async_concurrency": 1,
+            "zarr_threading_max_workers": 1,
+            "blas_threads": 1,
+        },
+    },
+    "storage": {"variant_chunk": 1000, "sample_chunk": 100},
+}
+config_path["base_dir"] = repository_dir
+config = nb_utils.conditioning_load_config(config_path)
+plot_config = config
 
 # %% [markdown]
 # ## From errors per haplotype-bp to a mismatch probability
@@ -89,10 +144,18 @@ plot = ch5_conditioning_plots.ConditioningPlots(config)
 
 # %%
 if __name__ == "__main__":
-    calibration = ch5_conditioning.prepare(config)
-    columns = ["label", "span_bp", "num_individuals", "calibration_sites",
-               "segregating_sites", "expected_inference_sites", "sites_per_bp",
-               "epsilon_per_haplotype_bp", "mismatch_probability"]
+    calibration = nb_utils.prepare(config)
+    columns = [
+        "label",
+        "span_bp",
+        "num_individuals",
+        "calibration_sites",
+        "segregating_sites",
+        "expected_inference_sites",
+        "sites_per_bp",
+        "epsilon_per_haplotype_bp",
+        "mismatch_probability",
+    ]
     ipython_display.display(calibration[columns])
 
 # %% [markdown]
@@ -125,11 +188,17 @@ if __name__ == "__main__":
 
 # %%
 if __name__ == "__main__":
-    ch5_conditioning.run_pipeline(config)
-    tables = ch5_conditioning.analyse(config)
-    columns = ["label", "inference_sites", "mismatch_probability",
-               "median_genetic_distance_morgans", "median_recombination_probability",
-               "min_recombination_probability", "max_recombination_probability"]
+    nb_utils.run_pipeline(config)
+    tables = nb_utils.analyse(config)
+    columns = [
+        "label",
+        "inference_sites",
+        "mismatch_probability",
+        "median_genetic_distance_morgans",
+        "median_recombination_probability",
+        "min_recombination_probability",
+        "max_recombination_probability",
+    ]
     ipython_display.display(tables.calibration[columns])
     ipython_display.display(tables.allele_checks)
 
@@ -156,7 +225,24 @@ if __name__ == "__main__":
 # %%
 if __name__ == "__main__":
     ipython_display.display(tables.recurrence)
-    plot.save(plot.recurrence(tables.recurrence), "recurrent_sites")
+    nb_plot.save_conditioning_figure(
+        plot_config,
+        nb_plot.plot_conditioned_recurrence(
+            plot_config,
+            tables.recurrence,
+            bar_headroom_fraction=0.22,
+            bar_width=0.65,
+            dpi=120,
+            full_color="#555555",
+            greedy_color="#0072B2",
+            panel_height=3.7,
+            panel_width=5.2,
+            provisional_note="Greedy results are provisional",
+            truth_color="#009E73",
+        ),
+        "recurrent_sites",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Which recurrent sites and mutations overlap known errors?
@@ -182,11 +268,41 @@ if __name__ == "__main__":
 # %%
 if __name__ == "__main__":
     ipython_display.display(tables.overlap)
-    plot.save(plot.error_sites(tables.overlap), "recurrent_error_site_overlap")
+    nb_plot.save_conditioning_figure(
+        plot_config,
+        nb_plot.plot_conditioned_error_sites(
+            plot_config,
+            tables.overlap,
+            dpi=120,
+            error_color="#D55E00",
+            greedy_color="#0072B2",
+            panel_height=3.7,
+            panel_width=5.2,
+            provisional_note="Greedy results are provisional",
+        ),
+        "recurrent_error_site_overlap",
+        export_dpi=180,
+    )
 
 # %%
 if __name__ == "__main__":
-    plot.save(plot.recurrent_mutation_errors(tables.overlap), "recurrent_mutation_error_overlap")
+    nb_plot.save_conditioning_figure(
+        plot_config,
+        nb_plot.plot_conditioned_recurrent_mutation_errors(
+            plot_config,
+            tables.overlap,
+            bar_width=0.65,
+            dpi=120,
+            error_color="#D55E00",
+            other_color="#B8B8B8",
+            panel_height=3.7,
+            panel_width=5.2,
+            provisional_note="Greedy results are provisional",
+            truth_color="#009E73",
+        ),
+        "recurrent_mutation_error_overlap",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Mean sample mutations with copying switches stacked above
@@ -201,7 +317,22 @@ if __name__ == "__main__":
 # %%
 if __name__ == "__main__":
     ipython_display.display(tables.sample_means)
-    plot.save(plot.copying_events(tables.sample_means), "sample_mutations_switches")
+    nb_plot.save_conditioning_figure(
+        plot_config,
+        nb_plot.plot_conditioned_copying_events(
+            plot_config,
+            tables.sample_means,
+            bar_width=0.65,
+            dpi=120,
+            greedy_color="#0072B2",
+            panel_height=3.7,
+            panel_width=5.2,
+            provisional_note="Greedy results are provisional",
+            switch_color="#E69F00",
+        ),
+        "sample_mutations_switches",
+        export_dpi=180,
+    )
 
 # %% [markdown]
 # ## Reading this pilot

@@ -384,6 +384,7 @@ dependencies = [
     { name = "tsdate" },
     { name = "tsinfer" },
     { name = "tskit" },
+    { name = "tsls" },
     { name = "tszip" },
     { name = "zarr" },
 ]
@@ -408,8 +409,9 @@ requires-dist = [
     { name = "scipy" },
     { name = "tscompare", specifier = ">=0.2.1" },
     { name = "tsdate", specifier = ">=0.2.7" },
-    { name = "tsinfer", editable = "../tsinfer" },
+    { name = "tsinfer", git = "https://github.com/Duncan-JR/tsinfer?rev=e2f8de7c950179215ece27e1d31c7b096308b4c8" },
     { name = "tskit" },
+    { name = "tsls", git = "file:///Users/duncan/work/tsls?rev=c560b405761ae09625e266d39c2356ccc4b54b69" },
     { name = "tszip", specifier = ">=0.3.1" },
     { name = "zarr", specifier = ">=3" },
 ]
@@ -1794,7 +1796,8 @@ wheels = [
 
 [[package]]
 name = "tsinfer"
-source = { editable = "../tsinfer" }
+version = "0.1.dev2072"
+source = { git = "https://github.com/Duncan-JR/tsinfer?rev=e2f8de7c950179215ece27e1d31c7b096308b4c8#e2f8de7c950179215ece27e1d31c7b096308b4c8" }
 dependencies = [
     { name = "bio2zarr" },
     { name = "click" },
@@ -1805,82 +1808,10 @@ dependencies = [
     { name = "psutil" },
     { name = "tqdm" },
     { name = "tskit" },
+    { name = "tsls" },
     { name = "vcztools" },
     { name = "zarr" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "bio2zarr" },
-    { name = "click" },
-    { name = "daiquiri" },
-    { name = "humanize" },
-    { name = "numba" },
-    { name = "numpy", specifier = ">=2" },
-    { name = "psutil" },
-    { name = "tqdm" },
-    { name = "tskit", specifier = ">=1.0.0" },
-    { name = "vcztools", specifier = ">=0.2" },
-    { name = "zarr", specifier = ">=3" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "bio2zarr", extras = ["tskit"] },
-    { name = "bio2zarr", extras = ["tskit", "vcf"] },
-    { name = "clang-format", specifier = "==21.1.8" },
-    { name = "humanize" },
-    { name = "ipywidgets" },
-    { name = "jupyter-book", specifier = "<2" },
-    { name = "msprime" },
-    { name = "pandas" },
-    { name = "prek", specifier = "==0.3.3" },
-    { name = "pyfaidx" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "ruff", specifier = "==0.15.1" },
-    { name = "setuptools" },
-    { name = "sphinx-book-theme" },
-    { name = "sphinx-click" },
-    { name = "sphinx-issues" },
-    { name = "twine" },
-    { name = "validate-pyproject", extras = ["all"] },
-    { name = "xarray" },
-    { name = "zizmor", specifier = "==1.26.1" },
-]
-docs = [
-    { name = "bio2zarr", extras = ["tskit", "vcf"] },
-    { name = "humanize" },
-    { name = "ipywidgets" },
-    { name = "jupyter-book", specifier = "<2" },
-    { name = "msprime" },
-    { name = "pyfaidx" },
-    { name = "sphinx-book-theme" },
-    { name = "sphinx-click" },
-    { name = "sphinx-issues" },
-]
-lint = [
-    { name = "clang-format", specifier = "==21.1.8" },
-    { name = "prek", specifier = "==0.3.3" },
-    { name = "ruff", specifier = "==0.15.1" },
-    { name = "zizmor", specifier = "==1.26.1" },
-]
-packaging = [
-    { name = "twine" },
-    { name = "validate-pyproject", extras = ["all"] },
-]
-test = [
-    { name = "bio2zarr", extras = ["tskit"] },
-    { name = "msprime" },
-    { name = "pandas" },
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "setuptools" },
-    { name = "xarray" },
-]
-wheels = [{ name = "cibuildwheel" }]
 
 [[package]]
 name = "tskit"
@@ -1898,6 +1829,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/3e/1c7adaae07a00ce009e692a6d171c7a0882d1ed9753017b78a7db7ae7d72/tskit-1.0.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:241192b12d310e49b21bfae524c76768a15d0ed3f7b950d6ee09dce1528b8973", size = 1378470, upload-time = "2026-05-14T18:19:53.881Z" },
     { url = "https://files.pythonhosted.org/packages/71/a1/10d12e9b7908775cf97ad9e6c3d94b4b970940c74a161cc9aaf540fa83c0/tskit-1.0.3-cp312-cp312-win32.whl", hash = "sha256:3e11c9fe328b27c0e4a3ff64a0fed972d2cd48a743c03c8bc339352664322ee8", size = 450010, upload-time = "2026-05-14T18:19:55.419Z" },
     { url = "https://files.pythonhosted.org/packages/2c/b7/d1842bec89cd4993958165d6da774e85ad79b9426baca571c39457a1b6b5/tskit-1.0.3-cp312-cp312-win_amd64.whl", hash = "sha256:66c83c7f971bc160fd29ca6169e1ee31023a5283ca88936df3eed1e568eee209", size = 496000, upload-time = "2026-05-14T18:19:56.75Z" },
+]
+
+[[package]]
+name = "tsls"
+version = "0.1.dev121"
+source = { git = "file:///Users/duncan/work/tsls?rev=c560b405761ae09625e266d39c2356ccc4b54b69#c560b405761ae09625e266d39c2356ccc4b54b69" }
+dependencies = [
+    { name = "numpy" },
+    { name = "tskit" },
 ]
 
 [[package]]
