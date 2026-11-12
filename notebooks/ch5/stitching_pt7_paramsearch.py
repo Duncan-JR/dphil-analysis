@@ -407,7 +407,7 @@ if __name__ == "__main__":
 # The coverage table below records what was completed. Existing comparisons
 # align biological sample identities and restrict both trees to the same
 # diagnostic analysis window.
-# For practical runtime at 20,000 haplotypes, `ch5_arg_metrics` substitutes
+# For practical runtime at 20,000 haplotypes, `ch5.nb_utils.BitsetCladeMap` substitutes
 # exact integer bitsets for tscompare's frozenset clade iterator inside each
 # worker. The tscompare span matching and ARF/TPR formulas are unchanged;
 # equality is tested against its reference implementation, including unary

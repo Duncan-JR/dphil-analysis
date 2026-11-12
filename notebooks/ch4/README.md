@@ -13,7 +13,7 @@ doubletons with complete windows and global diversity from the same store.
 Recombination is supplied explicitly, for example as a HapMap file with
 position and rate in columns 1 and 2 (zero-indexed).
 
-Run a script with `uv run python estimate.py`:
+Example script caller:
 
 ```python
 from ch4 import error_estimation

@@ -1,0 +1,134 @@
+[
+  {
+    "source": "experiments/ch5/data/chunk_matching_experiment",
+    "destination": "data/ch5/chunk_matching_experiment",
+    "files": 9,
+    "bytes": 410142
+  },
+  {
+    "source": "experiments/ch5/data/chunk_matching_zero_coverage",
+    "destination": "data/ch5/chunk_matching_zero_coverage",
+    "files": 6,
+    "bytes": 11912864
+  },
+  {
+    "source": "experiments/ch5/data/match_eval",
+    "destination": "data/ch5/match_eval",
+    "files": 13878,
+    "bytes": 336495570
+  },
+  {
+    "source": "experiments/ch5/sim_n300_10mbp_error_populations.csv",
+    "destination": "data/ch5/sim_n300_10mbp_error_populations.csv",
+    "files": 1,
+    "bytes": 3511
+  },
+  {
+    "source": "experiments/ch5/stitching_pt3_experiment_config.yaml",
+    "destination": "data/ch5/match_eval/stitching_pt3_experiment_config.yaml",
+    "files": 1,
+    "bytes": 997
+  },
+  {
+    "source": "data/ch5_stitching_cohort",
+    "destination": "data/ch5/stitching_cohort",
+    "files": 17,
+    "bytes": 1653984
+  },
+  {
+    "source": "data/ch5_stitching_gap_diagnostics",
+    "destination": "data/ch5/stitching_gap_diagnostics",
+    "files": 8,
+    "bytes": 211361
+  },
+  {
+    "source": "data/ch5_stitching_outliers",
+    "destination": "data/ch5/stitching_outliers",
+    "files": 73,
+    "bytes": 4256619
+  },
+  {
+    "source": "data/ch5_stitching_pt3",
+    "destination": "data/ch5/stitching_pt3",
+    "files": 50,
+    "bytes": 59684160
+  },
+  {
+    "source": "data/ch5_stitching_pt3_hyperparams",
+    "destination": "data/ch5/stitching_pt3_hyperparams",
+    "files": 78,
+    "bytes": 1172298121
+  },
+  {
+    "source": "data/ch5_stitching_pt4_perf",
+    "destination": "data/ch5/stitching_pt4_perf",
+    "files": 13,
+    "bytes": 1021641
+  },
+  {
+    "source": "data/ch5_stitching_pt5",
+    "destination": "data/ch5/stitching_pt5",
+    "files": 17,
+    "bytes": 1435354
+  },
+  {
+    "source": "data/ch5_stitching_pt6_min_sizes",
+    "destination": "data/ch5/stitching_pt6_min_sizes",
+    "files": 70,
+    "bytes": 965233815
+  },
+  {
+    "source": "data/HapMapII_GRCh38",
+    "destination": "data/general/HapMapII_GRCh38",
+    "files": 26,
+    "bytes": 85483283
+  },
+  {
+    "source": "data/zarr_vcfs",
+    "destination": "data/general/zarr_vcfs",
+    "files": 22371,
+    "bytes": 595122574
+  },
+  {
+    "source": "data/misc/tgp_3202_pedigree.csv",
+    "destination": "data/general/populations/tgp_3202_pedigree.csv",
+    "files": 1,
+    "bytes": 97487
+  },
+  {
+    "source": "data/misc/pigs_pop_map.csv",
+    "destination": "data/ch4/populations/pigs_pop_map.csv",
+    "files": 1,
+    "bytes": 44099
+  },
+  {
+    "source": "data/pig_recombination_map",
+    "destination": "data/ch4/pig_recombination_map",
+    "files": 3,
+    "bytes": 7645
+  },
+  {
+    "source": "data/tmp",
+    "destination": "data/ch4/validation",
+    "files": 5,
+    "bytes": 286447
+  },
+  {
+    "source": "data/before.trees",
+    "destination": "data/ch5/ancestor_grouping/before.trees",
+    "files": 1,
+    "bytes": 18772660
+  },
+  {
+    "source": "data/after.trees",
+    "destination": "data/ch5/ancestor_grouping/after.trees",
+    "files": 1,
+    "bytes": 18802428
+  },
+  {
+    "source": "data/dataframes/OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-aggregated.csv",
+    "destination": "data/ch3/OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-aggregated.csv",
+    "files": 1,
+    "bytes": 379889327
+  }
+]

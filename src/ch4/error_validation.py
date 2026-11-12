@@ -5,12 +5,13 @@ import dataclasses
 import pathlib
 import warnings
 
-from . import error_estimation
 import numpy as np
 import scipy.optimize
 import scipy.special
 import tskit
 import zarr
+
+from . import error_estimation
 
 
 @dataclasses.dataclass

@@ -508,7 +508,7 @@ if __name__ == "__main__":
 # %% [markdown]
 # ## Physical focal coverage and region lengths
 #
-# Population groups follow the analysis config. Curves show physical coverage
+# Population groups follow the scientific settings in this notebook. Curves show physical coverage
 # over the archived analysis extent, with one haplotype SEM. Histograms show
 # **retained** connected focal regions at the cohort-specific minimum;
 # unfiltered regions were not archived. `num_bins` is directly editable below.

@@ -61,7 +61,8 @@ config_path = {
         {
             "name": "tgp_n300_10mbp",
             "label": "1KGP",
-            "population_metadata": repository_dir / "data/misc/tgp_3202_pedigree.csv",
+            "population_metadata": repository_dir
+            / "data/general/populations/tgp_3202_pedigree.csv",
             "population_column": "superpopulation",
             "african_population": "AFR",
             "analysis_span_bp": [1000000, 11000000],
@@ -88,6 +89,7 @@ config_path = {
             "labels": ["DAF < 0.01", "0.01 ≤ DAF < 0.5", "DAF ≥ 0.5"],
         },
     },
+    "experiment_base_dir": repository_dir / "data/ch5",
 }
 config_path["base_dir"] = repository_dir
 config = config_path

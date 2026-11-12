@@ -1,6 +1,6 @@
 """Export the Zarr inputs for chapter 3 plots to one transferable CSV per prefix.
 
-Run from tsinfer-anc-eval: ``uv run python /path/to/ch3_extract_data.py PREFIX``.
+Run from tsinfer-anc-eval: ``uv run python /path/to/extract_zarr_validation_data.py PREFIX``.
 The default input is data/anc_eval/zarr_vcfs and the output is
 ``data/anc_eval/dataframes/PREFIX_zarr_data.csv``. This script is standalone:
 only numpy, pandas and zarr are required. The phase-switch illustration is
@@ -9,7 +9,7 @@ excluded; it continues to use its separate chromosome 1 Zarr dataset.
 Record types are profile metadata, truth (unflipped counts at each variant),
 genotype (diploid error/transition counts by true allele count), and daf
 (site counts by allele count and polarisation). Counts remain unbinned so
-``ch3_plot`` can change frequency bins without repeating the extraction.
+the chapter 3 plotting code can change frequency bins without repeating the extraction.
 """
 
 import argparse
@@ -35,10 +35,23 @@ class ExtractionConfig:
     chunk_rows: int = 1000
     workers: int | None = None
     columns: tuple[str, ...] = (
-        "record_type", "data_prefix", "replicate", "geno_multiplier", "phase_ser",
-        "mispol_rate", "num_alleles", "focal_position", "derived_count",
-        "mispolarised", "num_sites", "changed", "total", "homozygous_0",
-        "homozygous_2", "to_heterozygous_0", "to_heterozygous_2",
+        "record_type",
+        "data_prefix",
+        "replicate",
+        "geno_multiplier",
+        "phase_ser",
+        "mispol_rate",
+        "num_alleles",
+        "focal_position",
+        "derived_count",
+        "mispolarised",
+        "num_sites",
+        "changed",
+        "total",
+        "homozygous_0",
+        "homozygous_2",
+        "to_heterozygous_0",
+        "to_heterozygous_2",
     )
 
 
@@ -73,12 +86,16 @@ def discover_stores(folder, prefix):
         match = pattern.fullmatch(path.name)
         if match is None or match[1] != prefix:
             continue
-        stores.append(VariantStore(
-            path, int(match[2]), float(match[3]), float(match[4]), float(match[5])
-        ))
+        stores.append(
+            VariantStore(
+                path, int(match[2]), float(match[3]), float(match[4]), float(match[5])
+            )
+        )
     if len(stores) == 0:
         raise FileNotFoundError(f"No variant stores for {prefix} in {folder}")
-    keys = [(s.replicate, s.geno_multiplier, s.phase_ser, s.mispol_rate) for s in stores]
+    keys = [
+        (s.replicate, s.geno_multiplier, s.phase_ser, s.mispol_rate) for s in stores
+    ]
     if len(set(keys)) != len(keys):
         raise ValueError(f"Duplicate error profiles for {prefix} in {folder}")
     return stores
@@ -87,9 +104,12 @@ def discover_stores(folder, prefix):
 def find_store(stores, replicate, geno_multiplier=0, phase_ser=0, mispol_rate=0):
     """Require a unique store for a numeric error profile and replicate."""
     matches = [
-        store for store in stores
-        if store.replicate == replicate and store.geno_multiplier == geno_multiplier
-        and store.phase_ser == phase_ser and store.mispol_rate == mispol_rate
+        store
+        for store in stores
+        if store.replicate == replicate
+        and store.geno_multiplier == geno_multiplier
+        and store.phase_ser == phase_ser
+        and store.mispol_rate == mispol_rate
     ]
     if len(matches) != 1:
         raise ValueError(
@@ -112,13 +132,23 @@ def _genotype_counts(truth_store, observed, config):
         raise ValueError("Sample order differs between the observed and true stores")
     num_individuals = true_calls.shape[1]
     num_alleles = num_individuals * true_calls.shape[2]
-    names = ["changed", "total", "homozygous_0", "homozygous_2",
-             "to_heterozygous_0", "to_heterozygous_2"]
+    names = [
+        "changed",
+        "total",
+        "homozygous_0",
+        "homozygous_2",
+        "to_heterozygous_0",
+        "to_heterozygous_2",
+    ]
     counts = {name: np.zeros(num_alleles + 1, dtype=np.int64) for name in names}
     for start in range(0, true_calls.shape[0], config.chunk_rows):
         region = slice(start, start + config.chunk_rows)
-        if not np.array_equal(truth["variant_position"][region], observed["variant_position"][region]):
-            raise ValueError("Variant order differs between the observed and true stores")
+        if not np.array_equal(
+            truth["variant_position"][region], observed["variant_position"][region]
+        ):
+            raise ValueError(
+                "Variant order differs between the observed and true stores"
+            )
         true_dosage = true_calls[region].sum(axis=2)
         observed_dosage = observed_calls[region].sum(axis=2)
         allele_counts = true_dosage.sum(axis=1).astype(np.int64)
@@ -152,21 +182,36 @@ def _extract_store(task):
     group = zarr.open_group(store.path, mode="r")
     shape = group["call_genotype"].shape
     num_alleles = shape[1] * shape[2]
-    frames = [pd.DataFrame({
-        "record_type": ["profile"], "data_prefix": [task.prefix], "num_sites": [shape[0]],
-    })]
+    frames = [
+        pd.DataFrame(
+            {
+                "record_type": ["profile"],
+                "data_prefix": [task.prefix],
+                "num_sites": [shape[0]],
+            }
+        )
+    ]
     if store.geno_multiplier == 0 and store.phase_ser == 0:
         allele_counts = group["variant_allele_count"][:].astype(np.int64)
         flipped = ~group["variant_mispolarisation_mask"][:].astype(bool)
-        frequencies = pd.DataFrame({"derived_count": allele_counts, "mispolarised": flipped})
-        frequencies = frequencies.value_counts(sort=False).rename("num_sites").reset_index()
+        frequencies = pd.DataFrame(
+            {"derived_count": allele_counts, "mispolarised": flipped}
+        )
+        frequencies = (
+            frequencies.value_counts(sort=False).rename("num_sites").reset_index()
+        )
         frequencies["record_type"] = "daf"
         frames.append(frequencies)
         if store.mispol_rate == 0:
-            frames.append(pd.DataFrame({
-                "record_type": "truth", "focal_position": group["variant_position"][:],
-                "derived_count": allele_counts,
-            }))
+            frames.append(
+                pd.DataFrame(
+                    {
+                        "record_type": "truth",
+                        "focal_position": group["variant_position"][:],
+                        "derived_count": allele_counts,
+                    }
+                )
+            )
     if store.geno_multiplier > 0 and store.phase_ser == 0 and store.mispol_rate == 0:
         frames.append(_genotype_counts(task.truth, group, task.config))
     frame = pd.concat(frames, ignore_index=True)
@@ -213,7 +258,11 @@ def extract_data(prefix, config=None):
             with context.Pool(processes=workers) as pool:
                 for index, frame in enumerate(pool.imap(_extract_store, tasks)):
                     frame.to_csv(file, index=False, header=index == 0)
-                    logger.info("Extracted %s (%s rows)", tasks[index].store.path.name, len(frame))
+                    logger.info(
+                        "Extracted %s (%s rows)",
+                        tasks[index].store.path.name,
+                        len(frame),
+                    )
     temporary.replace(output)
     logger.info("Wrote %s", output)
     return output
@@ -223,16 +272,24 @@ def main():
     """Command-line entry point; no plotting dependencies or repository imports."""
     defaults = ExtractionConfig()
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("prefix", help="Dataset prefix, without replicate/error suffixes")
-    parser.add_argument("--data-folder", type=pathlib.Path, default=defaults.data_folder)
-    parser.add_argument("--output-folder", type=pathlib.Path, default=defaults.output_folder)
+    parser.add_argument(
+        "prefix", help="Dataset prefix, without replicate/error suffixes"
+    )
+    parser.add_argument(
+        "--data-folder", type=pathlib.Path, default=defaults.data_folder
+    )
+    parser.add_argument(
+        "--output-folder", type=pathlib.Path, default=defaults.output_folder
+    )
     parser.add_argument("--chunk-rows", type=int, default=defaults.chunk_rows)
     parser.add_argument("--workers", type=int, default=defaults.workers)
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     config = ExtractionConfig(
-        data_folder=args.data_folder, output_folder=args.output_folder,
-        chunk_rows=args.chunk_rows, workers=args.workers,
+        data_folder=args.data_folder,
+        output_folder=args.output_folder,
+        chunk_rows=args.chunk_rows,
+        workers=args.workers,
     )
     extract_data(args.prefix, config)
 

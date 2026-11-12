@@ -31,7 +31,6 @@ logger = logging.getLogger(__name__)
 # %%
 repository_dir = pathlib.Path.cwd()
 diagnostic_config_path = {
-    "experiment_config": repository_dir / "experiments/ch5/chunk_matching_config.yaml",
     "datasets": [
         {
             "name": "out_of_africa_n100_10mbp",
@@ -91,7 +90,6 @@ diagnostic_config_path = {
 }
 diagnostic_config_path["base_dir"] = repository_dir
 config = diagnostic_config_path
-experiment_config_path = repository_dir / config["experiment_config"]
 experiment_config = {
     "input_dir": repository_dir / "data/ch5/match_eval",
     "coverage_input_dir": repository_dir.parent / "tsinfer-match-eval/data/match_eval",
@@ -108,9 +106,9 @@ experiment_config = {
 input_dir = pathlib.Path(experiment_config["input_dir"]).expanduser()
 output_dir = pathlib.Path(experiment_config["output_dir"]).expanduser()
 if not input_dir.is_absolute():
-    input_dir = experiment_config_path.parent / input_dir
+    input_dir = repository_dir / input_dir
 if not output_dir.is_absolute():
-    output_dir = experiment_config_path.parent / output_dir
+    output_dir = repository_dir / output_dir
 nb_plot.configure_notebook({"figure.dpi": 120, "font.size": 10})
 stitching_pt2_result = nb_plot.make_path_colormaps()
 category_cmap = stitching_pt2_result.category_cmap
@@ -177,7 +175,7 @@ coverage_handles = nb_plot.make_path_legend()
 #
 # Compare all saved haplotypes, grouped by population, in the simulation and
 # 1KGP datasets. Each observation is one haplotype. Settings and plot styles
-# live in `experiments/ch5/stitching_diagnostics_config.yaml`.
+# live in the scientific settings cell below.
 
 # %%
 population_output_dir = pathlib.Path(config["cohort"]["output_dir"]).expanduser()
@@ -929,7 +927,7 @@ pd.DataFrame(outlier_distance_rows).to_csv(
 #    that already differ from the full path?
 #
 # Settings and deep-dive identities live in
-# `experiments/ch5/stitching_diagnostics_config.yaml`. The notebook reads existing
+# the scientific settings cell below. The notebook reads existing
 # outputs and copied references; it does not rerun matching or change its inputs.
 # Edit this `.py` file and use Jupytext to synchronize the paired notebook.
 

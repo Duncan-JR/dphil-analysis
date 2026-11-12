@@ -31,7 +31,7 @@
 #    that already differ from the full path?
 #
 # Settings and deep-dive identities live in
-# `experiments/ch5/stitching_diagnostics_config.yaml`. The notebook reads existing
+# the scientific settings cell below. The notebook reads existing
 # outputs and copied references; it does not rerun matching or change its inputs.
 # Edit this `.py` file and use Jupytext to synchronize the paired notebook.
 
@@ -52,7 +52,6 @@ logger = logging.getLogger(__name__)
 # %%
 repository_dir = pathlib.Path.cwd()
 diagnostic_config_path = {
-    "experiment_config": repository_dir / "experiments/ch5/chunk_matching_config.yaml",
     "datasets": [
         {
             "name": "out_of_africa_n100_10mbp",
@@ -112,7 +111,6 @@ diagnostic_config_path = {
 }
 diagnostic_config_path["base_dir"] = repository_dir
 config = diagnostic_config_path
-experiment_config_path = repository_dir / config["experiment_config"]
 experiment_config = {
     "input_dir": repository_dir / "data/ch5/match_eval",
     "coverage_input_dir": repository_dir.parent / "tsinfer-match-eval/data/match_eval",
@@ -129,9 +127,9 @@ experiment_config = {
 input_dir = pathlib.Path(experiment_config["input_dir"]).expanduser()
 output_dir = pathlib.Path(experiment_config["output_dir"]).expanduser()
 if not input_dir.is_absolute():
-    input_dir = experiment_config_path.parent / input_dir
+    input_dir = repository_dir / input_dir
 if not output_dir.is_absolute():
-    output_dir = experiment_config_path.parent / output_dir
+    output_dir = repository_dir / output_dir
 coverage_input_dir = pathlib.Path(config["coverage_input_dir"]).expanduser()
 gap_comparison_dir = pathlib.Path(config["gap_comparison_dir"]).expanduser()
 if not coverage_input_dir.is_absolute():

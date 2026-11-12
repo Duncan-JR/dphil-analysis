@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import collections
 import concurrent.futures as cf
+import csv
 import dataclasses
 import hashlib
 import importlib.metadata
@@ -14,11 +15,13 @@ import inspect
 import itertools
 import json
 import logging
+import math
 import multiprocessing
 import os
 import pathlib
 import subprocess
 import time
+import tomllib
 
 import numcodecs
 import numpy as np
@@ -1455,11 +1458,12 @@ def dating_load_configuration(config_path: dict) -> dict:
     """Read either the legacy mismatch grid or the minimum-size experiment."""
     config = config_path.copy()
     experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
+    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
     with experiment_path.open() as source:
         config["experiment"] = yaml.safe_load(source)
     config["experiment_path"] = experiment_path
     config["data_dir"] = resolve_path(
-        config["experiment"]["data_dir"], experiment_path.parent
+        config["experiment"]["data_dir"], experiment_base_dir
     )
     return config
 
@@ -2644,13 +2648,14 @@ def min_sizes_load_configuration(config_path: dict) -> dict:
     """Resolve the analysis settings and the current experiment grid."""
     config = config_path.copy()
     experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
+    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
     with experiment_path.open() as source:
         experiment = yaml.safe_load(source)
     assert experiment["max_mismatches"] == [0]
     assert config["method"] in experiment["focal_methods"]
     config["experiment"] = experiment
     config["experiment_path"] = experiment_path
-    config["data_dir"] = resolve_path(experiment["data_dir"], experiment_path.parent)
+    config["data_dir"] = resolve_path(experiment["data_dir"], experiment_base_dir)
     return config
 
 
@@ -3065,10 +3070,11 @@ def hyperparams_load_results(
     """Read all configured HMM products in parallel without rerunning inference."""
     config = config_path.copy()
     experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
+    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
     with experiment_path.open() as file:
         experiment = yaml.safe_load(file)
     assert config["method"] in experiment["focal_methods"]
-    data_dir = resolve_path(experiment["data_dir"], experiment_path.parent)
+    data_dir = resolve_path(experiment["data_dir"], experiment_base_dir)
     jobs = []
     for settings in config["datasets"]:
         labels = population_labels(settings, config_path)
@@ -3111,9 +3117,10 @@ def hyperparams_load_tree_sequences(config_path: dict) -> TreeSequences:
     """
     config = config_path.copy()
     experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
+    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
     with experiment_path.open() as file:
         experiment = yaml.safe_load(file)
-    data_dir = resolve_path(experiment["data_dir"], experiment_path.parent)
+    data_dir = resolve_path(experiment["data_dir"], experiment_base_dir)
     full = {}
     stitched = {}
     rows = []
@@ -3320,6 +3327,7 @@ def hyperparams_truth_arg_metrics(
     """
     config = config_path.copy()
     experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
+    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
     with experiment_path.open() as file:
         experiment = yaml.safe_load(file)
     dataset_configs = {item["name"]: item for item in experiment["datasets"]}
@@ -3329,7 +3337,7 @@ def hyperparams_truth_arg_metrics(
         truth_path = dataset_configs[name]["ts_path"]
         if truth_path is None:
             continue
-        truth = tskit.load(resolve_path(truth_path, experiment_path.parent))
+        truth = tskit.load(resolve_path(truth_path, experiment_base_dir))
         reference_nodes = truth_sample_nodes(truth)
         aligned = align_tree_sequences(
             trees.full[name],
@@ -5487,3 +5495,1277 @@ def all_mutation_rank_correlations(*, config, datasets, output_dir):
     table = pd.DataFrame(rows)
     save_table(table, output, signature)
     return table
+
+
+@dataclasses.dataclass
+class ChunkDatasetSettings:
+    """Picklable settings passed to each dataset's worker initializer."""
+
+    name: str
+    input_dir: pathlib.Path
+    coverage_input_dir: pathlib.Path
+    ac_cutoff: int
+    min_focal_ac: int
+    score_tolerance: float
+
+
+@dataclasses.dataclass
+class ChunkFocalIntervals:
+    """AC-filtered anchored associations in canonical haplotype/ancestor order."""
+
+    offsets: np.ndarray
+    left: np.ndarray
+    right: np.ndarray
+    nodes: np.ndarray
+
+
+@dataclasses.dataclass
+class ChunkWorkerContext:
+    """Original reference, observations, and reusable full-model indexes."""
+
+    settings: ChunkDatasetSettings
+    reference: tskit.TreeSequence
+    positions: np.ndarray
+    haplotypes: np.ndarray
+    focal: dict[str, np.ndarray]
+    intervals: ChunkFocalIntervals
+    populations: list[str]
+    rho: np.ndarray
+    mu: np.ndarray
+    indexes: tsinfer.matching.MatcherIndexes
+    log_mismatch_penalty: float
+    log_switch_penalty: float
+
+
+@dataclasses.dataclass
+class ChunkMatchArrays:
+    """Parents and canonical copied alleles on the requested site interval."""
+
+    parents: np.ndarray
+    copied: np.ndarray
+
+
+@dataclasses.dataclass
+class ChunkFocalMatch:
+    """Transient focal arrays and the anchored interval union."""
+
+    arrays: ChunkMatchArrays
+    mask: np.ndarray
+
+
+@dataclasses.dataclass
+class ChunkJobResult:
+    """The only two saved matches and their scalar comparison."""
+
+    full: dict
+    stitched: dict
+    comparison: dict
+
+
+def chunk_load_focal(path: pathlib.Path) -> dict[str, np.ndarray]:
+    """Read the candidate identities and ragged panel-column lists without pickle."""
+    with np.load(path, allow_pickle=False) as archive:
+        focal = {name: archive[name] for name in archive.files}
+    offsets = focal["offsets"]
+    columns = focal["ancestor_index"]
+    num_rows = len(focal["sample_id"])
+    assert focal["ploidy_index"].shape == (num_rows,)
+    assert offsets.shape == (num_rows + 1,)
+    assert offsets[0] == 0 and offsets[-1] == len(columns)
+    assert np.all(np.diff(offsets) >= 0)
+    num_ancestors = len(focal["ancestor_id"])
+    assert len(np.unique(focal["ancestor_id"])) == num_ancestors
+    assert focal["derived_ac"].shape == (num_ancestors,)
+    assert np.all(focal["derived_ac"] > 0)
+    assert np.all((columns >= 0) & (columns < num_ancestors))
+    return focal
+
+
+def chunk_select_rows(focal: dict, requested: list[dict] | None) -> list[int]:
+    """Resolve explicit haplotypes, always preserving the stored NPZ row order."""
+    keys = list(zip(focal["sample_id"], focal["ploidy_index"], strict=True))
+    assert len(set(keys)) == len(keys), "Duplicate focal haplotype identities"
+    if requested is None:
+        return list(range(len(keys)))
+    requested_keys = [(item["sample_id"], item["ploidy_index"]) for item in requested]
+    if len(set(requested_keys)) != len(requested_keys):
+        raise ValueError("Duplicate haplotypes in the YAML selection")
+    unknown = set(requested_keys) - set(keys)
+    if unknown:
+        raise ValueError(f"Haplotypes absent from the focal NPZ: {sorted(unknown)}")
+    requested_set = set(requested_keys)
+    rows = [row for row, key in enumerate(keys) if key in requested_set]
+    if len(rows) == 0:
+        raise ValueError("Select at least one haplotype")
+    return rows
+
+
+def chunk_load_focal_intervals(
+    settings: ChunkDatasetSettings,
+    focal: dict,
+    panel,
+    positions: np.ndarray,
+    column_nodes: np.ndarray,
+) -> ChunkFocalIntervals:
+    """Join budget-zero bounds to original nodes and apply the configured AC range.
+
+    The upstream archive stores associations in increasing ancestor-column order,
+    excluding ancestors without focal seeds and those above its generation AC
+    limit. Reconstruct that ordering before applying the analysis cutoff.
+    """
+    interval_path = settings.coverage_input_dir / "haplotype_intervals"
+    interval_path /= f"{settings.name}_inferred_focal_ancestor_intervals.npz"
+    with np.load(interval_path, allow_pickle=False) as archive:
+        interval_offsets = archive["offsets"]
+        interval_ac = archive["focal_ac"]
+        interval_left = archive["left_site_index"][:, 0]
+        interval_right = archive["right_site_index"][:, 0]
+        generated_ac = int(archive["max_ac_cutoff"])
+        assert settings.ac_cutoff <= generated_ac
+        assert int(archive["num_sites"]) == len(positions)
+        for field in ("sample_id", "ploidy_index"):
+            assert np.array_equal(archive[field], focal[field])
+    coverage_panel = tsinfer.vcz.open_store(
+        settings.coverage_input_dir
+        / "ancestors"
+        / f"{settings.name}_inferred_ancestors.zarr"
+    )
+    assert np.array_equal(coverage_panel["variant_position"][:], positions)
+    assert np.array_equal(coverage_panel["sample_id"][:], panel["sample_id"][:])
+    focal_positions = panel["sample_focal_positions"][:]
+    has_anchor = np.any(focal_positions >= 0, axis=1)
+    association_columns = []
+    for row in range(len(focal["sample_id"])):
+        columns = focal["ancestor_index"][
+            focal["offsets"][row] : focal["offsets"][row + 1]
+        ]
+        eligible = (focal["derived_ac"][columns] <= generated_ac) & has_anchor[columns]
+        columns = columns[eligible]
+        assert np.all(np.diff(columns) > 0), (
+            "Interval associations require canonical ancestor order"
+        )
+        assert len(columns) == interval_offsets[row + 1] - interval_offsets[row]
+        association_columns.extend(columns)
+    association_columns = np.asarray(association_columns, dtype=np.int64)
+    assert np.array_equal(focal["derived_ac"][association_columns], interval_ac)
+    interval_nodes = column_nodes[association_columns]
+    eligible = (interval_ac >= settings.min_focal_ac) & (
+        interval_ac <= settings.ac_cutoff
+    )
+    cumulative = np.concatenate(([0], np.cumsum(eligible)))
+    interval_offsets = cumulative[interval_offsets]
+    interval_left = interval_left[eligible]
+    interval_right = interval_right[eligible]
+    interval_nodes = interval_nodes[eligible]
+    return ChunkFocalIntervals(
+        interval_offsets, interval_left, interval_right, interval_nodes
+    )
+
+
+def chunk_load_context(settings: ChunkDatasetSettings) -> ChunkWorkerContext:
+    """Validate local inputs and prepare the common model once per worker.
+
+    Sample observations come from the masked VCZ, preserving missing calls. Panel
+    columns join to original nodes through metadata, never by assuming node offsets.
+    """
+    base = settings.input_dir
+    name = settings.name
+    reference = tskit.load(base / "ancestors" / f"{name}_inferred_ancestors.trees")
+    panel = tsinfer.vcz.open_store(
+        base / "ancestors" / f"{name}_inferred_ancestors.zarr"
+    )
+    samples = tsinfer.vcz.open_store(base / "samples" / f"{name}_samples_masked.zarr")
+    focal = chunk_load_focal(
+        base / "focal_ancestors" / f"{name}_inferred_focal_ancestors.npz"
+    )
+    with (base / "configs" / f"{name}_ancestor_inference.toml").open("rb") as file:
+        native_config = tomllib.load(file)
+    assert native_config["match"]["path_compression"] is False
+    intervals = reference.metadata["sequence_intervals"]
+    assert len(intervals) == 1, "This experiment requires one inference interval"
+    positions = reference.sites_position
+    assert len(positions) > 0 and np.all(np.diff(positions) > 0)
+    assert np.array_equal(positions, panel["variant_position"][:])
+    assert np.array_equal(intervals, panel["sequence_intervals"][:])
+    ancestral = np.asarray([site.ancestral_state for site in reference.sites()])
+    panel_alleles = panel["variant_allele"][:]
+    assert panel_alleles.shape == (len(positions), 2)
+    assert np.array_equal(panel_alleles[:, 0], ancestral)
+    assert np.all(panel_alleles[:, 0] != panel_alleles[:, 1])
+    assert np.all(panel_alleles != "")
+    for mutation in reference.mutations():
+        assert mutation.derived_state in panel_alleles[mutation.site]
+    panel_ids = np.asarray(panel["sample_id"][:].tolist(), dtype=str)
+    assert np.array_equal(panel_ids, focal["ancestor_id"])
+    ancestor_columns = {sample_id: column for column, sample_id in enumerate(panel_ids)}
+    column_nodes = np.full(len(panel_ids), tskit.NULL, dtype=np.int32)
+    assert reference.num_nodes == len(panel_ids) + 2
+    assert reference.node(0).metadata == reference.node(1).metadata == {}
+    assert reference.node(0).time > reference.node(1).time
+    for node in reference.nodes():
+        if node.id < 2:
+            continue
+        metadata = node.metadata
+        assert metadata["source"] == "ancestors" and metadata["ploidy_index"] == 0
+        column = ancestor_columns[str(metadata["sample_id"])]
+        assert column_nodes[column] == tskit.NULL, "Duplicate ancestor metadata join"
+        column_nodes[column] = node.id
+    assert np.all(column_nodes >= 2), "An ancestor is absent from the reference"
+    intervals = chunk_load_focal_intervals(
+        settings, focal, panel, positions, column_nodes
+    )
+    populations = chunk_load_populations(settings, focal)
+    source = next(
+        (item for item in native_config["source"] if item["name"] == "samples")
+    )
+    sample_columns = tsinfer.vcz.resolve_samples_selection(
+        samples, source.get("samples")
+    )
+    sample_ids = np.asarray(
+        samples["sample_id"].oindex[sample_columns].tolist(), dtype=str
+    )
+    ploidy = samples["call_genotype"].shape[2]
+    assert np.array_equal(focal["sample_id"], np.repeat(sample_ids, ploidy))
+    assert np.array_equal(
+        focal["ploidy_index"], np.tile(np.arange(ploidy), len(sample_ids))
+    )
+    sample_positions = samples["variant_position"][:]
+    sample_rows = np.searchsorted(sample_positions, positions)
+    assert np.all(sample_rows < len(sample_positions)), (
+        "Reference sites absent in samples"
+    )
+    assert np.array_equal(sample_positions[sample_rows], positions)
+    sample_alleles = samples["variant_allele"].oindex[sample_rows, :]
+    assert np.all(np.count_nonzero(sample_alleles != "", axis=1) == 2)
+    allowed = sample_alleles == panel_alleles[:, 0, None]
+    allowed |= sample_alleles == panel_alleles[:, 1, None]
+    allowed |= sample_alleles == ""
+    assert np.all(allowed), "Sample and panel allele strings disagree"
+    calls = samples["call_genotype"].oindex[sample_rows, sample_columns, :]
+    assert np.all((calls >= -1) & (calls < sample_alleles.shape[1]))
+    codes = np.where(sample_alleles == ancestral[:, None], 0, 1).astype(np.int8)
+    codes[sample_alleles == ""] = -1
+    lookup_calls = np.maximum(calls, 0)
+    haplotypes = np.take_along_axis(codes[:, None, :], lookup_calls, axis=2)
+    assert np.all(haplotypes[calls >= 0] >= 0), "Called allele is an empty string"
+    haplotypes[calls < 0] = -1
+    haplotypes = haplotypes.reshape(len(positions), -1)
+    parameters = native_config["match"]["sources"]["samples"]
+    recombination = parameters["recombination"]
+    mismatch = parameters["mismatch"]
+    if not 0 < recombination < 1 or not 0 < mismatch < 1:
+        raise ValueError(
+            "Sample recombination and mismatch must lie strictly in (0, 1)"
+        )
+    rho = np.full(len(positions), recombination)
+    mu = np.full(len(positions), mismatch)
+    num_alleles = np.full(len(positions), 2, dtype=np.uint32)
+    indexes = tsinfer.matching.MatcherIndexes(
+        reference, vestigial_root=False, num_alleles=num_alleles
+    )
+    log_mismatch_penalty = math.log(mismatch) - math.log1p(-mismatch)
+    switch_baseline = -recombination + recombination / reference.num_nodes
+    log_switch_penalty = math.log(recombination) - math.log(reference.num_nodes)
+    log_switch_penalty -= math.log1p(switch_baseline)
+    return ChunkWorkerContext(
+        settings=settings,
+        reference=reference,
+        positions=positions,
+        haplotypes=haplotypes,
+        focal=focal,
+        intervals=intervals,
+        populations=populations,
+        rho=rho,
+        mu=mu,
+        indexes=indexes,
+        log_mismatch_penalty=log_mismatch_penalty,
+        log_switch_penalty=log_switch_penalty,
+    )
+
+
+def chunk_initialize_worker(settings: ChunkDatasetSettings) -> None:
+    """Keep a separate reusable context in each multiprocessing worker."""
+    global chunk_worker_context
+    chunk_worker_context = chunk_load_context(settings)
+
+
+def chunk_site_parents(
+    left: np.ndarray,
+    right: np.ndarray,
+    parents: np.ndarray,
+    positions: np.ndarray,
+    start: int,
+    end: int,
+) -> np.ndarray:
+    """Convert absolute genomic path bounds to parents on [start, end)."""
+    order = np.argsort(left)
+    left = np.asarray(left)[order]
+    right = np.asarray(right)[order]
+    parents = np.asarray(parents)[order]
+    assert len(left) > 0 and np.all(left < right)
+    assert np.array_equal(right[:-1], left[1:]), "Path segments are not contiguous"
+    starts = np.searchsorted(positions, left)
+    ends = np.searchsorted(positions, right)
+    assert starts[0] == start and ends[-1] == end
+    result = np.full(end - start, tskit.NULL, dtype=np.int32)
+    for lo, hi, parent in zip(starts, ends, parents, strict=True):
+        assert start <= lo < hi <= end
+        result[lo - start : hi - start] = parent
+    assert np.all(result >= 0)
+    return result
+
+
+def chunk_run_match(
+    matcher: tsinfer.matching.AncestorMatcher,
+    haplotype: np.ndarray,
+    start: int,
+    end: int,
+    buffer: np.ndarray,
+    positions: np.ndarray,
+) -> ChunkMatchArrays:
+    """Copy requested match results before the next call overwrites native buffers."""
+    left, right, parents = matcher.find_path(haplotype, start, end, buffer)
+    site_path = chunk_site_parents(left, right, parents, positions, start, end)
+    copied = buffer[start:end].copy()
+    assert np.all((copied == 0) | (copied == 1))
+    return ChunkMatchArrays(site_path, copied)
+
+
+def chunk_focal_match(
+    context: ChunkWorkerContext, haplotype: np.ndarray, row: int
+) -> ChunkFocalMatch:
+    """Fix an interval-supported focal path; gaps are exactly its uncovered sites.
+
+    Parent selection uses :func:`nb_utils.focal_parent_path`. Copied alleles
+    are read from the inferred reference, rather than assumed from the interval
+    generator, so any inferred/generated difference remains visible as a mutation.
+    """
+    start = context.intervals.offsets[row]
+    end = context.intervals.offsets[row + 1]
+    parents = focal_parent_path(
+        len(haplotype),
+        context.intervals.left[start:end],
+        context.intervals.right[start:end],
+        context.intervals.nodes[start:end],
+    )
+    covered = parents >= 0
+    copied = np.full(len(haplotype), -1, dtype=np.int8)
+    nodes = np.unique(parents[covered])
+    if len(nodes) > 0:
+        genotypes = context.reference.genotype_matrix(
+            samples=nodes, isolated_as_missing=False
+        )
+        sites = np.flatnonzero(covered)
+        columns = np.searchsorted(nodes, parents[covered])
+        copied[covered] = genotypes[sites, columns]
+        assert np.all((copied[covered] == 0) | (copied[covered] == 1))
+    return ChunkFocalMatch(ChunkMatchArrays(parents, copied), covered)
+
+
+def chunk_load_populations(settings: ChunkDatasetSettings, focal: dict) -> list[str]:
+    """Join the upstream population metadata by haplotype identity."""
+    path = settings.coverage_input_dir / "dataframes"
+    path /= f"{settings.name}_inferred_focal_ancestor_stats.csv"
+    labels = {}
+    with path.open() as file:
+        for record in csv.DictReader(file):
+            key = (record["sample_id"], int(record["ploidy_index"]))
+            population = record["population"]
+            assert population != ""
+            if key in labels:
+                assert labels[key] == population
+            labels[key] = population
+    keys = zip(focal["sample_id"], focal["ploidy_index"], strict=True)
+    return [labels[str(sample), int(ploidy)] for sample, ploidy in keys]
+
+
+def chunk_match_record(
+    key: dict,
+    result: ChunkMatchArrays,
+    haplotype: np.ndarray,
+    context: ChunkWorkerContext,
+) -> dict:
+    """Merge site-parent runs and derive mutations from the finished copied alleles.
+
+    Site changes occur at inference-site positions; outer bounds follow the engine's
+    whole-sequence convention. Reconstructing this saved path must recover every site.
+    """
+    assert result.parents.shape == result.copied.shape == haplotype.shape
+    assert np.all(
+        (result.parents >= 0) & (result.parents < context.reference.num_nodes)
+    )
+    assert np.all((result.copied == 0) | (result.copied == 1))
+    changes = np.flatnonzero(result.parents[1:] != result.parents[:-1]) + 1
+    starts = np.concatenate(([0], changes))
+    bounds = np.concatenate(
+        ([0.0], context.positions[changes], [context.reference.sequence_length])
+    )
+    path = [
+        {
+            "left": float(left),
+            "right": float(right),
+            "parent": int(result.parents[start]),
+        }
+        for start, left, right in zip(starts, bounds[:-1], bounds[1:], strict=True)
+    ]
+    reconstructed = chunk_site_parents(
+        bounds[:-1],
+        bounds[1:],
+        result.parents[starts],
+        context.positions,
+        0,
+        len(haplotype),
+    )
+    assert np.array_equal(reconstructed, result.parents)
+    assert len(path) - 1 == np.count_nonzero(result.parents[1:] != result.parents[:-1])
+    mismatches = (haplotype >= 0) & (haplotype != result.copied)
+    mutation_sites = np.flatnonzero(mismatches)
+    mutations = [
+        {
+            "position": float(context.positions[site]),
+            "derived_state": int(haplotype[site]),
+        }
+        for site in mutation_sites
+    ]
+    assert len(mutations) == np.count_nonzero(mismatches)
+    return {**key, "path": path, "mutations": mutations}
+
+
+def chunk_compare_matches(
+    full: dict,
+    stitched: dict,
+    full_arrays: ChunkMatchArrays,
+    stitched_arrays: ChunkMatchArrays,
+    covered: np.ndarray,
+    num_focal: int,
+    context: ChunkWorkerContext,
+) -> dict:
+    """Compare both complete paths and score them with the original full model."""
+    metrics = comparison_metrics(full_arrays.parents, stitched_arrays.parents, covered)
+    full_mismatches = len(full["mutations"])
+    stitched_mismatches = len(stitched["mutations"])
+    full_switches = len(full["path"]) - 1
+    stitched_switches = len(stitched["path"]) - 1
+    assert full_switches == metrics["full_switches"]
+    assert stitched_switches == metrics["stitched_switches"]
+    full_score = full_mismatches * context.log_mismatch_penalty
+    full_score += full_switches * context.log_switch_penalty
+    stitched_score = stitched_mismatches * context.log_mismatch_penalty
+    stitched_score += stitched_switches * context.log_switch_penalty
+    score_delta = stitched_score - full_score
+    key = {
+        name: full[name]
+        for name in (
+            "dataset",
+            "source",
+            "sample_id",
+            "ploidy_index",
+            "ac_cutoff",
+            "population",
+        )
+    }
+    comparison = {
+        **key,
+        "num_focal_ancestors": num_focal,
+        "num_sites": len(covered),
+        **metrics,
+        "num_gaps": len(stitched["gap_site_intervals"]),
+        "mutations_identical": full["mutations"] == stitched["mutations"],
+        "full_mismatches": full_mismatches,
+        "stitched_mismatches": stitched_mismatches,
+        "full_score": full_score,
+        "stitched_score": stitched_score,
+        "score_delta": score_delta,
+        "scores_equal": abs(score_delta) <= context.settings.score_tolerance,
+    }
+    if score_delta > 0:
+        logger.warning(
+            "Positive score delta %s for %s; check full-model assumptions before interpreting this result (n=%s, rho=%s, mu=%s)",
+            score_delta,
+            key,
+            context.reference.num_nodes,
+            context.rho[0],
+            context.mu[0],
+        )
+    return comparison
+
+
+def chunk_match_haplotype(row: int) -> ChunkJobResult:
+    """Cover anchored focal intervals, fill zero-coverage gaps, and run the full HMM."""
+    context = chunk_worker_context
+    focal = context.focal
+    haplotype = np.ascontiguousarray(context.haplotypes[:, row])
+    focal_result = chunk_focal_match(context, haplotype, row)
+    stitched_arrays = focal_result.arrays
+    covered = focal_result.mask
+    num_focal = context.intervals.offsets[row + 1] - context.intervals.offsets[row]
+    focal_intervals = site_intervals(covered)
+    gaps = site_intervals(~covered)
+    coverage = np.zeros(len(haplotype), dtype=np.int8)
+    for intervals in (focal_intervals, gaps):
+        for start, end in intervals:
+            coverage[start:end] += 1
+    assert np.all(coverage == 1), "Focal coverage and gaps must partition all sites"
+    buffer = np.empty(len(haplotype), dtype=np.int8)
+    gap_matcher = tsinfer.matching.AncestorMatcher(
+        context.indexes, context.rho, context.mu
+    )
+    for start, end in gaps:
+        gap = chunk_run_match(
+            gap_matcher, haplotype, int(start), int(end), buffer, context.positions
+        )
+        stitched_arrays.parents[start:end] = gap.parents
+        stitched_arrays.copied[start:end] = gap.copied
+    key = {
+        "dataset": context.settings.name,
+        "source": "samples",
+        "sample_id": str(focal["sample_id"][row]),
+        "ploidy_index": int(focal["ploidy_index"][row]),
+        "ac_cutoff": context.settings.ac_cutoff,
+        "population": context.populations[row],
+    }
+    stitched = chunk_match_record(key, stitched_arrays, haplotype, context)
+    stitched["focal_site_intervals"] = focal_intervals.tolist()
+    stitched["gap_site_intervals"] = gaps.tolist()
+    full_matcher = tsinfer.matching.AncestorMatcher(
+        context.indexes, context.rho, context.mu
+    )
+    full_arrays = chunk_run_match(
+        full_matcher, haplotype, 0, len(haplotype), buffer, context.positions
+    )
+    full = chunk_match_record(key, full_arrays, haplotype, context)
+    comparison = chunk_compare_matches(
+        full, stitched, full_arrays, stitched_arrays, covered, int(num_focal), context
+    )
+    return ChunkJobResult(full, stitched, comparison)
+
+
+def chunk_write_results(results, output_dir: pathlib.Path) -> None:
+    """Stream paths and scalar cohort diagnostics in canonical NPZ order."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with (
+        (output_dir / "full_matches.jsonl").open("w") as full_file,
+        (output_dir / "stitched_matches.jsonl").open("w") as stitched_file,
+        (output_dir / "comparison.csv").open("w", newline="") as comparison_file,
+    ):
+        writer = None
+        for result in results:
+            full_file.write(json.dumps(result.full, allow_nan=False) + "\n")
+            stitched_file.write(json.dumps(result.stitched, allow_nan=False) + "\n")
+            if writer is None:
+                writer = csv.DictWriter(
+                    comparison_file, fieldnames=list(result.comparison)
+                )
+                writer.writeheader()
+            writer.writerow(result.comparison)
+            comparison = result.comparison
+            logger.info(
+                "%s %s/%s: covered=%s gaps=%s agreement=%.4f extra_switch_fraction=%s",
+                comparison["dataset"],
+                comparison["sample_id"],
+                comparison["ploidy_index"],
+                comparison["focal_sites"],
+                comparison["num_gaps"],
+                comparison["fraction_parent_agreement"],
+                comparison["extra_switch_fraction"],
+            )
+
+
+def chunk_run_dataset(
+    settings: ChunkDatasetSettings,
+    requested: list[dict] | None,
+    workers: int | None,
+    output_dir: pathlib.Path,
+) -> None:
+    """Queue whole haplotype jobs; compute the CPU default only at process launch."""
+    focal_path = settings.input_dir / "focal_ancestors"
+    focal_path /= f"{settings.name}_inferred_focal_ancestors.npz"
+    rows = chunk_select_rows(chunk_load_focal(focal_path), requested)
+    if workers is None:
+        workers = multiprocessing.cpu_count()
+    workers = min(workers, len(rows))
+    logger.info("%s: %s haplotypes using %s workers", settings.name, len(rows), workers)
+    if workers == 1:
+        chunk_initialize_worker(settings)
+        results = map(chunk_match_haplotype, rows)
+        chunk_write_results(results, output_dir)
+    else:
+        processes = multiprocessing.get_context("spawn")
+        with processes.Pool(
+            workers, initializer=chunk_initialize_worker, initargs=(settings,)
+        ) as pool:
+            results = pool.imap(chunk_match_haplotype, rows, chunksize=1)
+            chunk_write_results(results, output_dir)
+
+
+@dataclasses.dataclass
+class ComparisonDatasetContext:
+    """Read-only inputs shared by all jobs for a dataset inside one worker."""
+
+    name: str
+    reference: tskit.TreeSequence
+    positions: np.ndarray
+    focal: dict
+    intervals: dict
+    masks: dict
+    matches: dict
+    full: dict
+    old_greedy: dict
+    observations: np.ndarray
+    ancestor_nodes: dict
+    association_nodes: np.ndarray
+    rho: np.ndarray
+    mu: np.ndarray
+    num_alleles: np.ndarray
+    populations: dict
+    settings: dict
+
+
+@dataclasses.dataclass
+class ComparisonSitePath:
+    """Original-reference copying parents and canonical alleles at sites."""
+
+    parents: np.ndarray
+    copied: np.ndarray
+
+
+@dataclasses.dataclass
+class ComparisonHaplotypeResult:
+    """Compact cohort metrics, component diagnostics, and selected run records."""
+
+    comparisons: list[dict]
+    controls: dict
+    components: list[dict]
+    distances: list[dict]
+    matches: dict
+
+
+def comparison_read_archive(path: pathlib.Path) -> dict:
+    with np.load(path, allow_pickle=False) as archive:
+        return {name: archive[name] for name in archive.files}
+
+
+def comparison_read_matches(path: pathlib.Path) -> dict:
+    records = {}
+    with path.open() as file:
+        for line in file:
+            record = json.loads(line)
+            key = (record["sample_id"], record["ploidy_index"])
+            assert key not in records
+            record["path"].sort(key=lambda segment: segment["left"])
+            records[key] = record
+    return records
+
+
+def comparison_site_parents(record: dict, reference: tskit.TreeSequence) -> np.ndarray:
+    segments = record["path"]
+    right = np.array([segment["right"] for segment in segments])
+    parents = np.array([segment["parent"] for segment in segments], dtype=np.int32)
+    indices = np.searchsorted(right, reference.sites_position, side="right")
+    result = parents[indices]
+    assert np.count_nonzero(result[1:] != result[:-1]) == len(segments) - 1
+    return result
+
+
+def comparison_read_observations(
+    base: pathlib.Path, name: str, reference, focal: dict
+) -> np.ndarray:
+    """Read each cohort once, mapping REF/ALT to the reference ancestral state."""
+    samples = zarr.open_group(
+        base / "samples" / f"{name}_samples_masked.zarr", mode="r"
+    )
+    all_sample_ids = samples["sample_id"][:].tolist()
+    sample_columns = {
+        sample_id: column for column, sample_id in enumerate(all_sample_ids)
+    }
+    selected_ids = focal["sample_id"][::2].tolist()
+    columns = [sample_columns[sample_id] for sample_id in selected_ids]
+    assert np.array_equal(focal["sample_id"], np.repeat(selected_ids, 2))
+    assert np.array_equal(focal["ploidy_index"], np.tile([0, 1], len(columns)))
+    source_positions = samples["variant_position"][:]
+    rows = np.searchsorted(source_positions, reference.sites_position)
+    assert np.array_equal(source_positions[rows], reference.sites_position)
+    alleles = samples["variant_allele"].oindex[rows, :]
+    calls = samples["call_genotype"].oindex[rows, columns, :]
+    ancestral = np.asarray([site.ancestral_state for site in reference.sites()])
+    codes = np.where(alleles == ancestral[:, None], 0, 1).astype(np.int8)
+    codes[alleles == ""] = -1
+    observations = np.take_along_axis(codes[:, None, :], np.maximum(calls, 0), axis=2)
+    observations[calls < 0] = -1
+    return observations.reshape(reference.num_sites, -1)
+
+
+def comparison_load_context(name: str) -> ComparisonDatasetContext:
+    """Load once per worker; observations are memory-mapped from preparation."""
+    settings = _comparison_settings["datasets"][name]
+    base = _comparison_settings["input_dir"]
+    reference = tskit.load(base / "ancestors" / f"{name}_inferred_ancestors.trees")
+    focal = comparison_read_archive(
+        base / "focal_ancestors" / f"{name}_inferred_focal_ancestors.npz"
+    )
+    intervals = comparison_read_archive(
+        base / "haplotype_intervals" / f"{name}_inferred_focal_ancestor_intervals.npz"
+    )
+    full = comparison_read_matches(
+        base / "matches" / f"{name}_inferred_samples_matches.jsonl"
+    )
+    masks = {}
+    matches = {}
+    for ac_cutoff in _comparison_settings["pipeline"]["ac_cutoff"]:
+        for budget in _comparison_settings["pipeline"]["max_mismatches"]:
+            prefix = f"{name}_inferred_ac{ac_cutoff}_k{budget}"
+            masks[ac_cutoff, budget] = comparison_read_archive(
+                base / "focal_masks" / f"{prefix}_focal_mask.npz"
+            )
+            matches[ac_cutoff, budget] = comparison_read_matches(
+                base / "matches" / f"{prefix}_hmm_stitched_samples_matches.jsonl"
+            )
+    old_name = settings["saved_greedy_name"]
+    old_reference = tskit.load(
+        _comparison_settings["old_input_dir"]
+        / "ancestors"
+        / f"{old_name}_inferred_ancestors.trees"
+    )
+    assert reference.tables.equals(old_reference.tables, ignore_provenance=True)
+    old_greedy = comparison_read_matches(
+        _comparison_settings["old_output_dir"] / old_name / "stitched_matches.jsonl"
+    )
+    old_comparisons = pd.read_csv(
+        _comparison_settings["old_output_dir"] / old_name / "comparison.csv"
+    )
+    populations = {
+        (row.sample_id, row.ploidy_index): row.population
+        for row in old_comparisons.itertuples()
+    }
+    observations = np.load(
+        _comparison_settings["output_dir"] / f"{name}_observations.npy", mmap_mode="r"
+    )
+    ancestor_nodes = {}
+    for node in reference.nodes():
+        if node.metadata.get("source") == "ancestors":
+            ancestor_nodes[node.metadata["sample_id"]] = node.id
+    association_nodes = []
+    for index in range(len(focal["sample_id"])):
+        start, end = focal["offsets"][index : index + 2]
+        columns = focal["ancestor_index"][start:end]
+        columns = columns[
+            focal["derived_ac"][columns] <= int(intervals["max_ac_cutoff"])
+        ]
+        assert (
+            len(columns)
+            == intervals["offsets"][index + 1] - intervals["offsets"][index]
+        )
+        association_nodes.extend(
+            (ancestor_nodes[focal["ancestor_id"][column]] for column in columns)
+        )
+    with (base / "configs" / f"{name}_ancestor_inference.toml").open("rb") as file:
+        native_config = tomllib.load(file)
+    parameters = native_config["match"]["sources"]["samples"]
+    return ComparisonDatasetContext(
+        name,
+        reference,
+        reference.sites_position,
+        focal,
+        intervals,
+        masks,
+        matches,
+        full,
+        old_greedy,
+        observations,
+        ancestor_nodes,
+        np.asarray(association_nodes, dtype=np.int32),
+        np.full(reference.num_sites, parameters["recombination"]),
+        np.full(reference.num_sites, parameters["mismatch"]),
+        np.full(reference.num_sites, 2, dtype=np.uint32),
+        populations,
+        settings,
+    )
+
+
+def comparison_initialize_worker(settings: dict) -> None:
+    global _comparison_settings, _comparison_contexts
+    _comparison_settings = settings
+    _comparison_contexts = {}
+
+
+@dataclasses.dataclass
+class ComparisonSiteRuns:
+    """Covered components and gaps on the inference-site axis."""
+
+    focal: np.ndarray
+    gaps: np.ndarray
+
+
+def comparison_mask_runs(mask: dict, index: int) -> ComparisonSiteRuns:
+    start, end = mask["offsets"][index : index + 2]
+    runs = np.column_stack(
+        (mask["left_site_index"][start:end], mask["right_site_index"][start:end])
+    )
+    gaps = mask["is_gap"][start:end]
+    return ComparisonSiteRuns(runs[~gaps], runs[gaps])
+
+
+def comparison_coverage_array(runs: np.ndarray, num_sites: int) -> np.ndarray:
+    covered = np.zeros(num_sites, dtype=bool)
+    for left, right in runs:
+        covered[left:right] = True
+    return covered
+
+
+def comparison_switch_metrics(
+    parents: np.ndarray, mismatches: np.ndarray, covered: np.ndarray
+) -> dict:
+    changes = parents[1:] != parents[:-1]
+    interior = {
+        "focal": covered[1:] & covered[:-1],
+        "gap": ~covered[1:] & ~covered[:-1],
+        "seam": covered[1:] != covered[:-1],
+    }
+    counts = {
+        f"{category}_switches": int(np.count_nonzero(changes & edges))
+        for category, edges in interior.items()
+    }
+    counts["num_switches"] = int(np.count_nonzero(changes))
+    assert (
+        sum((counts[f"{category}_switches"] for category in interior))
+        == counts["num_switches"]
+    )
+    counts["focal_mismatches"] = int(np.count_nonzero(mismatches & covered))
+    counts["gap_mismatches"] = int(np.count_nonzero(mismatches & ~covered))
+    counts["num_mismatches"] = int(np.count_nonzero(mismatches))
+    counts["focal_sites"] = int(np.count_nonzero(covered))
+    counts["gap_sites"] = len(covered) - counts["focal_sites"]
+    return counts
+
+
+def comparison_comparison_row(
+    identity: dict,
+    method: str,
+    parents: np.ndarray,
+    mismatches: np.ndarray,
+    covered: np.ndarray,
+    context: ComparisonDatasetContext,
+) -> dict:
+    """Score complete paths with one common, full-reference Li-Stephens model.
+
+    Site-constant emissions and no-switch transitions cancel against the full
+    path. The transition weight uses the C matcher's actual reference node count.
+    """
+    metrics = comparison_switch_metrics(parents, mismatches, covered)
+    key = (identity["sample_id"], identity["ploidy_index"])
+    full_record = context.full[key]
+    full_switches = len(full_record["path"]) - 1
+    extra_switches = metrics["num_switches"] - full_switches
+    metrics["num_extra_switches"] = extra_switches
+    metrics["switch_increase_percentage"] = (
+        100 * extra_switches / full_switches if full_switches > 0 else np.nan
+    )
+    rho = float(context.rho[0])
+    mu = float(context.mu[0])
+    switch_probability = rho / context.reference.num_nodes
+    stay_probability = 1 - rho + switch_probability
+    switch_penalty = np.log(switch_probability / stay_probability)
+    mismatch_penalty = np.log(mu / (1 - mu))
+    extra_mismatches = metrics["num_mismatches"] - len(full_record["mutations"])
+    metrics["full_model_log_likelihood_delta"] = (
+        extra_switches * switch_penalty + extra_mismatches * mismatch_penalty
+    )
+    return {**identity, "implementation": method, **metrics}
+
+
+def comparison_mutation_mask(record: dict, positions: np.ndarray) -> np.ndarray:
+    mask = np.zeros(len(positions), dtype=bool)
+    sites = np.searchsorted(
+        positions, [mutation["position"] for mutation in record["mutations"]]
+    )
+    mask[sites] = True
+    return mask
+
+
+def comparison_match_region(
+    matcher, haplotype, left: int, right: int, positions: np.ndarray
+) -> ComparisonSitePath:
+    copied = np.empty(len(haplotype), dtype=np.int8)
+    path_left, path_right, path_parent = matcher.find_path(
+        haplotype, left, right, copied
+    )
+    parents = np.empty(right - left, dtype=np.int32)
+    for start, end, node in zip(path_left, path_right, path_parent, strict=True):
+        start_site = max(left, int(np.searchsorted(positions, start)))
+        end_site = min(right, int(np.searchsorted(positions, end)))
+        parents[start_site - left : end_site - left] = node
+    return ComparisonSitePath(parents, copied[left:right].copy())
+
+
+def comparison_encode_record(
+    key: tuple,
+    parents: np.ndarray,
+    mismatch: np.ndarray,
+    haplotype: np.ndarray,
+    context: ComparisonDatasetContext,
+) -> dict:
+    changes = np.flatnonzero(parents[1:] != parents[:-1]) + 1
+    starts = np.concatenate(([0], changes))
+    bounds = np.concatenate(
+        ([0], context.positions[changes], [context.reference.sequence_length])
+    )
+    path = [
+        {"left": float(left), "right": float(right), "parent": int(parents[start])}
+        for start, left, right in zip(starts, bounds[:-1], bounds[1:], strict=True)
+    ]
+    mutations = [
+        {
+            "position": float(context.positions[site]),
+            "derived_state": int(haplotype[site]),
+        }
+        for site in np.flatnonzero(mismatch)
+    ]
+    return {
+        "source": "samples",
+        "sample_id": key[0],
+        "ploidy_index": key[1],
+        "path": path,
+        "mutations": mutations,
+    }
+
+
+def comparison_distance_rows(
+    identity: dict, paths: dict, covered: np.ndarray, config: dict
+) -> list[dict]:
+    """Count switches per eligible edge by distance to the nearest seam."""
+    seam_sites = np.flatnonzero(covered[1:] != covered[:-1]) + 1
+    sites = np.arange(len(covered))
+    insertion = np.searchsorted(seam_sites, sites, side="right")
+    distance = np.full(len(covered), np.inf)
+    has_left = insertion > 0
+    has_right = insertion < len(seam_sites)
+    distance[has_left] = sites[has_left] - seam_sites[insertion[has_left] - 1]
+    right_distance = seam_sites[insertion[has_right]] - 1 - sites[has_right]
+    distance[has_right] = np.minimum(distance[has_right], right_distance)
+    edge_distance = np.minimum(distance[:-1], distance[1:])
+    edges = {"focal": covered[:-1] & covered[1:], "gap": ~covered[:-1] & ~covered[1:]}
+    rows = []
+    for region, region_edges in edges.items():
+        for left, right in zip(
+            config["distance_bin_edges"][:-1],
+            config["distance_bin_edges"][1:],
+            strict=True,
+        ):
+            eligible = region_edges & (edge_distance >= left) & (edge_distance < right)
+            for method, parents in paths.items():
+                changes = parents[1:] != parents[:-1]
+                rows.append(
+                    {
+                        **identity,
+                        "implementation": method,
+                        "region": region,
+                        "distance_left": left,
+                        "distance_right": right,
+                        "num_edges": int(np.count_nonzero(eligible)),
+                        "num_switches": int(np.count_nonzero(changes & eligible)),
+                    }
+                )
+    return rows
+
+
+def comparison_analyse_haplotype(job: tuple[str, int]) -> ComparisonHaplotypeResult:
+    name, index = job
+    if name not in _comparison_contexts:
+        _comparison_contexts[name] = comparison_load_context(name)
+    context = _comparison_contexts[name]
+    focal = context.focal
+    key = (str(focal["sample_id"][index]), int(focal["ploidy_index"][index]))
+    identity = {
+        "dataset": name,
+        "sample_id": key[0],
+        "ploidy_index": key[1],
+        "population": context.populations[key],
+    }
+    haplotype = np.ascontiguousarray(context.observations[:, index])
+    full_parents = comparison_site_parents(context.full[key], context.reference)
+    full_mismatches = comparison_mutation_mask(context.full[key], context.positions)
+    greedy_paths = {}
+    start, end = context.intervals["offsets"][index : index + 2]
+    for ac_cutoff in _comparison_settings["pipeline"]["ac_cutoff"]:
+        eligible = context.intervals["focal_ac"][start:end] <= ac_cutoff
+        for budget in _comparison_settings["pipeline"]["max_mismatches"]:
+            parents = focal_parent_path(
+                len(haplotype),
+                context.intervals["left_site_index"][start:end, budget][eligible],
+                context.intervals["right_site_index"][start:end, budget][eligible],
+                context.association_nodes[start:end][eligible],
+            )
+            greedy_paths[ac_cutoff, budget] = parents
+    used_nodes = np.unique(
+        np.concatenate([parents[parents >= 0] for parents in greedy_paths.values()])
+    )
+    genotypes = context.reference.genotype_matrix(
+        samples=used_nodes, isolated_as_missing=False
+    )
+    comparisons = []
+    matches = {}
+    control_rows = {}
+    components = []
+    distances = []
+    for (ac_cutoff, budget), greedy in greedy_paths.items():
+        run_identity = {**identity, "ac_cutoff": ac_cutoff, "max_mismatches": budget}
+        partition = comparison_mask_runs(context.masks[ac_cutoff, budget], index)
+        runs = partition.focal
+        covered = comparison_coverage_array(runs, len(haplotype))
+        assert np.array_equal(covered, greedy >= 0)
+        saved = context.matches[ac_cutoff, budget][key]
+        reduced_parents = comparison_site_parents(saved, context.reference)
+        reduced_mismatches = comparison_mutation_mask(saved, context.positions)
+        greedy_parents = reduced_parents.copy()
+        greedy_parents[covered] = greedy[covered]
+        greedy_mismatches = reduced_mismatches.copy()
+        sites = np.flatnonzero(covered)
+        columns = np.searchsorted(used_nodes, greedy[covered])
+        copied = genotypes[sites, columns]
+        greedy_mismatches[covered] = (haplotype[covered] >= 0) & (
+            haplotype[covered] != copied
+        )
+        paths = {
+            "full": full_parents,
+            "greedy": greedy_parents,
+            "reduced_hmm": reduced_parents,
+        }
+        mismatch_masks = {
+            "full": full_mismatches,
+            "greedy": greedy_mismatches,
+            "reduced_hmm": reduced_mismatches,
+        }
+        for method, parents in paths.items():
+            row = comparison_comparison_row(
+                run_identity, method, parents, mismatch_masks[method], covered, context
+            )
+            comparisons.append(row)
+        selected = _comparison_settings["comparison"]
+        if ac_cutoff != selected["ac_cutoff"] or budget != selected["max_mismatches"]:
+            continue
+        old = context.old_greedy[key]
+        old_coverage = comparison_coverage_array(
+            np.asarray(old["focal_site_intervals"]), len(haplotype)
+        )
+        assert np.array_equal(covered, old_coverage)
+        old_parents = comparison_site_parents(old, context.reference)
+        assert np.array_equal(old_parents[covered], greedy[covered])
+        old_mismatches = comparison_mutation_mask(old, context.positions)
+        row = comparison_comparison_row(
+            run_identity, "saved_greedy", old_parents, old_mismatches, covered, context
+        )
+        comparisons.append(row)
+        paths["saved_greedy"] = old_parents
+        candidate_start, candidate_end = focal["offsets"][index : index + 2]
+        columns = focal["ancestor_index"][candidate_start:candidate_end]
+        eligible_columns = columns[focal["derived_ac"][columns] <= ac_cutoff]
+        retained = [
+            0,
+            1,
+            *[
+                context.ancestor_nodes[focal["ancestor_id"][column]]
+                for column in eligible_columns
+            ],
+        ]
+        reduced, old_to_new = context.reference.simplify(
+            retained, map_nodes=True, filter_sites=False
+        )
+        new_to_old = np.empty(reduced.num_nodes, dtype=np.int32)
+        mapped = np.flatnonzero(old_to_new != tskit.NULL)
+        new_to_old[old_to_new[mapped]] = mapped
+        indexes = tsinfer.matching.MatcherIndexes(
+            reduced, vestigial_root=False, num_alleles=context.num_alleles
+        )
+        matcher = tsinfer.matching.AncestorMatcher(indexes, context.rho, context.mu)
+        whole = comparison_match_region(
+            matcher, haplotype, 0, len(haplotype), context.positions
+        )
+        whole.parents = new_to_old[whole.parents]
+        assert np.array_equal(whole.parents[covered], reduced_parents[covered])
+        whole_mismatches = (haplotype >= 0) & (haplotype != whole.copied)
+        assert np.array_equal(whole_mismatches[covered], reduced_mismatches[covered])
+        independent = reduced_parents.copy()
+        independent_mismatches = reduced_mismatches.copy()
+        for component_index, (left, right) in enumerate(runs):
+            local = comparison_match_region(
+                matcher, haplotype, int(left), int(right), context.positions
+            )
+            independent[left:right] = new_to_old[local.parents]
+            independent_mismatches[left:right] = (haplotype[left:right] >= 0) & (
+                haplotype[left:right] != local.copied
+            )
+            row = {
+                **run_identity,
+                "component": component_index,
+                "left_site": int(left),
+                "right_site": int(right),
+                "num_sites": int(right - left),
+            }
+            for method, parents in {**paths, "independent_hmm": independent}.items():
+                row[f"{method}_switches"] = int(
+                    np.count_nonzero(
+                        parents[left + 1 : right] != parents[left : right - 1]
+                    )
+                )
+            components.append(row)
+        paths["independent_hmm"] = independent
+        row = comparison_comparison_row(
+            run_identity,
+            "independent_hmm",
+            independent,
+            independent_mismatches,
+            covered,
+            context,
+        )
+        comparisons.append(row)
+        independent_metrics = comparison_switch_metrics(
+            independent, independent_mismatches, covered
+        )
+        greedy_nodes = np.unique(greedy[covered])
+        original_columns = np.searchsorted(used_nodes, greedy_nodes)
+        original_genotypes = genotypes[:, original_columns]
+        reduced_genotypes = reduced.genotype_matrix(
+            samples=old_to_new[greedy_nodes], isolated_as_missing=False
+        )
+        preserved = int(np.count_nonzero(original_genotypes != reduced_genotypes))
+        assert preserved == 0
+        control_rows = {
+            **run_identity,
+            "num_focal_components": len(runs),
+            "num_candidates": len(eligible_columns),
+            "num_reduced_nodes": reduced.num_nodes,
+            "genotype_differences_after_simplify": preserved,
+            "global_reduced_switches": int(
+                np.count_nonzero(whole.parents[1:] != whole.parents[:-1])
+            ),
+            "global_reduced_focal_switches": comparison_switch_metrics(
+                whole.parents, whole_mismatches, covered
+            )["focal_switches"],
+            "global_reduced_gap_mismatches": int(
+                np.count_nonzero(whole_mismatches & ~covered)
+            ),
+            "independent_focal_switches": independent_metrics["focal_switches"],
+            "greedy_focal_switches": comparison_switch_metrics(
+                greedy_parents, greedy_mismatches, covered
+            )["focal_switches"],
+            "independent_focal_mismatches": independent_metrics["focal_mismatches"],
+            "greedy_focal_mismatches": int(
+                np.count_nonzero(greedy_mismatches & covered)
+            ),
+        }
+        distances = comparison_distance_rows(
+            run_identity, paths, covered, _comparison_settings
+        )
+        for method, parents in paths.items():
+            if method == "full":
+                matches[method] = context.full[key]
+            elif method == "saved_greedy":
+                matches[method] = old
+            else:
+                mismatch = (
+                    independent_mismatches
+                    if method == "independent_hmm"
+                    else mismatch_masks[method]
+                )
+                matches[method] = comparison_encode_record(
+                    key, parents, mismatch, haplotype, context
+                )
+        if key in {
+            (item["sample_id"], item["ploidy_index"])
+            for item in context.settings["haplotypes"]
+        }:
+            archive_path = (
+                _comparison_settings["output_dir"]
+                / f"{name}_{key[0].lower()}_{key[1]}_paths.npz"
+            )
+            np.savez_compressed(
+                archive_path,
+                covered=covered,
+                observed=haplotype,
+                reduced_whole=whole.parents,
+                independent=independent,
+                greedy=greedy_parents,
+                saved_greedy=old_parents,
+                full=full_parents,
+                reduced_stitched=reduced_parents,
+            )
+    return ComparisonHaplotypeResult(
+        comparisons, control_rows, components, distances, matches
+    )
+
+
+def comparison_topology_comparison(settings: dict, all_matches: dict) -> pd.DataFrame:
+    """Measure marginal topology against simulated truth, over inference intervals.
+
+    Kendall-Colijn lambda=0 measures rooted topology, not branch lengths. Sample
+    ordering is explicitly joined to truth IDs, and unobserved flanks are removed.
+    This single simulation is a diagnostic, not a biological accuracy claim.
+    """
+    rows = []
+    for name, dataset in settings["datasets"].items():
+        if dataset["population_source"] != "simulation":
+            continue
+        base = settings["input_dir"]
+        reference = tskit.load(base / "ancestors" / f"{name}_inferred_ancestors.trees")
+        native = tskit.load(base / "matches" / f"{name}_inferred_samples_raw.trees")
+        sample_nodes = {}
+        for node_id in native.samples():
+            node = native.node(node_id)
+            key = (node.metadata["sample_id"], node.metadata["ploidy_index"])
+            sample_nodes[key] = int(node_id)
+        pipeline_dataset = next(
+            (item for item in settings["pipeline"]["datasets"] if item["name"] == name)
+        )
+        truth_path = pathlib.Path(pipeline_dataset["ts_path"]).expanduser()
+        if not truth_path.is_absolute():
+            truth_path = settings["pipeline_dir"] / truth_path
+        truth = tskit.load(truth_path)
+        truth_keys = []
+        truth_nodes = []
+        for individual in truth.individuals():
+            for ploidy_index, node_id in enumerate(individual.nodes):
+                truth_keys.append((f"tsk_{individual.id}", ploidy_index))
+                truth_nodes.append(int(node_id))
+        assert set(truth_keys) == set(sample_nodes)
+        inferred_nodes = [sample_nodes[key] for key in truth_keys]
+        intervals = reference.metadata["sequence_intervals"]
+        truth = truth.simplify(truth_nodes)
+        truth = truth.keep_intervals(intervals).trim()
+        panel = zarr.open_group(
+            base / "ancestors" / f"{name}_inferred_ancestors.zarr", mode="r"
+        )
+        alleles = panel["variant_allele"][:]
+        for method in settings["topology_methods"]:
+            tables = native.dump_tables()
+            keep_edges = tables.edges.child < reference.num_nodes
+            tables.edges.keep_rows(keep_edges)
+            keep_mutations = tables.mutations.node < reference.num_nodes
+            tables.mutations.keep_rows(keep_mutations)
+            records = all_matches[name][method]
+            for record in records:
+                key = (record["sample_id"], record["ploidy_index"])
+                child = sample_nodes[key]
+                for segment in record["path"]:
+                    tables.edges.add_row(
+                        segment["left"], segment["right"], segment["parent"], child
+                    )
+                for mutation in record["mutations"]:
+                    site = int(
+                        np.searchsorted(reference.sites_position, mutation["position"])
+                    )
+                    state = str(alleles[site, mutation["derived_state"]])
+                    tables.mutations.add_row(site=site, node=child, derived_state=state)
+            tables.sort()
+            inferred = tables.tree_sequence().simplify(inferred_nodes)
+            inferred = inferred.keep_intervals(intervals).trim()
+            distance = inferred.kc_distance(truth, lambda_=0)
+            rows.append(
+                {
+                    "dataset": name,
+                    "implementation": method,
+                    "kc_topology_distance": distance,
+                    "num_trees": inferred.num_trees,
+                    "evaluated_bp": inferred.sequence_length,
+                }
+            )
+    return pd.DataFrame(rows)

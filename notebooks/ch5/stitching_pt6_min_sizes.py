@@ -80,7 +80,8 @@ config_path = {
             "name": "tgp_n300_10mbp",
             "label": "1KGP",
             "mutation_rate": 1.29e-08,
-            "population_metadata": repository_dir / "data/misc/tgp_3202_pedigree.csv",
+            "population_metadata": repository_dir
+            / "data/general/populations/tgp_3202_pedigree.csv",
             "population_column": "superpopulation",
             "african_population": "AFR",
             "analysis_span_bp": [1000000, 11000000],

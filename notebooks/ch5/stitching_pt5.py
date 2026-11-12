@@ -44,7 +44,8 @@ config_path = {
     "workers": None,
     "per_sample": {
         "worker_times_filename": "per_haplotype_worker_times.csv",
-        "population_metadata": repository_dir / "data/misc/tgp_3202_pedigree.csv",
+        "population_metadata": repository_dir
+        / "data/general/populations/tgp_3202_pedigree.csv",
         "population_column": "population",
         "analysis_span_bp": [1000000, 31000000],
     },

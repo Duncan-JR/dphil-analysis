@@ -1,0 +1,22 @@
+[
+  {
+    "path": "data/general/zarr_vcfs/sim",
+    "target": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/zarr_vcfs",
+    "resolves": true
+  },
+  {
+    "path": "data/ch3/current/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+    "target": "/Users/duncan/work/dphil-analysis/data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+    "resolves": true
+  },
+  {
+    "path": "data/ch3/alt_version/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+    "target": "/Users/duncan/work/dphil-analysis/data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+    "resolves": true
+  },
+  {
+    "path": "data/ch3/alt_version/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1-aggregated.csv",
+    "target": "/Users/duncan/work/dphil-analysis/data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1-aggregated_alt_version.csv",
+    "resolves": true
+  }
+]

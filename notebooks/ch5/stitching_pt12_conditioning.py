@@ -54,12 +54,12 @@ config_path = {
     "output_dir": repository_dir / "data/ch5/stitching_pt12_conditioning",
     "epsilon_per_haplotype_bp": 1e-05,
     "recombination_map": repository_dir
-    / "data/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt",
+    / "data/general/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt",
     "datasets": [
         {
             "name": "tgp_chr20_n100_500kb",
             "label": "1KGP chr20 · 100 individuals",
-            "zarr_path": repository_dir / "data/zarr_vcfs/tgp/chr20/data.zarr",
+            "zarr_path": repository_dir / "data/general/zarr_vcfs/tgp/chr20/data.zarr",
             "sample_list": "../../../tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
             "region": [1000000, 1500000],
             "ancestral_field": "variant_ancestral_allele",

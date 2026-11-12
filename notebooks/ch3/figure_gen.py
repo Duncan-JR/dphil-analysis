@@ -25,7 +25,7 @@
 # comparison uses this Out-of-Africa aggregate and updated new-branch
 # aggregates for the other three models.
 # The plotting module is self-contained and does not import `tsinfer-paper`.
-# Run src/ch3_extract_data.py on the machine holding the variant Zarr stores.
+# Run scripts/extract_zarr_validation_data.py on the machine holding the variant Zarr stores.
 # Transfer PREFIX_zarr_data.csv alongside the aggregate CSV; the main plots
 # need no Zarrs locally. Per-focal-site tables are written to data_folder.
 # The phase-switch illustration uses PREFIX_phase_runs.csv from the same simulation.
@@ -334,7 +334,9 @@ focal_data_folder = data_folder / "current"
 focal_data_folder.mkdir(exist_ok=True)
 zarr_data_path = data_folder / f"{data_prefix}_zarr_data.csv"
 phase_runs_path = data_folder / f"{data_prefix}_phase_runs.csv"
-tgp_zarr_path = (repository_dir / "data/zarr_vcfs/tgp/chr20/data.zarr").expanduser()
+tgp_zarr_path = (
+    repository_dir / "data/general/zarr_vcfs/tgp/chr20/data.zarr"
+).expanduser()
 config = nb_utils.AnalysisConfig(
     genotype_multipliers=(1, 2, 5, 10, 100),
     mispol_rates=(0, 0.01, 0.05, 0.1),

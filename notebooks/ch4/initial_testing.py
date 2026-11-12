@@ -40,13 +40,18 @@ repository_dir = pathlib.Path.cwd()
 
 # %%
 #zarr_dir = Path(
-#    "~/work/tsinfer-anc-eval/data/anc_eval/zarr_vcfs/"
 #).expanduser()
 #zarr_prefix = "OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-rep0"
 #ts_path = Path(
+#).expanduser()
+# zarr_dir = Path(
+#    "~/work/tsinfer-anc-eval/data/anc_eval/zarr_vcfs/"
+# ).expanduser()
+# zarr_prefix = "OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-rep0"
+# ts_path = Path(
 #    "~/work/tsinfer-anc-eval/data/anc_eval/simulated/"
 #    "OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-rep0.trees"
-#).expanduser()
+# ).expanduser()
 zarr_dir = pathlib.Path(
     "~/work/tsinfer-anc-eval/data/error_eval/zarr_vcfs/"
 ).expanduser()
@@ -55,7 +60,7 @@ ts_path = pathlib.Path(
     "~/work/tsinfer-anc-eval/data/error_eval/simulated/OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees"
 ).expanduser()
 recombination = (
-    repository_dir / "data/HapMapII_GRCh38/genetic_map_Hg38_chr17.txt"
+    repository_dir / "data/general/HapMapII_GRCh38/genetic_map_Hg38_chr17.txt"
 ).expanduser()
 window_sizes = np.geomspace(100, 1000000, 100)
 config = nb_utils.make_estimation_config(
@@ -77,7 +82,7 @@ true_doubletons_config = dataclasses.replace(
 true_doubletons = nb_utils.sample_doubletons(
     zero_error_zarr_path, true_doubletons_config
 )
-true_doubletons_path = repository_dir / "data/tmp/true_doubletons.csv"
+true_doubletons_path = repository_dir / "data/ch4/validation/true_doubletons.csv"
 true_doubletons_path.parent.mkdir(parents=True, exist_ok=True)
 nb_utils.write_doubletons_csv(true_doubletons, true_doubletons_path)
 ascertained_estimates = {}
@@ -121,7 +126,7 @@ fit_df
 # %%
 
 # %%
-fit_df.to_csv("../../data/tmp/dphil-analysis-results.csv", index=None)
+fit_df.to_csv("data/ch4/validation/dphil-analysis-results.csv", index=None)
 
 # %%
 nb_plot.plot_error_estimates(fit_df, "Estimated (ascertained doubletons)")
@@ -129,7 +134,6 @@ nb_plot.plot_error_estimates(fit_df, "Estimated (ascertained doubletons)")
 
 # %%
 ## Doubleton ascertainment testing
-
 
 
 # %%
@@ -535,9 +539,10 @@ fig
 # the Zarr; the map README records this assumption.
 
 # %%
-tgp_zarr_path = repository_dir / "data/zarr_vcfs/tgp/chr17/data.zarr"
+tgp_zarr_path = repository_dir / "data/general/zarr_vcfs/tgp/chr17/data.zarr"
 tgp_recombination = (
-    repository_dir / "data/HapMapII_GRCh38/genetic_map_Hg38_chr17_for_tgp_zarr.txt"
+    repository_dir
+    / "data/general/HapMapII_GRCh38/genetic_map_Hg38_chr17_for_tgp_zarr.txt"
 )
 tgp_variant_masks = [
     "variant_all_subset_chr17p_region_filterNton23_site_density_threshold_sites_per_kbp_5_window_size_100000_mask",
@@ -554,7 +559,7 @@ tgp_estimate.fit.epsilon
 # %% [markdown]
 # The Johnsson et al. (2021) sex-averaged map uses Sscrofa11.1 coordinates.
 # The local derived copy extends its terminal zero-rate interval to the final
-# coordinate in this Zarr; `data/pig_recombination_map/README.txt` records the
+# coordinate in this Zarr; `data/ch4/pig_recombination_map/README.txt` records the
 # source and the exact adjustment.
 
 # %%
@@ -566,10 +571,10 @@ config2 = nb_utils.make_estimation_config(
     exclude_high_mismatch_proportion=0.25,
     L_mismatch_trim=pig_window_sizes[-1],
 )
-pig_zarr_path = repository_dir / "data/zarr_vcfs/pigs/chr18/data.zarr"
+pig_zarr_path = repository_dir / "data/general/zarr_vcfs/pigs/chr18/data.zarr"
 pig_recombination = (
     repository_dir
-    / "data/pig_recombination_map/Johnsson_2021_sex_averaged_chr18_for_data_zarr.txt"
+    / "data/ch4/pig_recombination_map/Johnsson_2021_sex_averaged_chr18_for_data_zarr.txt"
 )
 pig_variant_mask = "variant_allSample_subset_chr18_region_filterDensity_site_density_threshold_sites_per_kbp_10_window_size_1000_mask"
 pig_estimate = nb_utils.estimate_error_rate(

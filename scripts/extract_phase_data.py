@@ -1,12 +1,12 @@
 """Export phase runs for six illustration rows from the ancestor-evaluation data.
 
 Copy this standalone script to tsinfer-anc-eval and run
-``uv run python ch3_extract_phase_data.py``. Edit ExtractionConfig to change
-the input dataset or the number of individuals per phase setting. The same
+``uv run python extract_phase_data.py``. Pass CLI arguments to select the input dataset and individuals per phase setting. The same
 first individuals are selected for each setting to allow direct comparison.
 Only numpy, pandas and zarr are required; no plotting code is imported.
 """
 
+import argparse
 import dataclasses
 import pathlib
 
@@ -17,6 +17,7 @@ import zarr
 
 @dataclasses.dataclass
 class ExtractionConfig:
+    output_folder: pathlib.Path | None = None
     data_prefix: str = "OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1"
     data_folder: pathlib.Path = pathlib.Path("data/anc_eval_new")
     n_per_sim: int = 2
@@ -68,11 +69,40 @@ def extract_data(config=None):
                 )
             )
     frame = pd.concat(frames, ignore_index=True)
-    output = data_folder / "dataframes" / f"{config.data_prefix}_phase_runs.csv"
+    output_folder = config.output_folder
+    if output_folder is None:
+        output_folder = data_folder / "dataframes"
+    output = pathlib.Path(output_folder) / f"{config.data_prefix}_phase_runs.csv"
     output.parent.mkdir(parents=True, exist_ok=True)
     frame.to_csv(output, index=False)
     return output
 
 
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--data-prefix", default=ExtractionConfig.data_prefix)
+    parser.add_argument(
+        "--data-folder", type=pathlib.Path, default=ExtractionConfig.data_folder
+    )
+    parser.add_argument("--output-folder", type=pathlib.Path)
+    parser.add_argument("--n-per-sim", type=int, default=2)
+    parser.add_argument("--replicate", type=int, default=0)
+    parser.add_argument("--spacing-labels", nargs="+", default=["2e5", "2e6", "2e7"])
+    parser.add_argument("--left", type=float, default=0)
+    parser.add_argument("--right", type=float, default=20_000_000)
+    args = parser.parse_args()
+    config = ExtractionConfig(
+        data_prefix=args.data_prefix,
+        data_folder=args.data_folder,
+        output_folder=args.output_folder,
+        n_per_sim=args.n_per_sim,
+        replicate=args.replicate,
+        spacing_labels=tuple(args.spacing_labels),
+        left=args.left,
+        right=args.right,
+    )
+    print(extract_data(config))
+
+
 if __name__ == "__main__":
-    print(extract_data())
+    main()

@@ -29,3 +29,24 @@
 The older pt1 source referenced presentation keys no longer present in the
 current diagnostics YAML. Its missing geometry/colour/label choices were
 made explicit in its plot calls; no scientific classification was changed.
+
+## Phase 4
+
+- `experiments/` is absent. All 13,895 experiment scientific files (including
+  copied Zarr chunks, result tables, JSONL paths and population metadata) match
+  their inventory sizes/SHA-256 hashes after relocation. All 22 moved data
+  units match file counts and byte totals; see `refactor_data_moves.json`.
+- Four data symlinks were recorded and still resolve. Shared stores/maps and
+  pedigree metadata are under `data/general/`; chapter 4 validation outputs
+  and pig maps are under `data/ch4/`. The before/after tree files were identified
+  from their tsinfer provenance as chr20p ancestor-grouping states (groups
+  83/84) and retained in `data/ch5/ancestor_grouping/`.
+- Both exporters remain independent of chapter imports and accept CLI options.
+  All four scripts' `--help` succeeds. Driver numerical work and multiprocessing
+  workers moved to CH5 preparation; script bodies retain CLI/orchestration.
+- Native matching jobs were not launched. The historical drivers require
+  `tsinfer.matching.MatcherIndexes`/`AncestorMatcher`, absent from the current
+  pinned tsinfer revision; this pre-existing upstream API/environment gap
+  prevents claiming a matching rerun. Saved inputs/results are retained.
+- The retained pt3 upstream grid YAML is unchanged and selected with an explicit
+  original relative path base. No notebook-parameter YAML collection remains.
