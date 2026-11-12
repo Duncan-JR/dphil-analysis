@@ -765,8 +765,8 @@ table as an unverified checklist.
 
 | Phase | Exact commit title | Status | Commit | Evidence or precise blocker |
 | --- | --- | --- | --- | --- |
-| 1 | Document the repository structure and refactor plan | Complete | this commit | [Inventory](refactor_inventory.md), hashes and external recovery archive; read both sides of all 19 pairs and thesis claims. |
-| 2 | Remove old analysis tests | Planned | — | — |
+| 1 | Document the repository structure and refactor plan | Complete | a1334c7 | [Inventory](refactor_inventory.md), hashes and external recovery archive; read both sides of all 19 pairs and thesis claims. |
+| 2 | Remove old analysis tests | Complete | this commit | Removed every old test and checkpoint/cache, including protected untracked CH5 test; original list in inventory. No suite is claimed at this intermediate stage. |
 | 3 | Reorganise chapter code and notebook helpers | Planned | — | — |
 | 4 | Move standalone scripts and remove experiments | Planned | — | — |
 | 5 | Preserve notebook outputs and document chapter analyses | Planned | — | — |
