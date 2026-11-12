@@ -1,0 +1,751 @@
+[
+  {
+    "notebook": "notebooks/ch3/figure_gen.py",
+    "initialisation_cells": 1,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch4/initial_testing.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "zarr_dir": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/zarr_vcfs",
+        "exists": true
+      },
+      "ts_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated/OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees",
+        "exists": true
+      },
+      "recombination": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/HapMapII_GRCh38/genetic_map_Hg38_chr17.txt",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/ancestor_coverage.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "match_eval_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval",
+        "exists": true
+      },
+      "simulation_dir": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated",
+        "exists": true
+      },
+      "simulation_ts": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated/OutOfAfrica_4J17-chr20-L0-R1e7-n100-s1-rep0.trees",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/initial_testing.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "match_eval_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval",
+        "exists": true
+      },
+      "stats_path": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval/dataframes/tgp_chr20_n100_inferred_focal_ancestor_stats.csv",
+        "exists": true
+      },
+      "focal_path": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval/focal_ancestors/tgp_chr20_n100_inferred_focal_ancestors.npz",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching__scratch.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt1.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "diagnostic_config_path.outliers.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_outliers",
+        "exists": true
+      },
+      "diagnostic_config_path.cohort.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_cohort",
+        "exists": true
+      },
+      "diagnostic_config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.outliers.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_outliers",
+        "exists": true
+      },
+      "config.cohort.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_cohort",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "experiment_config.input_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval",
+        "exists": true
+      },
+      "experiment_config.coverage_input_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval",
+        "exists": true
+      },
+      "experiment_config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/chunk_matching_experiment",
+        "exists": true
+      },
+      "input_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/chunk_matching_experiment",
+        "exists": true
+      },
+      "coverage_input_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval",
+        "exists": true
+      },
+      "gap_comparison_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_gap_diagnostics",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt10_age_performance_review.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "notebook_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/notebooks/ch5",
+        "exists": true
+      },
+      "artifact_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/mutation_age_performance_review_2026_10_22",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt11_gapfill.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf3_diagnostics",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf3_diagnostics",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.cache_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf3_diagnostics/for_plots",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt12_conditioning.py",
+    "initialisation_cells": 1,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.pipeline_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval",
+        "exists": true
+      },
+      "config_path.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt12_conditioning",
+        "exists": true
+      },
+      "config_path.recombination_map": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt",
+        "exists": true
+      },
+      "config_path.datasets.0.zarr_path": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/zarr_vcfs/tgp/chr20/data.zarr",
+        "exists": true
+      },
+      "config_path.datasets.0.sample_list": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
+        "exists": true
+      },
+      "config_path.datasets.1.zarr_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-geno-1.0-phase3e-4-mispol0.zarr",
+        "exists": true
+      },
+      "config_path.datasets.1.truth_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees",
+        "exists": true
+      },
+      "config_path.datasets.1.raw_zarr_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-raw.zarr",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.pipeline_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval",
+        "exists": true
+      },
+      "config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt12_conditioning",
+        "exists": true
+      },
+      "config.recombination_map": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt",
+        "exists": true
+      },
+      "config.datasets.0.zarr_path": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/zarr_vcfs/tgp/chr20/data.zarr",
+        "exists": true
+      },
+      "config.datasets.0.sample_list": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
+        "exists": true
+      },
+      "config.datasets.1.zarr_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-geno-1.0-phase3e-4-mispol0.zarr",
+        "exists": true
+      },
+      "config.datasets.1.truth_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees",
+        "exists": true
+      },
+      "config.datasets.1.raw_zarr_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-raw.zarr",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "plot_config.pipeline_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval",
+        "exists": true
+      },
+      "plot_config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt12_conditioning",
+        "exists": true
+      },
+      "plot_config.recombination_map": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/HapMapII_GRCh38/genetic_map_Hg38_chr20.txt",
+        "exists": true
+      },
+      "plot_config.datasets.0.zarr_path": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/zarr_vcfs/tgp/chr20/data.zarr",
+        "exists": true
+      },
+      "plot_config.datasets.0.sample_list": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
+        "exists": true
+      },
+      "plot_config.datasets.1.zarr_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-geno-1.0-phase3e-4-mispol0.zarr",
+        "exists": true
+      },
+      "plot_config.datasets.1.truth_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees",
+        "exists": true
+      },
+      "plot_config.datasets.1.raw_zarr_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/zarr_vcfs/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0-raw.zarr",
+        "exists": true
+      },
+      "plot_config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt13_jerome_update.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/perf5_diagnostics",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/perf5_diagnostics",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.cache_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/perf5_diagnostics/for_plots",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt2.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "diagnostic_config_path.outliers.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_outliers",
+        "exists": true
+      },
+      "diagnostic_config_path.cohort.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_cohort",
+        "exists": true
+      },
+      "diagnostic_config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.outliers.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_outliers",
+        "exists": true
+      },
+      "config.cohort.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_cohort",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "experiment_config.input_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval",
+        "exists": true
+      },
+      "experiment_config.coverage_input_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/match_eval",
+        "exists": true
+      },
+      "experiment_config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/chunk_matching_zero_coverage",
+        "exists": true
+      },
+      "input_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/chunk_matching_zero_coverage",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt3_hyperparams.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.experiment_config": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval/stitching_pt3_experiment_config.yaml",
+        "exists": true
+      },
+      "config_path.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt3_hyperparams",
+        "exists": true
+      },
+      "config_path.datasets.0.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/sim_n300_10mbp_error_populations.csv",
+        "exists": true
+      },
+      "config_path.datasets.1.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config_path.experiment_base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.experiment_config": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval/stitching_pt3_experiment_config.yaml",
+        "exists": true
+      },
+      "config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt3_hyperparams",
+        "exists": true
+      },
+      "config.datasets.0.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/sim_n300_10mbp_error_populations.csv",
+        "exists": true
+      },
+      "config.datasets.1.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config.experiment_base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "experiment_path": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/match_eval/stitching_pt3_experiment_config.yaml",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt3_hyperparams",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt4_perf.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.benchmark_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/performance/first_perf_benchmark",
+        "exists": true
+      },
+      "config_path.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt4_perf",
+        "exists": true
+      },
+      "config_path.per_sample.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.benchmark_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/performance/first_perf_benchmark",
+        "exists": true
+      },
+      "config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt4_perf",
+        "exists": true
+      },
+      "config.per_sample.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt4_perf",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt5.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.benchmark_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/performance/greedy_only_30mbp",
+        "exists": true
+      },
+      "config_path.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt5",
+        "exists": true
+      },
+      "config_path.per_sample.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.benchmark_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/performance/greedy_only_30mbp",
+        "exists": true
+      },
+      "config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt5",
+        "exists": true
+      },
+      "config.per_sample.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt5",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt6_min_sizes.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt6_min_sizes",
+        "exists": true
+      },
+      "config_path.datasets.0.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/sim_n300_10mbp_error_populations.csv",
+        "exists": true
+      },
+      "config_path.datasets.1.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.experiment_base_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval",
+        "exists": true
+      },
+      "config.output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt6_min_sizes",
+        "exists": true
+      },
+      "config.datasets.0.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/sim_n300_10mbp_error_populations.csv",
+        "exists": true
+      },
+      "config.datasets.1.population_metadata": {
+        "path": "/Users/duncan/work/dphil-analysis/data/general/populations/tgp_3202_pedigree.csv",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.experiment_base_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval",
+        "exists": true
+      },
+      "experiment.data_dir": {
+        "path": "/Users/duncan/work/tsinfer-match-eval/data/stitching_eval",
+        "exists": true
+      },
+      "experiment.datasets.0.ts_path": {
+        "path": "/Users/duncan/work/tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/stitching_pt6_min_sizes",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt7_paramsearch.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_params1_diagnostics",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_params1_diagnostics",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.cache_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_params1_diagnostics/for_plots",
+        "exists": true
+      },
+      "output_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_params1_diagnostics/for_plots",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt8_hpc_perf1.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf1_diagnostics",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf1_diagnostics",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.cache_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf1_diagnostics/for_plots",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt9_hpc_perf2.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config_path.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf2_diagnostics",
+        "exists": true
+      },
+      "config_path.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.data_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf2_diagnostics",
+        "exists": true
+      },
+      "config.base_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "config.cache_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/hpc_perf2_diagnostics/for_plots",
+        "exists": true
+      }
+    }
+  },
+  {
+    "notebook": "notebooks/ch5/tie_breaking.py",
+    "initialisation_cells": 2,
+    "error": null,
+    "paths": {
+      "repository_dir": {
+        "path": "/Users/duncan/work/dphil-analysis",
+        "exists": true
+      },
+      "notebook_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/notebooks/ch5",
+        "exists": true
+      },
+      "artifact_dir": {
+        "path": "/Users/duncan/work/dphil-analysis/data/ch5/tie_breaking",
+        "exists": true
+      }
+    }
+  }
+]

@@ -50,3 +50,27 @@ made explicit in its plot calls; no scientific classification was changed.
   prevents claiming a matching rerun. Saved inputs/results are retained.
 - The retained pt3 upstream grid YAML is unchanged and selected with an explicit
   original relative path base. No notebook-parameter YAML collection remains.
+
+## Phase 5
+
+All 19 notebooks passed their recorded selected-cell checks. The one-time
+validation used spawn-process workers and queues across available CPUs;
+CSV/figure writes were isolated to a temporary validation tree. Each worker
+restored its plotting/write hooks before taking another notebook. Initialisation
+and explicit source paths were audited independently (all selected paths
+resolve). Retained chapter 4 fitted results were rendered separately, without
+claiming a refit. Three contact sheets covering all figure-producing notebook
+checks were inspected for axes, labels, legends and layout. The HTML-only pt10
+review and its evidence tables were read directly. See the per-notebook JSON
+and chapter README tables for exact code cells and scientific limitations.
+
+Actual-data checks identified and resolved remaining source-contract issues:
+CH3 nested presentation-dataclass copies became keyword arguments; the shared
+minimum-size switch plot takes an explicit Full HMM partition; pt1 uses its
+original retained-piece JSONL archive; and pt6 initialises the historical grid
+from retained run-summary/raw-file identities rather than the changed sibling
+configuration. No scientific methods were replaced to accommodate tests.
+
+Every notebook retains its original output/attachment/execution-count hash.
+The saved visible outputs remain from historical runs; separate migrated-cell
+checks do not alter that provenance. No rough-work automated tests were added.

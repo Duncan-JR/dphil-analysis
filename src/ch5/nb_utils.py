@@ -1457,11 +1457,8 @@ def store_signature(path: pathlib.Path) -> str:
 def dating_load_configuration(config_path: dict) -> dict:
     """Read either the legacy mismatch grid or the minimum-size experiment."""
     config = config_path.copy()
-    experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
-    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
-    with experiment_path.open() as source:
-        config["experiment"] = yaml.safe_load(source)
-    config["experiment_path"] = experiment_path
+    experiment_base_dir = config["experiment_base_dir"]
+    experiment = config["experiment"]
     config["data_dir"] = resolve_path(
         config["experiment"]["data_dir"], experiment_base_dir
     )
@@ -2647,14 +2644,11 @@ def perf_load_results(config_path: dict) -> PerfResults:
 def min_sizes_load_configuration(config_path: dict) -> dict:
     """Resolve the analysis settings and the current experiment grid."""
     config = config_path.copy()
-    experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
-    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
-    with experiment_path.open() as source:
-        experiment = yaml.safe_load(source)
+    experiment_base_dir = config["experiment_base_dir"]
+    experiment = config["experiment"]
     assert experiment["max_mismatches"] == [0]
     assert config["method"] in experiment["focal_methods"]
     config["experiment"] = experiment
-    config["experiment_path"] = experiment_path
     config["data_dir"] = resolve_path(experiment["data_dir"], experiment_base_dir)
     return config
 
@@ -3069,10 +3063,8 @@ def hyperparams_load_results(
 ) -> HyperparamsResults:
     """Read all configured HMM products in parallel without rerunning inference."""
     config = config_path.copy()
-    experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
-    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
-    with experiment_path.open() as file:
-        experiment = yaml.safe_load(file)
+    experiment_base_dir = config["experiment_base_dir"]
+    experiment = config["experiment"]
     assert config["method"] in experiment["focal_methods"]
     data_dir = resolve_path(experiment["data_dir"], experiment_base_dir)
     jobs = []
@@ -3116,10 +3108,8 @@ def hyperparams_load_tree_sequences(config_path: dict) -> TreeSequences:
     including the raw reference ancestry, rather than those prepared versions.
     """
     config = config_path.copy()
-    experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
-    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
-    with experiment_path.open() as file:
-        experiment = yaml.safe_load(file)
+    experiment_base_dir = config["experiment_base_dir"]
+    experiment = config["experiment"]
     data_dir = resolve_path(experiment["data_dir"], experiment_base_dir)
     full = {}
     stitched = {}
@@ -3326,10 +3316,8 @@ def hyperparams_truth_arg_metrics(
     its mismatch allowance is undefined because it does not use focal masks.
     """
     config = config_path.copy()
-    experiment_path = resolve_path(config["experiment_config"], config_path["base_dir"])
-    experiment_base_dir = config.get("experiment_base_dir", experiment_path.parent)
-    with experiment_path.open() as file:
-        experiment = yaml.safe_load(file)
+    experiment_base_dir = config["experiment_base_dir"]
+    experiment = config["experiment"]
     dataset_configs = {item["name"]: item for item in experiment["datasets"]}
     jobs = []
     for settings in config["datasets"]:

@@ -39,11 +39,6 @@ repository_dir = pathlib.Path.cwd()
 
 
 # %%
-#zarr_dir = Path(
-#).expanduser()
-#zarr_prefix = "OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-rep0"
-#ts_path = Path(
-#).expanduser()
 # zarr_dir = Path(
 #    "~/work/tsinfer-anc-eval/data/anc_eval/zarr_vcfs/"
 # ).expanduser()
@@ -129,7 +124,9 @@ fit_df
 fit_df.to_csv("data/ch4/validation/dphil-analysis-results.csv", index=None)
 
 # %%
-nb_plot.plot_error_estimates(fit_df, "Estimated (ascertained doubletons)")
+nb_plot.plot_error_estimates(
+    fit_df, "Estimated (ascertained doubletons)", figsize=(11, 8)
+)
 
 
 # %%
@@ -223,7 +220,9 @@ for multiplier in [1, 5, 10]:
     )
     cumulative_profiles[multiplier] = profiles
     profile_fig = nb_plot.plot_cumulative_mismatch_profiles(
-        profiles, f"{multiplier}x simulated genotype error: one-sided mismatch profiles"
+        profiles,
+        f"{multiplier}x simulated genotype error: one-sided mismatch profiles",
+        figsize=(12, 4.5),
     )
     ipython_display.display(profile_fig)
     nb_plot.close_figure(profile_fig)
@@ -236,6 +235,7 @@ for multiplier in [1, 5, 10]:
     summary_fig = nb_plot.plot_doubleton_mismatch_summaries(
         cumulative_profiles[multiplier],
         f"{multiplier}x simulated genotype error: mismatch summaries",
+        figsize=(17, 13),
     )
     ipython_display.display(summary_fig)
     nb_plot.close_figure(summary_fig)
@@ -502,6 +502,7 @@ nb_plot.plot_error_estimates(
     "Estimated (Tier 3 retained doubletons)",
     baseline_frame=fit_df,
     title="Error-model fits after Tier 3 doubleton selection",
+    figsize=(11, 8),
 )
 
 # %%
@@ -922,7 +923,9 @@ fig = nb_plot.plot_exclusions_by_predictor_2(
 # %%
 for dataset in real_datasets:
     ipython_display.display(
-        nb_plot.plot_real_classifier_estimates(real_classifier_df, dataset)
+        nb_plot.plot_real_classifier_estimates(
+            real_classifier_df, dataset, figsize=(11, 8)
+        )
     )
 
 # %% [markdown]

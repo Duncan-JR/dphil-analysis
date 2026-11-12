@@ -45,11 +45,6 @@ notebook_dir = (
     if "__file__" in globals()
     else pathlib.Path.cwd()
 )
-repository_dir = (
-    notebook_dir
-    if (notebook_dir / "data/ch5/tie_breaking").is_dir()
-    else notebook_dir.parent.parent
-)
 artifact_dir = repository_dir / "data/ch5/tie_breaking"
 settings = json.loads((artifact_dir / "experiment_config.json").read_text())
 provenance = json.loads((artifact_dir / "provenance.json").read_text())

@@ -222,3 +222,57 @@ tar -xzf data/ch5/perf5_diagnostics.tar.gz -C data/ch5/perf5_diagnostics
 uv run jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=-1 notebooks/ch5/stitching_pt13_jerome_update.ipynb
 ```
+
+## Preserved notebooks and migration validation (12 November 2026)
+
+The committed `.ipynb` files remain the readable historical record. All saved
+outputs, attachments, execution counts and cell types match the pre-migration
+hashes in `plans/refactor_notebook_inventory.json`. Source cells and paired
+files use the migrated interfaces. The checks below ran separately, writing
+new validation figures/tables only under `/private/tmp/dphil_refactor_validation/`;
+they did not replace saved notebook outputs. Code-cell numbers below are
+zero-based among code cells. Detailed evidence is in
+`plans/refactor_notebook_reruns.json`. These are selected-cell checks, not a
+claim that every expensive historical computation was rerun.
+
+| Notebook (paired `.py`/`.ipynb`) | Purpose | Original/retained inputs | Separate check |
+| --- | --- | --- | --- |
+| [ancestor_coverage](ancestor_coverage.ipynb) | Exact interval sweeps and population ancestor-coverage distributions | Same saved interval NPZs and simulated truth; no new matching | Code cells 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 passed; historical visible outputs preserved |
+| [initial_testing](initial_testing.ipynb) | Early focal-frequency/coverage/likelihood diagnostics | Existing `../tsinfer-match-eval/data/match_eval` focal statistics CSVs and ancestor NPZs | Code cells 0, 1, 2, 3, 4, 5, 6, 7, 8 passed; historical visible outputs preserved |
+| [stitching__scratch](stitching__scratch.ipynb) | Historical greedy interval-cover algorithms on tiny explicit examples | Cell-defined intervals only | Code cells 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18 passed; historical visible outputs preserved |
+| [stitching_pt1](stitching_pt1.ipynb) | Retained-piece/gap matching on the original three-haplotype records | `data/ch5/chunk_matching_experiment/`, copied `match_eval/` panel and saved coverage input | Code cells 0, 1, 2, 3, 4, 5, 6, 7 passed; historical visible outputs preserved |
+| [stitching_pt10_age_performance_review](stitching_pt10_age_performance_review.ipynb) | Read-only display of the retained 22 October review and evidence tables | `data/ch5/mutation_age_performance_review_2026_10_22/` HTML/CSV evidence | Code cells 0, 1, 2, 3, 4 passed; historical visible outputs preserved |
+| [stitching_pt11_gapfill](stitching_pt11_gapfill.ipynb) | Instrumented perf3 stage timing and gap-filling diagnostics | `data/ch5/hpc_perf3_diagnostics/` | Code cells 0, 1, 2, 3, 4, 5, 6, 7 passed; historical visible outputs preserved |
+| [stitching_pt12_conditioning](stitching_pt12_conditioning.ipynb) | Provisional conditioned-gap pilot and error/recurrence overlap | Retained CSVs in `data/ch5/stitching_pt12_conditioning/`; raw upstream matching was not started | Code cells 0, 3, 4, 5, 6 passed; historical visible outputs preserved |
+| [stitching_pt13_jerome_update](stitching_pt13_jerome_update.ipynb) | perf5 simulations/1KGP diagnostics and supervisor figures | `data/ch5/perf5_diagnostics/` manifest, quality, performance and stage tables | Code cells 0, 1, 2, 3, 4, 5, 6, 7 passed; historical visible outputs preserved |
+| [stitching_pt2](stitching_pt2.ipynb) | Zero-coverage stitching, population summaries and outlier paths | `data/ch5/stitching_cohort/`, `chunk_matching_zero_coverage/` and copied `match_eval/` panel | Code cells 0, 1, 2, 3, 4, 5 passed; historical visible outputs preserved |
+| [stitching_pt3_hyperparams](stitching_pt3_hyperparams.ipynb) | Saved AC/mismatch grid and aligned ARG diagnostics | Retained upstream grid and `data/ch5/stitching_pt3_hyperparams/{haplotype_results,region_lengths}.csv` | Code cells 0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12 passed; historical visible outputs preserved |
+| [stitching_pt4_perf](stitching_pt4_perf.ipynb) | First benchmark: correctness, elapsed time, stages and memory | `../tsinfer-match-eval/data/performance/first_perf_benchmark/` | Code cells 0, 1, 2, 3, 4, 5, 6, 7 passed; historical visible outputs preserved |
+| [stitching_pt5](stitching_pt5.ipynb) | Greedy AC10/40 benchmark with shared Full HMM baseline | `../tsinfer-match-eval/data/performance/greedy_only_30mbp/` | Code cells 0, 1, 2, 3, 4, 5, 6, 7 passed; historical visible outputs preserved |
+| [stitching_pt6_min_sizes](stitching_pt6_min_sizes.ipynb) | AC10/20 × minimum focal-size grid and genealogy/age diagnostics | `data/ch5/stitching_pt6_min_sizes/{haplotype_results,region_lengths,run_summary}.csv`; original raw products in sibling `stitching_eval/` | Code cells 0, 1, 4, 5, 6, 7, 8, 9, 10, 11, 12 passed; historical visible outputs preserved |
+| [stitching_pt7_paramsearch](stitching_pt7_paramsearch.ipynb) | Archived AF/minimum-size grid at three simulation sizes | `data/ch5/hpc_params1_diagnostics/` manifest, run summary and saved physical-minimum table | Code cells 0, 1, 2, 4, 5 passed; historical visible outputs preserved |
+| [stitching_pt8_hpc_perf1](stitching_pt8_hpc_perf1.ipynb) | Simulation HPC performance and path/age diagnostics | `data/ch5/hpc_perf1_diagnostics/` | Code cells 0, 1, 2, 3, 4, 5 passed; historical visible outputs preserved |
+| [stitching_pt9_hpc_perf2](stitching_pt9_hpc_perf2.ipynb) | 1KGP HPC performance and path/age diagnostics | `data/ch5/hpc_perf2_diagnostics/` | Code cells 0, 1, 2, 3, 4, 5 passed; historical visible outputs preserved |
+| [tie_breaking](tie_breaking.ipynb) | Saved controlled youngest/last-tie experiments, without launching reproduction | `data/ch5/tie_breaking/` tables, diffs, toy cases and provenance | Code cells 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 passed; historical visible outputs preserved |
+
+All four performance archives passed cohort/quality checks and their selected
+performance plots; perf3/perf5 stage figures also ran. pt3/pt6 plot checks use
+the retained per-haplotype/length tables. Dating, full ARG metric recomputation
+and upstream inference/matching were not started merely to validate a move.
+The old drivers' native `MatcherIndexes`/`AncestorMatcher` API is absent from
+the current pinned tsinfer: reproducing those matching jobs requires their
+original upstream revision/environment, while the saved-result analyses run.
+
+pt1 explicitly selects `chunk_matching_experiment`, whose records contain
+`accepted_site_intervals`; pt2 selects the separate zero-coverage archive with
+`focal_site_intervals`. The earlier shared mutable YAML had blurred those
+identities. pt6's historical grid (AC 10/20; minima 1/25/50/100/200; zero
+mismatches) is initialised in its cells from the preserved run-summary and raw
+filenames, because the mutable sibling config now describes a different run.
+The original full pt6 pipeline YAML is unavailable; no newly invented run
+configuration is presented as original provenance.
+
+`stitching_pt12_conditioning` preserves its called-allele limitation and
+provisional interpretation. `tie_breaking` retains its archived reproduction
+source as evidence beside the inputs; ordinary execution reads saved outputs
+and leaves its explicit expensive-reproduction flag false.

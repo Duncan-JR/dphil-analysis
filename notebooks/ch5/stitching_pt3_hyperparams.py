@@ -96,6 +96,7 @@ config = config_path
 experiment_path = nb_utils.resolve_path(config["experiment_config"], repository_dir)
 with experiment_path.open() as file:
     experiment = yaml.safe_load(file)
+config["experiment"] = experiment
 output_dir = nb_utils.resolve_path(config["output_dir"], repository_dir)
 cutoffs = sorted(experiment["ac_cutoff"])
 mismatch_allowances = sorted(experiment["max_mismatches"])
@@ -353,6 +354,7 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        baseline_partition=10,
     )
     nb_plot.save_figure(fig, "switch_composition_changes", output_dir=output_dir)
 

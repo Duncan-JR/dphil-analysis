@@ -35,9 +35,6 @@ notebook_dir = (
     if "__file__" in globals()
     else pathlib.Path.cwd()
 )
-repository_dir = (
-    notebook_dir if (notebook_dir / "data").is_dir() else notebook_dir.parent.parent
-)
 artifact_dir = repository_dir / "data/ch5/mutation_age_performance_review_2026_10_22"
 display.HTML((artifact_dir / "mutation_age_performance_report.html").read_text())
 

@@ -4,6 +4,9 @@ __pycache__/
 *.nbc
 *.nbi
 *.ipynb
+!notebooks/ch3/*.ipynb
+!notebooks/ch4/*.ipynb
+!notebooks/ch5/*.ipynb
 .python-version
 .ipynb_checkpoints/
 .DS_Store

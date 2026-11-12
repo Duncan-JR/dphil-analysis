@@ -12,7 +12,9 @@ import scipy.stats
 from . import nb_utils
 
 
-def plot_error_estimates(frame, estimate_label, *, baseline_frame=None, title=None):
+def plot_error_estimates(
+    frame, estimate_label, *, baseline_frame=None, title=None, figsize=(11, 8)
+):
     """Plot the four fitted quantities against simulation truth and references."""
     specs = [
         (
@@ -38,7 +40,7 @@ def plot_error_estimates(frame, estimate_label, *, baseline_frame=None, title=No
             "Estimated $\\sigma^2$",
         ),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=figsize, constrained_layout=True)
     for ax, (column, truth_column, fixed_column, heading, ylabel) in zip(
         axes.flat, specs
     ):
@@ -71,9 +73,9 @@ def plot_error_estimates(frame, estimate_label, *, baseline_frame=None, title=No
     return fig
 
 
-def plot_cumulative_mismatch_profiles(profiles, title):
+def plot_cumulative_mismatch_profiles(profiles, title, *, figsize=(12, 4.5)):
     """Compare mean cumulative counts on fixed clean and dirty sides."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
+    fig, axes = plt.subplots(1, 2, figsize=figsize, constrained_layout=True)
     max_L = profiles.distances[-1]
     minimum_distance = profiles.distances[0]
     powers = np.arange(
@@ -119,7 +121,7 @@ def plot_cumulative_mismatch_profiles(profiles, title):
     return fig
 
 
-def plot_doubleton_mismatch_summaries(profiles, title):
+def plot_doubleton_mismatch_summaries(profiles, title, *, figsize=(17, 13)):
     """Compare scalar mismatch summaries with densities and ECDFs by class."""
     summaries = [
         (
@@ -135,7 +137,7 @@ def plot_doubleton_mismatch_summaries(profiles, title):
         (profiles.is_true_doubleton, "True doubletons", "tab:blue"),
         (~profiles.is_true_doubleton, "False doubletons", "tab:orange"),
     ]
-    fig, axes = plt.subplots(3, 3, figsize=(17, 13), constrained_layout=True)
+    fig, axes = plt.subplots(3, 3, figsize=figsize, constrained_layout=True)
     for col, (heading, all_values, xlabel, all_censored) in enumerate(summaries):
         histogram_ax = axes[0, col]
         ecdf_ax = axes[1, col]
@@ -263,7 +265,7 @@ def plot_doubleton_mismatch_summaries(profiles, title):
     return fig
 
 
-def plot_real_classifier_estimates(results, dataset):
+def plot_real_classifier_estimates(results, dataset, *, figsize=(11, 8)):
     """Compare the four numbered doubleton-selection tiers for one dataset."""
     tiers = ["tier_0", "tier_1", "tier_2", "tier_3"]
     selected = results[results["dataset"] == dataset].set_index("tier").loc[tiers]
@@ -277,7 +279,7 @@ def plot_real_classifier_estimates(results, dataset):
         ("mu", "Gamma mean", "Estimated $\\mu$"),
         ("sigma_sq", "Gamma variance", "Estimated $\\sigma^2$"),
     ]
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8), constrained_layout=True)
+    fig, axes = plt.subplots(2, 2, figsize=figsize, constrained_layout=True)
     for ax, (column, heading, ylabel) in zip(axes.flat, quantities):
         ax.plot(labels, selected[column], marker="o")
         ax.set_title(heading)

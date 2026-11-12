@@ -3834,6 +3834,7 @@ def plot_parameter_switch_composition(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    baseline_partition,
 ):
     """Show raw mean switch counts, with one explicitly partitioned full bar."""
     panels = _parameter_panels(
@@ -3851,7 +3852,7 @@ def plot_parameter_switch_composition(
     )
     fig = panels.figure
     axes = panels.axes
-    baseline_cutoff = config["baseline_partition_ac_cutoff"]
+    baseline_cutoff = baseline_partition
     assert baseline_cutoff in x_values
     x = _parameter_bar_positions(
         x_values=x_values,

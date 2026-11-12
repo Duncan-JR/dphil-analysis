@@ -5,7 +5,6 @@ Scientific notebook settings live in notebook cells. This is rough work.
 
 from __future__ import annotations
 
-import dataclasses
 import logging
 import pathlib
 import subprocess
@@ -1194,7 +1193,7 @@ def plot_combined_overlap_errors(
     """Two accuracy panels, pooled into two named error-profile groups."""
     if config is None:
         config = nb_utils.AnalysisConfig()
-    config = dataclasses.replace(config, ancestor_error_y_log=False)
+    ancestor_error_y_log = False
     labels = dict(zip(combined_error_profiles, combined_error_labels))
     return plot_ancestor_overlap_errors(
         summary,
@@ -1374,10 +1373,9 @@ def plot_combined_errors(
         overshoot_diff_panel_label_position=overshoot_diff_panel_label_position,
         version_colors=version_colors,
     )
-    right_config = dataclasses.replace(config, overshoot_diff_panel_labels=("C", "D"))
     plot_combined_overshoot_diff(
         comparisons,
-        config=right_config,
+        config=config,
         figure=right,
         num_bins=num_bins,
         combined_error_labels=combined_error_labels,
@@ -1393,7 +1391,7 @@ def plot_combined_errors(
         overshoot_diff_panel_gap=overshoot_diff_panel_gap,
         overshoot_diff_panel_label_fontsize=overshoot_diff_panel_label_fontsize,
         overshoot_diff_panel_label_position=overshoot_diff_panel_label_position,
-        overshoot_diff_panel_labels=overshoot_diff_panel_labels,
+        overshoot_diff_panel_labels=("C", "D"),
         overshoot_diff_size=overshoot_diff_size,
         phase_ser_decimals=phase_ser_decimals,
         zero_color=zero_color,
@@ -2977,11 +2975,8 @@ def plot_mispolarisation_overlap_errors(
     """Accuracy and count panels with paired focal-state groups under each rate."""
     if config is None:
         config = nb_utils.AnalysisConfig()
-    config = dataclasses.replace(
-        config,
-        ancestor_error_log_subs=mispolarisation_error_log_subs,
-        ancestor_error_y_log=True,
-    )
+    ancestor_error_log_subs = mispolarisation_error_log_subs
+    ancestor_error_y_log = True
     if figsize is None:
         figsize = mispolarisation_error_size
     labels = {"none": "No mispol."}

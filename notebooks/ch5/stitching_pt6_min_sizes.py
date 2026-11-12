@@ -31,7 +31,6 @@ import logging
 import pathlib
 
 import IPython.display as ipython_display
-import yaml
 
 from ch5 import nb_plot, nb_utils
 
@@ -41,7 +40,6 @@ logger = logging.getLogger(__name__)
 # %%
 repository_dir = pathlib.Path.cwd()
 config_path = {
-    "experiment_config": repository_dir.parent / "tsinfer-match-eval/config.yaml",
     "output_dir": repository_dir / "data/ch5/stitching_pt6_min_sizes",
     "method": "greedy",
     "workers": None,
@@ -91,9 +89,24 @@ config_path = {
 }
 config_path["base_dir"] = repository_dir
 config = config_path
-experiment_path = nb_utils.resolve_path(config["experiment_config"], repository_dir)
-with experiment_path.open() as file:
-    experiment = yaml.safe_load(file)
+experiment = {
+    "data_dir": repository_dir.parent / "tsinfer-match-eval/data/stitching_eval",
+    "focal_choice": "left",
+    "ac_cutoff": [10, 20],
+    "min_focal_region_size": [1, 25, 50, 100, 200],
+    "max_mismatches": [0],
+    "focal_methods": ["greedy"],
+    "datasets": [
+        {
+            "name": "sim_n300_10mbp_error",
+            "ts_path": repository_dir.parent
+            / "tsinfer-anc-eval/data/match_eval/simulated/OutOfAfrica_3G09-chr20-L0-R1e7-n300-s1-rep0.trees",
+        },
+        {"name": "tgp_n300_10mbp", "ts_path": None},
+    ],
+}
+config["experiment"] = experiment
+config["experiment_base_dir"] = repository_dir.parent / "tsinfer-match-eval"
 output_dir = nb_utils.resolve_path(config["output_dir"], repository_dir)
 minimum_sizes = sorted(experiment["min_focal_region_size"])
 ac_cutoffs = sorted(experiment["ac_cutoff"])
@@ -351,6 +364,7 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        baseline_partition=1,
     )
     nb_plot.save_figure(fig, "switch_composition_changes", output_dir=output_dir)
 

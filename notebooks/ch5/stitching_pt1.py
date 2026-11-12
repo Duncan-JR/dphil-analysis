@@ -114,7 +114,7 @@ config = diagnostic_config_path
 experiment_config = {
     "input_dir": repository_dir / "data/ch5/match_eval",
     "coverage_input_dir": repository_dir.parent / "tsinfer-match-eval/data/match_eval",
-    "output_dir": repository_dir / "data/ch5/chunk_matching_zero_coverage",
+    "output_dir": repository_dir / "data/ch5/chunk_matching_experiment",
     "ac_cutoff": 10,
     "min_focal_ac": 2,
     "workers": None,
@@ -130,8 +130,10 @@ if not input_dir.is_absolute():
     input_dir = repository_dir / input_dir
 if not output_dir.is_absolute():
     output_dir = repository_dir / output_dir
-coverage_input_dir = pathlib.Path(config["coverage_input_dir"]).expanduser()
-gap_comparison_dir = pathlib.Path(config["gap_comparison_dir"]).expanduser()
+coverage_input_dir = pathlib.Path(experiment_config["coverage_input_dir"]).expanduser()
+gap_comparison_dir = (
+    repository_dir / "data/ch5/stitching_gap_diagnostics"
+).expanduser()
 if not coverage_input_dir.is_absolute():
     coverage_input_dir = repository_dir / coverage_input_dir
 if not gap_comparison_dir.is_absolute():

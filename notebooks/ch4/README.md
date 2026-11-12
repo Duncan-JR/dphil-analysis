@@ -51,3 +51,25 @@ Zarr array is true. A sequence of mask names excludes the union of their true
 values. Doubleton ascertainment, diversity, region span, mismatch counts and
 recombination summaries all use the resulting included sites.
 
+
+## Preserved notebooks and migration validation (12 November 2026)
+
+The committed `.ipynb` files remain the readable historical record. All saved
+outputs, attachments, execution counts and cell types match the pre-migration
+hashes in `plans/refactor_notebook_inventory.json`. Source cells and paired
+files use the migrated interfaces. The checks below ran separately, writing
+new validation figures/tables only under `/private/tmp/dphil_refactor_validation/`;
+they did not replace saved notebook outputs. Code-cell numbers below are
+zero-based among code cells. Detailed evidence is in
+`plans/refactor_notebook_reruns.json`. These are selected-cell checks, not a
+claim that every expensive historical computation was rerun.
+
+| Notebook (paired `.py`/`.ipynb`) | Purpose | Original/retained inputs | Separate check |
+| --- | --- | --- | --- |
+| [initial_testing](initial_testing.ipynb) | Estimator validation, doubleton classification and empirical error fits | `data/ch4/validation/dphil-analysis-results.csv`; configured simulation/1KGP/pig stores and recombination maps | Code cells 0, 1 passed; retained fitted-result figure rendered; historical visible outputs preserved |
+
+The complete doubleton sampling, classifier cross-validation and fitting runs
+were not restarted for the reorganisation. The original inputs are explicitly
+selected in cells. The retained numerical result table was loaded and plotted;
+that does not claim recomputation of the fitted values. New final-library
+correctness checks use synthetic data, not personal stores.

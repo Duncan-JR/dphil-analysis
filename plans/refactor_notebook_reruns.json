@@ -1,0 +1,510 @@
+[
+  {
+    "notebook": "notebooks/ch3/figure_gen.py",
+    "code_cells": [
+      0,
+      5,
+      6,
+      11
+    ],
+    "error": null,
+    "figure_files": [
+      "ancestor_overlap_errors.png",
+      "ancestor_span_boxplot.png",
+      "display_1_1.png",
+      "display_2_1.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch3/figure_gen"
+  },
+  {
+    "notebook": "notebooks/ch4/initial_testing.py",
+    "code_cells": [
+      0,
+      1
+    ],
+    "error": null,
+    "figure_files": [
+      "retained_error_estimates.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch4/initial_testing"
+  },
+  {
+    "notebook": "notebooks/ch5/ancestor_coverage.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "display_3_1.png",
+      "display_3_2.png",
+      "display_3_3.png",
+      "display_4_1.png",
+      "display_4_2.png",
+      "display_4_3.png",
+      "display_4_4.png",
+      "display_5_1.png",
+      "display_5_2.png",
+      "display_5_3.png",
+      "display_5_4.png",
+      "display_5_5.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/ancestor_coverage"
+  },
+  {
+    "notebook": "notebooks/ch5/initial_testing.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "display_3_1.png",
+      "display_3_2.png",
+      "display_3_3.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/initial_testing"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching__scratch.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "display_3_1.png",
+      "display_3_2.png",
+      "display_3_3.png",
+      "display_4_1.png",
+      "display_4_2.png",
+      "display_4_3.png",
+      "display_4_4.png",
+      "display_5_1.png",
+      "display_5_2.png",
+      "display_5_3.png",
+      "display_5_4.png",
+      "display_5_5.png",
+      "display_6_1.png",
+      "display_6_2.png",
+      "display_6_3.png",
+      "display_6_4.png",
+      "display_6_5.png",
+      "display_6_6.png",
+      "display_7_1.png",
+      "display_7_2.png",
+      "display_7_3.png",
+      "display_7_4.png",
+      "display_7_5.png",
+      "display_7_6.png",
+      "display_7_7.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching__scratch"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt1.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "display_3_1.png",
+      "display_3_2.png",
+      "display_3_3.png",
+      "display_4_1.png",
+      "display_4_2.png",
+      "display_4_3.png",
+      "display_4_4.png",
+      "display_5_1.png",
+      "display_5_2.png",
+      "display_5_3.png",
+      "display_5_4.png",
+      "display_5_5.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt1"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt10_age_performance_review.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "error": null,
+    "figure_files": [],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt10_age_performance_review"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt11_gapfill.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_3_1.png",
+      "display_4_1.png",
+      "display_5_1.png",
+      "greedy_wall_stages.png",
+      "greedy_worker_stages.png",
+      "performance_memory.png",
+      "performance_speedup_parallelism.png",
+      "performance_wall_throughput.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt11_gapfill"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt12_conditioning.py",
+    "code_cells": [
+      0,
+      3,
+      4,
+      5,
+      6
+    ],
+    "error": null,
+    "figure_files": [
+      "recurrent_error_site_overlap.png",
+      "recurrent_mutation_error_overlap.png",
+      "recurrent_sites.png",
+      "sample_mutations_switches.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt12_conditioning"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt13_jerome_update.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_3_1.png",
+      "display_4_1.png",
+      "display_5_1.png",
+      "greedy_wall_stages.png",
+      "greedy_worker_stages.png",
+      "performance_memory.png",
+      "performance_speedup_parallelism.png",
+      "performance_wall_throughput.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt13_jerome_update"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt2.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt2"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt3_hyperparams.py",
+    "code_cells": [
+      0,
+      1,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_3_1.png",
+      "display_4_1.png",
+      "display_5_1.png",
+      "display_6_1.png",
+      "display_7_1.png",
+      "display_8_1.png",
+      "display_9_1.png",
+      "extra_switches_vs_mismatch_allowance.png",
+      "focal_region_coverage.png",
+      "focal_region_length_distributions.png",
+      "gap_coverage.png",
+      "gap_length_distributions.png",
+      "parent_agreement_in_focal_regions.png",
+      "parent_agreement_in_gaps.png",
+      "switch_composition_changes.png",
+      "switch_increase_vs_mismatch_allowance.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt3_hyperparams"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt4_perf.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "error": null,
+    "figure_files": [
+      "correctness.png",
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "display_3_1.png",
+      "display_3_2.png",
+      "display_3_3.png",
+      "display_4_1.png",
+      "display_4_2.png",
+      "display_4_3.png",
+      "display_4_4.png",
+      "from_reference_wall_time.png",
+      "memory_and_cpu.png",
+      "resident_matching.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt4_perf"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt5.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "error": null,
+    "figure_files": [
+      "correctness.png",
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "display_3_1.png",
+      "display_3_2.png",
+      "display_3_3.png",
+      "display_4_1.png",
+      "display_4_2.png",
+      "display_4_3.png",
+      "display_4_4.png",
+      "from_reference_wall_time.png",
+      "memory_and_cpu.png",
+      "resident_matching.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt5"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt6_min_sizes.py",
+    "code_cells": [
+      0,
+      1,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_3_1.png",
+      "display_4_1.png",
+      "display_5_1.png",
+      "display_6_1.png",
+      "display_7_1.png",
+      "display_8_1.png",
+      "display_9_1.png",
+      "extra_switches_vs_minimum_focal_size.png",
+      "focal_region_coverage.png",
+      "focal_region_length_distributions.png",
+      "gap_coverage.png",
+      "gap_length_distributions.png",
+      "parent_agreement_in_focal_regions.png",
+      "parent_agreement_in_gaps.png",
+      "switch_composition_changes.png",
+      "switch_increase_vs_minimum_focal_size.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt6_min_sizes"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt7_paramsearch.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      4,
+      5
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "extra_switches.png",
+      "minimum_size_kb.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt7_paramsearch"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt8_hpc_perf1.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_3_1.png",
+      "performance_memory_cpu.png",
+      "performance_speedup_cpu_cost.png",
+      "performance_wall_throughput.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt8_hpc_perf1"
+  },
+  {
+    "notebook": "notebooks/ch5/stitching_pt9_hpc_perf2.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_3_1.png",
+      "performance_memory_cpu.png",
+      "performance_speedup_cpu_cost.png",
+      "performance_wall_throughput.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/stitching_pt9_hpc_perf2"
+  },
+  {
+    "notebook": "notebooks/ch5/tie_breaking.py",
+    "code_cells": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "error": null,
+    "figure_files": [
+      "display_1_1.png",
+      "display_2_1.png",
+      "display_2_2.png",
+      "small_window_comparison.png",
+      "whole_region_comparison.png"
+    ],
+    "validation_dir": "/private/tmp/dphil_refactor_validation/notebooks/ch5/tie_breaking"
+  }
+]

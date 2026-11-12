@@ -60,7 +60,8 @@ config_path = {
             "name": "tgp_chr20_n100_500kb",
             "label": "1KGP chr20 · 100 individuals",
             "zarr_path": repository_dir / "data/general/zarr_vcfs/tgp/chr20/data.zarr",
-            "sample_list": "../../../tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
+            "sample_list": repository_dir.parent
+            / "tsinfer-match-eval/data/sample_lists/tgp_chr20_n100.csv",
             "region": [1000000, 1500000],
             "ancestral_field": "variant_ancestral_allele",
             "exclude_masks": [

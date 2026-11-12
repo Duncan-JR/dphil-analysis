@@ -523,12 +523,8 @@ nb_plot.plot_ancestor_span_curves(
 
 # %%
 # Show every focal-site side with smaller markers; other boxplots retain their sampling settings.
-frequency_boxplot_config = dataclasses.replace(
-    config, jitter_max_points=None, jitter_size=3.5
-)
-frequency_boxplot_data = dataclasses.replace(data, config=frequency_boxplot_config)
 nb_plot.plot_ancestor_overshoot(
-    frequency_boxplot_data,
+    data,
     figure_folder=figure_folder,
     cutoffs=[0, 0.001, 0.003, 0.02, 0.5, 1],
     conf=0.001,
@@ -541,10 +537,10 @@ nb_plot.plot_ancestor_overshoot(
     box_size=(7, 4.5),
     dpi=300,
     jitter_alpha=0.15,
-    jitter_max_points=1500,
+    jitter_max_points=None,
     jitter_sample_interval_mb=(-1, 1),
     jitter_seed=42,
-    jitter_size=5,
+    jitter_size=3.5,
     jitter_width=0.32,
     overshoot_diff_panel_label_fontsize=12,
     overshoot_diff_panel_label_position=(0.02, 0.96),
@@ -581,16 +577,12 @@ ancestor_overlap_errors = nb_utils.load_ancestor_overlap_errors(
     aggregated_path, config=config
 )
 ancestor_error_summary = nb_utils.summarise_ancestor_overlap_errors(
-    ancestor_overlap_errors,
-    config=dataclasses.replace(config, ancestor_error_label_decimals=4),
-    cutoffs=[0, 0.001, 0.003, 0.02, 0.5, 1],
+    ancestor_overlap_errors, config=config, cutoffs=[0, 0.001, 0.003, 0.02, 0.5, 1]
 )
 nb_plot.plot_ancestor_overlap_errors(
     ancestor_error_summary,
     figure_folder=figure_folder,
-    config=dataclasses.replace(
-        config, ancestor_error_label_decimals=4, ancestor_error_y_log=True
-    ),
+    config=config,
     figsize=(7, 5.4),
     show_mismatch_change=True,
     panel_labels=("A", "B", "C"),
@@ -599,7 +591,7 @@ nb_plot.plot_ancestor_overlap_errors(
     ancestor_error_count_margin=0.4,
     ancestor_error_hatch="///",
     ancestor_error_height_ratios=(1, 1, 0.6),
-    ancestor_error_label_decimals=3,
+    ancestor_error_label_decimals=4,
     ancestor_error_label_fontsize=8,
     ancestor_error_label_padding=3,
     ancestor_error_legend_fontsize=9,
@@ -959,9 +951,7 @@ demography_error_summary = nb_utils.summarise_demography_overlap_errors(
 )
 nb_plot.plot_ancestor_overlap_errors(
     demography_error_summary,
-    config=dataclasses.replace(
-        config, ancestor_error_label_decimals=4, ancestor_error_y_log=False
-    ),
+    config=config,
     figsize=(8.5, 4.8),
     figure_folder=figure_folder,
     group_by="model",
@@ -974,7 +964,7 @@ nb_plot.plot_ancestor_overlap_errors(
     ancestor_error_count_margin=0.4,
     ancestor_error_hatch="///",
     ancestor_error_height_ratios=(1, 1, 0.6),
-    ancestor_error_label_decimals=3,
+    ancestor_error_label_decimals=4,
     ancestor_error_label_fontsize=8,
     ancestor_error_label_padding=3,
     ancestor_error_legend_fontsize=9,
@@ -982,7 +972,7 @@ nb_plot.plot_ancestor_overlap_errors(
     ancestor_error_log_subs=(1, 2, 5),
     ancestor_error_size=(7, 5.4),
     ancestor_error_type_labels=("True = 0, Observed = 1", "True = 1, Observed = 0"),
-    ancestor_error_y_log=True,
+    ancestor_error_y_log=False,
     ancestor_mismatch_fraction_label_margin=0.2,
     dpi=300,
     mean_bar_group_width=0.8,
