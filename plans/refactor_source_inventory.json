@@ -1,0 +1,515 @@
+[
+  {
+    "source": "src/__init__.py",
+    "definitions": [],
+    "sha256": "036e985521cfa03d7a773dbb746a81fe2042c14713482157f6da9a784bb0642a",
+    "destination": "Remove unused source-root package"
+  },
+  {
+    "source": "src/ch3_anc_perf.py",
+    "definitions": [
+      "PlotConfig",
+      "load_performance",
+      "_repetition_points",
+      "plot_speedup",
+      "plot_elapsed",
+      "plot_resources"
+    ],
+    "sha256": "9c9565d5eab37900ba2098d85963f433033851c21748cd3517d11cfc21b5506a",
+    "destination": "Split preparation/analysis into `ch3/nb_utils.py` and plotting into `ch3/nb_plot.py`; final used subset separately into thesis modules"
+  },
+  {
+    "source": "src/ch3_anc_perf_analysis.py",
+    "definitions": [
+      "AnalysisConfig",
+      "AncestorInputs",
+      "GroupingResult",
+      "AnalysisTask",
+      "AnalysisResult",
+      "load_ancestor_inputs",
+      "load_legacy_grouping",
+      "replay_grouping",
+      "load_group_timings",
+      "analyse_task",
+      "analysis_worker",
+      "preprocess_results",
+      "BenchmarkAnalysis",
+      "summarise_results",
+      "load_analysis",
+      "plot_linesweep",
+      "plot_work_reduction"
+    ],
+    "sha256": "938233c0785b8d41aaf063f586d50dd26ba1ea4afa6970109e7cdff73ca141ee",
+    "destination": "Remove unused grouping replay and plotting; external pipeline owns these, no current consumer"
+  },
+  {
+    "source": "src/ch3_ancestor_extension.py",
+    "definitions": [
+      "FigureConfig",
+      "ExtensionTrace",
+      "trace_ancestor",
+      "_circle",
+      "_first_conflict",
+      "_ragged",
+      "_bar",
+      "_site_bracket",
+      "_legend",
+      "plot_ancestor_extension"
+    ],
+    "sha256": "85dd8e97b0a085d4e9c38795fe5ea3fb9ed58b187cab9bd2e021fedae69ce300",
+    "destination": "Split preparation/analysis into `ch3/nb_utils.py` and plotting into `ch3/nb_plot.py`; final used subset separately into thesis modules"
+  },
+  {
+    "source": "src/ch3_extract_data.py",
+    "definitions": [
+      "ExtractionConfig",
+      "VariantStore",
+      "StoreTask",
+      "discover_stores",
+      "find_store",
+      "_genotype_counts",
+      "_extract_store",
+      "extract_data",
+      "main"
+    ],
+    "sha256": "bde81d3b08d8160fe9422f7eaa90f271e57f1099f27e5ad8982eb8fa98dd64bd",
+    "destination": "`scripts/extract_zarr_validation_data.py` (standalone)"
+  },
+  {
+    "source": "src/ch3_extract_phase_data.py",
+    "definitions": [
+      "ExtractionConfig",
+      "extract_data"
+    ],
+    "sha256": "602da630351be11d33839204f4922125ee25889663038a3391fceb2d50d6b339",
+    "destination": "`scripts/extract_phase_data.py` (standalone)"
+  },
+  {
+    "source": "src/ch3_plot.py",
+    "definitions": [
+      "PlotConfig",
+      "ChapterData",
+      "GenotypeSummary",
+      "OvershootHistogram",
+      "FocalTask",
+      "FocalFrames",
+      "FocalPaths",
+      "_prepare_focal_chunk",
+      "_read_zarr_data",
+      "_true_focal_frequencies",
+      "_focal_tasks",
+      "_write_focal_tables",
+      "preprocess_data",
+      "load_data",
+      "save_figure",
+      "_version_label",
+      "_no_errors",
+      "_frequency_bin_edges",
+      "_ancestor_boxplot",
+      "plot_ancestor_spans",
+      "plot_ancestor_overshoot",
+      "load_tgp_ancestor_spans",
+      "summarise_ancestor_span_curves",
+      "plot_ancestor_span_curves",
+      "load_ancestor_overlap_errors",
+      "load_demography_comparisons",
+      "_pool_overlap_errors",
+      "_overlap_error_rates",
+      "summarise_demography_overlap_errors",
+      "summarise_ancestor_overlap_errors",
+      "plot_ancestor_overlap_errors",
+      "summarise_ancestor_error_types",
+      "plot_ancestor_error_types",
+      "summarise_genotype_errors",
+      "plot_genotype_error_scaling",
+      "plot_genotype_error_transitions",
+      "_profile_label",
+      "_overshoot_colors",
+      "_overshoot_histogram_counts",
+      "_overshoot_histogram",
+      "_overshoot_diff",
+      "load_combined_error_comparisons",
+      "summarise_combined_overlap_errors",
+      "plot_combined_overlap_errors",
+      "plot_combined_overshoot_diff",
+      "plot_combined_errors",
+      "_draw_overshoot_group",
+      "_symlog_overshoot_axis",
+      "_overshoot_zero_line",
+      "_overshoot_legends",
+      "_overshoot_boxplot",
+      "TailSteps",
+      "plot_demography_overshoot_box",
+      "plot_demography_overshoot_quantiles",
+      "_tail_steps",
+      "_overshoot_tails",
+      "_genotype_overshoots",
+      "summarise_overshoots",
+      "plot_overshoot_summary",
+      "_mean_overshoot_by_profile",
+      "_overshoot_difference_label",
+      "_overshoot_scatter",
+      "_overshoot_mean",
+      "plot_genotype_overshoot_mean",
+      "plot_genotype_overshoot_scatter",
+      "plot_genotype_overshoot_hist",
+      "plot_genotype_overshoot_diff",
+      "plot_genotype_overshoot_box",
+      "plot_genotype_overshoot_tails",
+      "load_tgp_daf",
+      "_format_daf_axes",
+      "_plot_daf_counts",
+      "plot_tgp_daf",
+      "mispolarisation_daf_counts",
+      "plot_mispolarisation_daf",
+      "load_mispolarisation_overlap_errors",
+      "summarise_mispolarisation_overlap_errors",
+      "plot_mispolarisation_overlap_errors",
+      "_pool_mispolarisation_mismatch",
+      "summarise_mispolarisation_mismatch_by_daf",
+      "plot_mispolarisation_mismatch_by_daf",
+      "_mispolarisation_overshoots",
+      "plot_mispolarisation_overshoot_hist",
+      "plot_mispolarisation_overshoot_scatter",
+      "plot_mispolarisation_overshoot_diff",
+      "plot_mispolarisation_overshoot_box",
+      "plot_mispolarisation_overshoot_tails",
+      "_mispolarisation_low_count_overshoots",
+      "_mispolarised_focal_sites",
+      "summarise_mispolarised_focal_counts",
+      "plot_mispolarised_focal_overshoot_hist",
+      "plot_mispolarisation_low_count_overshoot_scatter",
+      "plot_mispolarisation_low_count_overshoot_diff",
+      "_phasing_overshoots",
+      "plot_phasing_overshoot_mean",
+      "plot_phasing_overshoot_hist",
+      "plot_phasing_overshoot_scatter",
+      "plot_phasing_overshoot_diff",
+      "plot_phasing_overshoot_box",
+      "plot_phasing_overshoot_tails",
+      "_draw_phase_pair",
+      "plot_phase_switch_illustration"
+    ],
+    "sha256": "adc89e52104daa923c579e3222d899830720a2267223c6bcec2de72405ac4f5f",
+    "destination": "Split preparation/analysis into `ch3/nb_utils.py` and plotting into `ch3/nb_plot.py`; final used subset separately into thesis modules"
+  },
+  {
+    "source": "src/ch5_analysis.py",
+    "definitions": [
+      "CoverageData",
+      "SweepTask",
+      "SweepResult",
+      "focal_ac_cutoffs",
+      "_truth_populations",
+      "summarise_focal_ancestor_set_sizes",
+      "load_coverage_data",
+      "_sweep_haplotype",
+      "_sweep_tasks",
+      "summarise_coverage"
+    ],
+    "sha256": "2256596f4280fb9dc04ccdd20f98d2a686027502485cc795d18a4ae597740dca",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_arg_metrics.py",
+    "definitions": [
+      "BitsetCladeMap",
+      "haplotype_arf"
+    ],
+    "sha256": "c5c2ecdad1d1cc834ede9e4e7cce5b3b8e5490067e874a9c3cd9604eda0cb1b1",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_conditioning.py",
+    "definitions": [
+      "ExperimentTables",
+      "load_config",
+      "calibrate_mismatch",
+      "_write_array",
+      "_input_selection",
+      "prepare_dataset",
+      "prepare",
+      "run_pipeline",
+      "aligned_errors",
+      "verify_error_mask",
+      "copying_events",
+      "called_allele_check",
+      "error_overlap",
+      "analyse"
+    ],
+    "sha256": "ff00007ac5deea377b73ca250589ab11c6f9a1775f19ead613a0f163f442dbb5",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_conditioning_plots.py",
+    "definitions": [
+      "ConditioningPlots"
+    ],
+    "sha256": "0a509c7a027b80e2f0106653ae19899d08fc51c6509ca2e3a26f8eaaa72d1699",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_dating.py",
+    "definitions": [
+      "DatingCase",
+      "store_signature",
+      "load_configuration",
+      "dating_cases",
+      "augmentation_config",
+      "date_case",
+      "date_all",
+      "mutation_ages",
+      "correlate_ages",
+      "frequency_bins",
+      "correlation_rows",
+      "MatchedMutationAges",
+      "matched_mutation_ages",
+      "stitched_mutation_age_pairs",
+      "mutation_correlations"
+    ],
+    "sha256": "713a16828b9409da8b63903eca7be396752ddbeee300d7a3ba9d63e0ccd6ec03",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_dating_plots.py",
+    "definitions": [
+      "correlation_figure",
+      "stitched_age_density_figure"
+    ],
+    "sha256": "82f074c8455f05ed798d771376a2b49b765ce4bc2cc9ba99367a9eba4fb76b42",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_gap_parents.py",
+    "definitions": [
+      "GapParentJob",
+      "focal_seed_sites",
+      "gap_fragments",
+      "copying_in_gaps",
+      "carried_focal_seeds",
+      "analyse_dataset",
+      "gap_parent_composition"
+    ],
+    "sha256": "060d940fe96a55e3083d59dcf161b92454c4290b48e7e738fe046dd85d873a27",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_gapfill.py",
+    "definitions": [
+      "StageBreakdown",
+      "stage_breakdown",
+      "recurrent_site_counts",
+      "RecurrenceJob",
+      "recurrent_dataset",
+      "recurrent_sites"
+    ],
+    "sha256": "7c1b8d3dd8774ca63d63baf3b1da0e65afff5029fbdda1341fb7d77fccf9f138",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_gapfill_plots.py",
+    "definitions": [
+      "GapfillPlots"
+    ],
+    "sha256": "80f39d6691b546d0cec6e1cde1bd32c608dcf82c88bd9a1c0c12e56d78faca4e",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_hyperparams.py",
+    "definitions": [
+      "RunInputs",
+      "Results",
+      "TreeSequences",
+      "AlignedTrees",
+      "ArgComparison",
+      "resolve_path",
+      "population_labels",
+      "read_matches",
+      "parents_at_sites",
+      "coverage_percentage",
+      "summarise_run",
+      "load_results",
+      "load_tree_sequences",
+      "tree_statistic_differences",
+      "align_tree_sequences",
+      "window_tree_sequence",
+      "compare_arg",
+      "arg_metrics",
+      "run_arg_comparisons",
+      "truth_sample_nodes",
+      "truth_arg_metrics"
+    ],
+    "sha256": "04d87b060dbf1a2a707fa74f2bdca8f8c835cc70ca7e109d3b2201ff9de9711e",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_min_sizes.py",
+    "definitions": [
+      "load_configuration",
+      "load_results",
+      "load_tree_sequences",
+      "arg_metrics",
+      "truth_arg_metrics"
+    ],
+    "sha256": "c6302001b0403074009f8c8a9d585fc056763a5cbdb6e4edfe7565f2d289d880",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_paramsearch.py",
+    "definitions": [
+      "load_config",
+      "input_signature",
+      "cached_table",
+      "save_table",
+      "length_counts",
+      "population_summary",
+      "weighted_quantile",
+      "length_density",
+      "TreeJob",
+      "tree_jobs",
+      "compare_tree",
+      "date_tree",
+      "run_tree_jobs",
+      "shared_mutation_correlations",
+      "mutation_correlations"
+    ],
+    "sha256": "76e236678e830af1ff0e6dba476354b5f30e184ec0aa7eb6f1c746a133599bde",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_perf.py",
+    "definitions": [
+      "Results",
+      "path_fingerprint",
+      "compare_paths",
+      "reference_phases",
+      "per_sample_data",
+      "load_results"
+    ],
+    "sha256": "c1b42ef5ffc2caf7c274a70c37a814761912535f1ae38886805d64b2dcf0312c",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_perf_pt5.py",
+    "definitions": [
+      "Results",
+      "load_results"
+    ],
+    "sha256": "9b87f591e09c09c40b1dbf67e9d52432f3b3e42f9f800892941c3198c4a95e9b",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_perf_scaling.py",
+    "definitions": [
+      "load_config",
+      "signature",
+      "read_cached",
+      "save_cached",
+      "cohort_table",
+      "performance_runs",
+      "diagnostic_summary",
+      "population_coverage",
+      "length_counts",
+      "weighted_quantile",
+      "length_density",
+      "DatingJob",
+      "path_fingerprint",
+      "date_tree",
+      "date_all",
+      "age_comparison",
+      "mutation_correlations"
+    ],
+    "sha256": "508b49c708fac19e6e06e059691bb2ec8bc36b921a0020e2ba54e9a3b80de210",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_perf_scaling_plots.py",
+    "definitions": [
+      "ScalingPlots",
+      "stats_density"
+    ],
+    "sha256": "e2953d35288afb9a13f199c024fe21cbc7890534bf0c65ae0f2d96a202b1df5c",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_root_edges.py",
+    "definitions": [
+      "RootEdgeJob",
+      "classify_edges",
+      "observed_root_edges",
+      "analyse_dataset",
+      "root_edge_summary",
+      "totals",
+      "additional",
+      "span_histograms"
+    ],
+    "sha256": "75e792bc090cc45729f49e7022217a9d06c257dbf7f60ded5cf9d07ec5c7b7f8",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/ch5_stitching.py",
+    "definitions": [
+      "SwitchCounts",
+      "site_intervals",
+      "focal_parent_path",
+      "switch_counts",
+      "comparison_metrics"
+    ],
+    "sha256": "31c26686a8814911cd9a74385c7c7ccfed5565495866ca2eb1a04e45310d6a3f",
+    "destination": "Split all definitions by responsibility into `ch5/nb_utils.py` and `ch5/nb_plot.py`; explicitly rename colliding definitions"
+  },
+  {
+    "source": "src/error_estimation.py",
+    "definitions": [
+      "EstimationConfig",
+      "Doubletons",
+      "Diversity",
+      "MismatchSummary",
+      "ErrorRateFit",
+      "ErrorRateEstimate",
+      "_Store",
+      "_open_store",
+      "_sample_doubletons",
+      "_load_doubletons_csv",
+      "_MismatchContribution",
+      "_mismatch_chunk",
+      "_mismatch_worker",
+      "_mismatch_counts",
+      "_summarise_mismatches",
+      "_power_integral_from_one",
+      "_expected_haplotype_mismatches",
+      "_fitted_means",
+      "_objective",
+      "_fit_doubleton_indices",
+      "fit_error_model",
+      "estimate_error_rate"
+    ],
+    "sha256": "93538a7186fc3eb0035df73ad217a5200f70bdd9d0bccd78c3fd0f364a84110c",
+    "destination": "`src/ch4/error_estimation.py`; exploratory notebook calls via `ch4/nb_utils.py`"
+  },
+  {
+    "source": "src/error_validation.py",
+    "definitions": [
+      "CumulativeMismatchProfiles",
+      "DoubletonClassifier",
+      "doubleton_features",
+      "_design_matrix",
+      "fit_doubleton_classifier",
+      "doubleton_scores",
+      "classify_doubletons",
+      "classifier_curves",
+      "classifier_metrics",
+      "fit_error_rate_with_selected_doubletons",
+      "get_true_error_rate",
+      "get_ts_diversity",
+      "sample_doubletons",
+      "write_doubletons_csv",
+      "get_true_doubleton_mask",
+      "cumulative_mismatch_profiles",
+      "evaluate_mismatch_cutoffs",
+      "mismatch_roc"
+    ],
+    "sha256": "356728ee217988914197cb8d2596a6a52c984f0b00a0170364407ea1ec12bd0c",
+    "destination": "`src/ch4/error_validation.py`; exploratory notebook calls via `ch4/nb_utils.py`"
+  }
+]

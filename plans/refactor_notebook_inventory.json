@@ -1,0 +1,135 @@
+{
+  "notebooks/ch3/figure_gen.ipynb": {
+    "sha256": "702f664ef3f0ca54f607bffa81ca34925530af67fea7c30b6209e73edd078eae",
+    "visible_sha256": "d9a9e0eb817424e33b36c133e3060ac978b0073123d7830fecb489284be76544",
+    "cells": 135,
+    "output_cells": 76,
+    "bytes": 6474941
+  },
+  "notebooks/ch4/initial_testing.ipynb": {
+    "sha256": "c47c4f2ecd6c8e7175adf28e2de7827236b8e2fcf2b837060c92ebc6b21a83fd",
+    "visible_sha256": "c7e9a441182d7e51151736a7544cf950943a8c406fb3751ef73174044b2dff1d",
+    "cells": 57,
+    "output_cells": 28,
+    "bytes": 8746166
+  },
+  "notebooks/ch5/ancestor_coverage.ipynb": {
+    "sha256": "d90baae477386a329cbd30b69222f10168b156572b97bf4aa1ff0ca0ae7b0d15",
+    "visible_sha256": "4f3a1ff573245803d7126f1936eb05a8b8e6fe16afa3b0ed49933e3047d0e1d0",
+    "cells": 24,
+    "output_cells": 8,
+    "bytes": 708220
+  },
+  "notebooks/ch5/initial_testing.ipynb": {
+    "sha256": "92396900a0a59fc30a56db0bd6e534a34c223ac106afd27ef0721689917ca185",
+    "visible_sha256": "0d7e1c2ceafd30bd581c6e54f4846ab91a96d76bf9ae542f91d9f1a4ea4c70bb",
+    "cells": 13,
+    "output_cells": 3,
+    "bytes": 569166
+  },
+  "notebooks/ch5/stitching__scratch.ipynb": {
+    "sha256": "13d5f123f0706df05f9211da4626b8ca9cb9bc7aaaa1c7b6847f017f202fa4d5",
+    "visible_sha256": "d2085368e8e84a4e66fd0850f44e1d3240d34a62b80f2b1651c555d1acac7982",
+    "cells": 27,
+    "output_cells": 14,
+    "bytes": 224607
+  },
+  "notebooks/ch5/stitching_pt1.ipynb": {
+    "sha256": "7d8969ed59d4cbd081c5072bdb01ce86af4ce827f21568062c74fa4e3dfabbc1",
+    "visible_sha256": "6df26549addca60c5120e543b0f1f0b1e4c46e1ca4f3ee910ab030dec0601989",
+    "cells": 28,
+    "output_cells": 15,
+    "bytes": 2069850
+  },
+  "notebooks/ch5/stitching_pt10_age_performance_review.ipynb": {
+    "sha256": "43778f4fe0fb0fb6447c3995448bd336b9e8fc8d53987e8317bfbf2859ae9886",
+    "visible_sha256": "16fd8ceed2e2e814d7acb34d80a358a7e302d1053534413d52b70a6872bd46a3",
+    "cells": 7,
+    "output_cells": 4,
+    "bytes": 967111
+  },
+  "notebooks/ch5/stitching_pt11_gapfill.ipynb": {
+    "sha256": "968cf5e796979d7c4fdfe9b2f62ca19842296d2bc574f7a87b94ebec2d1235c4",
+    "visible_sha256": "3b7d4c6fd4bd2638edb37b86dedbe7f1a9b1e231288aac27f657989ebbc2958e",
+    "cells": 34,
+    "output_cells": 19,
+    "bytes": 2867174
+  },
+  "notebooks/ch5/stitching_pt12_conditioning.ipynb": {
+    "sha256": "fb27ba2665e00155d4fb225c49de9540a8d22569f560bc49fc560a06f6da5208",
+    "visible_sha256": "4276b2c754b8de7cd667d27ae6a2b5f80d2ff89860702f4f68c4e76d304aab42",
+    "cells": 16,
+    "output_cells": 7,
+    "bytes": 360042
+  },
+  "notebooks/ch5/stitching_pt13_jerome_update.ipynb": {
+    "sha256": "ab624244a9c624d3f80e35e7e5fe250ca740d3d6056584722fc73e062b8d0bba",
+    "visible_sha256": "5e5bc8da5dc79dd0408ddf4d8a0ffcaf58792daf158bcca0b82dfade94e6949a",
+    "cells": 38,
+    "output_cells": 22,
+    "bytes": 3824497
+  },
+  "notebooks/ch5/stitching_pt2.ipynb": {
+    "sha256": "962e56ac6ba907df768c8cfbb59490cf576a877296998e35e36f8066cfcd536d",
+    "visible_sha256": "9b54c61251880990792ef199a8c070d905f1778b862190580c9f8c3fbc7cd718",
+    "cells": 62,
+    "output_cells": 28,
+    "bytes": 9386113
+  },
+  "notebooks/ch5/stitching_pt3_hyperparams.ipynb": {
+    "sha256": "8e0ed9e89dd27fbd90c003f9bcb753f583d6387b0f9b37bedeb6daf9e24ad944",
+    "visible_sha256": "5f339b5948f264c80ea21b5a8bb67d2ab6fd7c7e5bb3a7fb8b189c3035ecbbca",
+    "cells": 38,
+    "output_cells": 20,
+    "bytes": 3189162
+  },
+  "notebooks/ch5/stitching_pt4_perf.ipynb": {
+    "sha256": "b81be7547a06d531db283f16a4f7750ea48d2a04bce6ee97d884b7d971fe8a74",
+    "visible_sha256": "ea7c029da6eeef64128a6fa790f0085d50a8c48961ff8bf095e7921f63b4704e",
+    "cells": 15,
+    "output_cells": 5,
+    "bytes": 446964
+  },
+  "notebooks/ch5/stitching_pt5.ipynb": {
+    "sha256": "802d32ef337faf04c834090bbc0690d0275c3cd2604d3b0284431fd73cc6d1e5",
+    "visible_sha256": "e74197ff832b38802781910b757b259a9b80bc15b70969ff28a3031174d99014",
+    "cells": 17,
+    "output_cells": 6,
+    "bytes": 659719
+  },
+  "notebooks/ch5/stitching_pt6_min_sizes.ipynb": {
+    "sha256": "8798da031b8c83d25a55330abd7e4e0468f26dd181bc4b28636ea509baa1e5b0",
+    "visible_sha256": "3d0008f0b33913377e2d659376a97c97fd40812fcc9081a1548b0a0c25a76642",
+    "cells": 37,
+    "output_cells": 20,
+    "bytes": 2725924
+  },
+  "notebooks/ch5/stitching_pt7_paramsearch.ipynb": {
+    "sha256": "1e7e4b62918e0bb8c70fbc43d3eadd72811e1138f542553df8c3e29fe66f01af",
+    "visible_sha256": "9f0d6672c15c4e22f9759345225f32a97731826113ce49bc413a54fe32fc0851",
+    "cells": 39,
+    "output_cells": 18,
+    "bytes": 3737737
+  },
+  "notebooks/ch5/stitching_pt8_hpc_perf1.ipynb": {
+    "sha256": "5e7ef39d7a745e1cb1361481932a97d3c49f41901236f70626c8502a13babc52",
+    "visible_sha256": "6bd5684de7a7000bef27f90ffb488e03839b61b1c443e89030cd688b35cc49ae",
+    "cells": 32,
+    "output_cells": 18,
+    "bytes": 4607481
+  },
+  "notebooks/ch5/stitching_pt9_hpc_perf2.ipynb": {
+    "sha256": "d1020ff79b2e29f8fd818ee4647015b3d44cd9bf76d650b21cc3fb62ada7caa8",
+    "visible_sha256": "ddb7832beedbc9e57b29e1a588bf26402c7f4b97717e5796deb79f46d8d3ac8d",
+    "cells": 32,
+    "output_cells": 18,
+    "bytes": 3102016
+  },
+  "notebooks/ch5/tie_breaking.ipynb": {
+    "sha256": "50973a074bbcb4e7494286328abdd13db2c1f366a48531d1b5571a923870ccba",
+    "visible_sha256": "8b099bb21d50d43e0ce2f7407a4e2b8bdb0a67e7f355b1cd7f90810c716c1f9f",
+    "cells": 22,
+    "output_cells": 9,
+    "bytes": 150364
+  }
+}
