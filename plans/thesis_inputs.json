@@ -1,0 +1,730 @@
+{
+  "recorded_at": "2026-11-12",
+  "python": "3.12.13",
+  "lockfile": {
+    "path": "uv.lock",
+    "bytes": 224840,
+    "sha256": "27543853d566e0053fe8ad4b30ca499355e9444686835168771ed49af4e03c02"
+  },
+  "dependency_revisions": {
+    "tsinfer": "e2f8de7c950179215ece27e1d31c7b096308b4c8",
+    "tsls": "c560b405761ae09625e266d39c2356ccc4b54b69",
+    "tsinfer-anc-eval": "b6095aa31437067f1f14e2d720b7b4557385749a",
+    "tsinfer-perf-benchmark": "d26a8c9bd4a3ba0954b6cde2de6700c958f2ff64"
+  },
+  "revision_note": "Dependency pins are actual source revisions. Producer repository HEADs are observation-time provenance, not assertions of the exact historical producing revisions. Those original invocations/revisions were not retained with all CSVs.",
+  "inputs": [
+    {
+      "path": "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1-aggregated.csv",
+      "bytes": 5012219356,
+      "sha256": "92a7825c1d535459d349e100697b88945ef2b17b6c5f41938b369aaf89b8d572"
+    },
+    {
+      "path": "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+      "bytes": 30713062,
+      "sha256": "158f211aef1fb01bc214c3ac455d433ece5d07e7a8c26faaf072a6fead123b58"
+    },
+    {
+      "path": "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_phase_runs.csv",
+      "bytes": 28282,
+      "sha256": "273baaee70e6eb49a3683b61c31973074bd4ceaf9cd8cb0cae50bfffd106edea"
+    },
+    {
+      "path": "data/ch3/performance/perf_combined.csv",
+      "bytes": 13272,
+      "sha256": "4d39bead20d209615747f1e5f0539da0e447f3045e0202a0d4f16bbdb750b0cb"
+    },
+    {
+      "path": "data/ch3/thesis_assets/anc_eval_pipe.png",
+      "bytes": 277652,
+      "sha256": "3d0fee230ce55e2966f4a9540fcde49c7fcf1d7d2b0d87c3dc49a5f424d6c0bb"
+    },
+    {
+      "path": "data/ch3/demographies/AmericanAdmixture_4B18-chr20-L0-R2e7-n6000-s1-aggregated.csv",
+      "bytes": 356880192,
+      "sha256": "fec293f44221ec2096b721911c9e1c9b1e2ad19d64b7115258a43e554f6df4ce"
+    },
+    {
+      "path": "data/ch3/demographies/Africa_1T12-chr20-L0-R2e7-n6000-s1-aggregated.csv",
+      "bytes": 324115893,
+      "sha256": "760ccb8d605a614bbf360b335cd61931193d1bdd2bea62feb48ea29e2b97b977"
+    },
+    {
+      "path": "data/ch3/demographies/Zigzag_1S14-chr20-L0-R2e7-n6000-s1-aggregated.csv",
+      "bytes": 169451978,
+      "sha256": "64d6895fa17ef2f4de0cfbedaaa97cb7610b6b73c622a6bb76d9216cdd5da26f"
+    },
+    {
+      "path": "data/ch3/tgp_ancestor_spans_0.4.1.csv",
+      "bytes": 34431967,
+      "sha256": "7af3d1dd76546acb2387e74beaed8d49635997b19704e526ddcd90189b99ffc2"
+    },
+    {
+      "path": "data/ch3/tgp_ancestor_spans.csv",
+      "bytes": 35813115,
+      "sha256": "44484ed7941fe1404e6f3880c60c067e852ef7d65137aa81aee97ca03b20deb0"
+    }
+  ],
+  "empirical_daf_store": {
+    "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr",
+    "arrays": [
+      "variant_position",
+      "variant_1kgp_all_subset_derived_count",
+      "variant_1kgp_all_subset_ancestral_count"
+    ],
+    "files": [
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/.zattrs",
+        "bytes": 321,
+        "sha256": "ae1906a7c3a6eaa4d220a1b77d90d1f24c018fb3211cb0fe604680d86764cf49"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/.zgroup",
+        "bytes": 24,
+        "sha256": "2383746e67b4bcc2762b3f100f06c3fa2d5f149ab5a8e5da5d33521464a01959"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/.snakemake_timestamp",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/.zarray",
+        "bytes": 323,
+        "sha256": "ee389b8e792a95bccb7483835f55e258c2f9109c90a4baab794e7441f5873960"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/.zattrs",
+        "bytes": 55,
+        "sha256": "3d9af6b3b6227b814720f9c00ce82ff246d1c27a4a91ee5e50035b4b83389aa4"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/0",
+        "bytes": 174524,
+        "sha256": "16f9bb82e995f34668bcdb20048a4fbf977a867df4406ad7d0f340117b4be1f3"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/1",
+        "bytes": 175999,
+        "sha256": "f62a5d8e795e33ab87e334fca61d01b3c9dedde678beaf8bf6fd097daa32d84a"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/10",
+        "bytes": 172191,
+        "sha256": "ad8526f0a59d1d18239592d9142ea6b550c5f4137490c1758946e4ae01a095c0"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/11",
+        "bytes": 172316,
+        "sha256": "29e749bcae8ab012ea85b4ad702590f6ec3f7918640ef0b4167a9cca0ebc7160"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/12",
+        "bytes": 173439,
+        "sha256": "4ffad042dd332912e22b9e0403a780931b6caa6ed4d235c611d9ab7bbaf4014a"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/13",
+        "bytes": 174255,
+        "sha256": "340de34a53423bddeebd80aa21ebe99409efed9c707bcb3d647f94492e8b630b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/14",
+        "bytes": 171574,
+        "sha256": "8ec1d74c74627e9f37c98d2a42149a93eb89ab7a5f53ac96f233e5e8f13819c9"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/15",
+        "bytes": 171195,
+        "sha256": "8170c310dc0b128c9947f7c36fa66dbc4bec891f2817a5a35ff937410f2e8a9c"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/2",
+        "bytes": 174233,
+        "sha256": "d755249e361932b9c177de91a85ca35313c93aeb390e233908d159328b0ada60"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/3",
+        "bytes": 173070,
+        "sha256": "766716d0bcdf929730b1d4e3ec28ed8c8547fd050b4447112baf7560ac49da08"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/4",
+        "bytes": 174428,
+        "sha256": "e5f0158c54b49a32fa549091993c2552eac3d7c8e163174188607f9f3b322d71"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/5",
+        "bytes": 169932,
+        "sha256": "bf818d9ce32e00e2ef274feafa2a0911c464de8ae10e5455412cbd62199f8427"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/6",
+        "bytes": 164873,
+        "sha256": "08f7fe1d26f03a7e2584591ab837799c0c04e1a80ca5d06fd8384ca6a98ee679"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/7",
+        "bytes": 164979,
+        "sha256": "c4827ab812160ee550d3118d8280e74c74c9b4c3180e7d751b713875a407ed28"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/8",
+        "bytes": 168087,
+        "sha256": "e136b8ebcef99e894718a68a864819f8c7b188635ea17fff45c4963f3538cb68"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_ancestral_count/9",
+        "bytes": 170561,
+        "sha256": "9dd95f3d768b1f325e014bb781708789915ececf3eb0dba67a3cac836407a442"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/.snakemake_timestamp",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/.zarray",
+        "bytes": 323,
+        "sha256": "ee389b8e792a95bccb7483835f55e258c2f9109c90a4baab794e7441f5873960"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/.zattrs",
+        "bytes": 55,
+        "sha256": "3d9af6b3b6227b814720f9c00ce82ff246d1c27a4a91ee5e50035b4b83389aa4"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/0",
+        "bytes": 155892,
+        "sha256": "7ccc14c28a93f72409c62f2a86718c73da1548f48921ef482033855160dc97ca"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/1",
+        "bytes": 157536,
+        "sha256": "1750161f1f5b1dd7da699dbe95d415de0e7f26feff53aba94c2889017206438b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/10",
+        "bytes": 152819,
+        "sha256": "439a718e751634992e41487e683be053e9659dea118cfadb942615e5e0e4a065"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/11",
+        "bytes": 152989,
+        "sha256": "f9c43d9bea3ebdce672b59b372182239a0ed6dd249843149deaa5b92f9c74615"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/12",
+        "bytes": 154518,
+        "sha256": "f15b2ee5b0779bff46261f8260b7ef1f82a854b8cc0d9c8b3d3c46376aed3f58"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/13",
+        "bytes": 155269,
+        "sha256": "255d6907e88a831ddb9774905ebfc8598efae0b2d0313132fff144fce3923dc3"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/14",
+        "bytes": 151903,
+        "sha256": "4bb0be36969aa553e2b1303a704f841ce760946b24cc0c74532ba26a6e49adff"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/15",
+        "bytes": 151336,
+        "sha256": "541e8cbd6cb4af408f3ab2ce5c8e9d58cee3bd2fbbcb218990fca9c913351a38"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/2",
+        "bytes": 154877,
+        "sha256": "2c5821e5837e1ad2e8b28c156955dad2fdea13366212f6a601ebb36c21dd138a"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/3",
+        "bytes": 154639,
+        "sha256": "d5fe7c0e7f6d911f3f43536358eba2bc98e4b584efd18e395d25aeef083de2b8"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/4",
+        "bytes": 155336,
+        "sha256": "a6cee42c681d979a8572aa5ba35578778b97aa606a2f7d685a503451ab97e727"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/5",
+        "bytes": 149791,
+        "sha256": "d6d1ebe20c455a532da56cf067ea4147717efe94e31603a2a2cefa4a36dfbfb5"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/6",
+        "bytes": 138545,
+        "sha256": "2718651639ca80a59dc78bb3ec8a84a3b47839bfeb3969c1515c1e6422ab1deb"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/7",
+        "bytes": 140556,
+        "sha256": "5dbc01f8520c841d3581b5b0a77939285456193e7f96bc3c0dace4c147115ca5"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/8",
+        "bytes": 147901,
+        "sha256": "753e003264801979904f5c5ff335881de711c2fc9ae95263836b9c7550cde61c"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_1kgp_all_subset_derived_count/9",
+        "bytes": 150913,
+        "sha256": "e8810e7dc5085244b9f7002b2fb42781fe11e413e90d2bcbae64b3bc4ec30c48"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/.zarray",
+        "bytes": 355,
+        "sha256": "b2ec6ff2bfff70689fb1fa96d4d17dc5099df36503bcc923b8e6423d6be44cb9"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/.zattrs",
+        "bytes": 100,
+        "sha256": "952ac5b7daa7cb88400ec74aad21ed44909a208d15fdcc65aff542ce7283bcef"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/0",
+        "bytes": 23906,
+        "sha256": "1ecc3a1489a42d68aad8916257cc3bb491270431c5f1d8f0f746fd68735e84c2"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/1",
+        "bytes": 23940,
+        "sha256": "cf21d8244c76b4b8c812ae42519ade1344813b08991709df7f82b100c3aea2c7"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/10",
+        "bytes": 24064,
+        "sha256": "152cc1cbc5222ddd6d36d53499fc9c0d1d40404b2c26431b41fd336586e32eac"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/11",
+        "bytes": 24258,
+        "sha256": "2bb5496e0e4af1076c600e7f9da072aaf2d09d204ebf9cc70c60bc7a83d041d3"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/12",
+        "bytes": 24296,
+        "sha256": "7b08d536c65bc6facd199e2845b1f5106f4605f0dc83836721b56ee5690f165b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/13",
+        "bytes": 24149,
+        "sha256": "2620dead97fc5ace7fa05ff4ce17eb1e5a023a05c6eb87431ed45a6aff1b8049"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/14",
+        "bytes": 24059,
+        "sha256": "d9a6a00b28236eb9f86ef25edfe81822ce5452087cf19b1ed5d68374eaa70693"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/15",
+        "bytes": 23950,
+        "sha256": "95ac7488203b83cf533725755debdcac6a5c88191b0d0e43a346cc4c0c721956"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/16",
+        "bytes": 24035,
+        "sha256": "678dfffa91906ad7d8cb52db9eadd3fe10ec38da5458dac10a5534530c37465e"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/17",
+        "bytes": 24305,
+        "sha256": "8690dd91d4a546436a79573b699f2afd968b4846ca360c17a1a136f8275d0d9f"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/18",
+        "bytes": 24459,
+        "sha256": "b358453fda4668227a1738ee667cf4bd7b26db86b7f87c5e7b093f34024d4678"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/19",
+        "bytes": 24045,
+        "sha256": "c608fe09b029934f0016e4185ab231c8f05d51df6f099dd67d4beb3f65f738b9"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/2",
+        "bytes": 24017,
+        "sha256": "ab4087edf6f8a1e95a35c2823b1f1bddbaae1aa0894c2e3ac480903f18d85ae1"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/20",
+        "bytes": 24127,
+        "sha256": "b72ba32fdd833b539cdbd66ce0bbc0f9da5cbb7b5e9354c0525ee5ecab1c9627"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/21",
+        "bytes": 23910,
+        "sha256": "4dd435e86c7347744c625eb5869b322297f76f66da65083fdb4f52f2c9bf845a"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/22",
+        "bytes": 23867,
+        "sha256": "d1b42beca12fc7986326923b1d095881022b730f0cc7984d8a88e7d7ffc6986d"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/23",
+        "bytes": 24163,
+        "sha256": "5cba7540e5c8580a67f8f86edb57d46dfa172dbc37df922efc41707baf6688a2"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/24",
+        "bytes": 24124,
+        "sha256": "25113069ace51caf95879061501fa68e25eb2935bceae53d9af698f85d7923a1"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/25",
+        "bytes": 24106,
+        "sha256": "a457b8183b20db10f1703b742e1767867cef979d49f5dae337d7c1387c36e62b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/26",
+        "bytes": 24490,
+        "sha256": "22c354621e893fe1cb7110280a2cd16523b23cd4778e496936576859b8fe76ef"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/27",
+        "bytes": 24203,
+        "sha256": "e09b1daaacb51e3097e27f8de6d683276c7f2d9d982f746652541a3453c526af"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/28",
+        "bytes": 23904,
+        "sha256": "bccc05e7becf46cc7f7612df8c43fb3e275cbbb873ee70fc9206583da414c8ae"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/29",
+        "bytes": 23952,
+        "sha256": "a27d7990578d8658f837863972054ca2b47b1563368b99abe75530daba3ce42e"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/3",
+        "bytes": 23907,
+        "sha256": "e41b8b86ffa6744e00b607d0c3bd612832ae0464fd79a21f28aeea7b28e4f29d"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/30",
+        "bytes": 23550,
+        "sha256": "e7e780cd045c665111181c727a7723391fc088dcb856d283ff2ecb95979130ad"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/31",
+        "bytes": 23871,
+        "sha256": "f2a129c1f20432f2de8d35cfb137d55e2af36a22f5bca41bed820b76afa8782d"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/32",
+        "bytes": 24075,
+        "sha256": "66edf95fc796fc92f4af4012b24045421a1a6ca6cf4e0b53f7eef91fe8bba64b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/33",
+        "bytes": 22919,
+        "sha256": "e1c3fa300a4f2b38053bb9d57e5a9e8b10710bec470c85471ed3530fb25ae3fd"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/34",
+        "bytes": 22365,
+        "sha256": "23e449a237221c55030739dd824c20af024eeb90b045579451da4404e06c5487"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/35",
+        "bytes": 22927,
+        "sha256": "6f2e419b3415f421707dfbf8bf9cc953d4ae6d0113a39efb4c1107b3697e30de"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/36",
+        "bytes": 23098,
+        "sha256": "436087ad7bf60f21be0318a91953bafb102bef0952da98649d0b3f5e5055f2d2"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/37",
+        "bytes": 23231,
+        "sha256": "b1b7703715161991b5493a098424ea6dbc880ddd8396df5a93bd88767a6b1219"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/38",
+        "bytes": 23079,
+        "sha256": "dcf0df3eabbed5c126ce4dc559befe035c8b14f9b4f5287b457e368fefb7cbdf"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/39",
+        "bytes": 24033,
+        "sha256": "b4ed7dd2006cb977a0e7bc40582b768bebdb65f707caa0c86302f80541d3e0de"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/4",
+        "bytes": 23802,
+        "sha256": "e2823cf932b8cb175854a706ac13473ec7555b3e5e1a1c37ad0d1fdd8c649e14"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/40",
+        "bytes": 24184,
+        "sha256": "cccdf743e88080ee9122452816ba400d95a3eb6cda695336a166d9068d46f1b6"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/41",
+        "bytes": 24045,
+        "sha256": "ec59c1b9bc1d3bdcab33f13d4fdd1e885eefa66e5d124e2485c17fdb7193a9be"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/42",
+        "bytes": 24339,
+        "sha256": "60f9220df73cb68cdd7f89b5043332923718d4890b31e0de7f8abce2626cb583"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/43",
+        "bytes": 24401,
+        "sha256": "935c315824ebc54751eb6dbee4a90e97a7acea0d3d169b9c9c8a4db868294e5e"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/44",
+        "bytes": 24187,
+        "sha256": "e103aacfee24731621935d4dbcb1337bc115111cbc3dad514b4afc4ede631e0b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/45",
+        "bytes": 24147,
+        "sha256": "0684d33d73a55ee7b998b324b0ae630cadcad040a3e03803800c9f7040cc938f"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/46",
+        "bytes": 24096,
+        "sha256": "5a6ab4abb86d7451422c828493523c1da41daa3de00753b657359c247f49735d"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/47",
+        "bytes": 24175,
+        "sha256": "0f6bed720d0d05abc6b289579c6c1ada9fe5050ddf39e25ed03d6f1b39d241aa"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/48",
+        "bytes": 24289,
+        "sha256": "c1cffa6234ee2e201b9ebf6ef8828c5883dadaf197768b75de4d023e6d49d63a"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/49",
+        "bytes": 24325,
+        "sha256": "11128f3ddb8527044bf5d37fccbc22745a65ce191fcd93377d70c01ab0a05ea9"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/5",
+        "bytes": 23841,
+        "sha256": "50dc51a97156eb2d36887405896da3caef0eb4a55a2693aadbda44c3a621630d"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/50",
+        "bytes": 24223,
+        "sha256": "58c0fd95768a7fd45f4f3f6ac329958d0b9cb8cd2b2757499994aef2a6774b30"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/51",
+        "bytes": 24176,
+        "sha256": "6f0c35d97bea94e2d058347957df7c5893abb9f37dd55a3d6d1bb1747fe894c5"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/52",
+        "bytes": 24023,
+        "sha256": "026d430bd78d070e1909b84dc349306aeeb718db67de5ff896123c00e05e3792"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/53",
+        "bytes": 23993,
+        "sha256": "41e6a5ebe87c75ab72eb6159d5b845744be5173a84aa80562d5a3d2410ff67fb"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/54",
+        "bytes": 24037,
+        "sha256": "c896d2860391183a8edca20614d3a4429628146d2729d0669ea723f5a265e2ab"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/55",
+        "bytes": 24083,
+        "sha256": "9de896e95ea2b372b3517538e9ed5bdfa159568f65806459d32cb8f4b55bb58f"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/56",
+        "bytes": 24015,
+        "sha256": "f27217acb57af731b74e4431cb7092ef9f7a06c839a030c79d055b8ae5fb0718"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/57",
+        "bytes": 24152,
+        "sha256": "f4c33c32cd56bfa98511c920267cd1f9441feb14a36deb79737e607d26e35c28"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/58",
+        "bytes": 23796,
+        "sha256": "81b50b7d02f2b50fdc5eb93a2c152664ebebc8fb4c9f69e8dc5f2dc85485a6bc"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/59",
+        "bytes": 23815,
+        "sha256": "afa32fa01aded81d5069f9213be7a0abca4c6b96a7e991b4bcb7cca7177e52b1"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/6",
+        "bytes": 23806,
+        "sha256": "970a90ef3baf6a0557e4d2580966a3e21113935559e22c546731c62259fef33c"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/60",
+        "bytes": 23754,
+        "sha256": "7e9b448072963a2826a45240f24108443e24cfaeb0146a33a55bc7341d1fa00f"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/61",
+        "bytes": 23980,
+        "sha256": "753b2a2e31f7cccd85896df8aded0589c572633bde432b6218c41d6002e90c52"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/62",
+        "bytes": 23893,
+        "sha256": "8082cb15a032da996068aa1919da617fccb82b316481e5667486cd0b11b2168b"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/63",
+        "bytes": 23843,
+        "sha256": "2dbcd418f3e8ff23a41cc02f1a02b4730c9c24afff5da0b407add39cac6e5581"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/64",
+        "bytes": 23659,
+        "sha256": "a2f128fb3b7937ee8b3ac792be59ae9c965bbcfdef907506a355d1746bf1d227"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/65",
+        "bytes": 24250,
+        "sha256": "ec8991b2e58e0f532f582494249d12ef47e94f502ecfe0d87ddb85444373bbcd"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/66",
+        "bytes": 23879,
+        "sha256": "e021ea8d4da924a578fcf26dfe278242cdc45c19eaaacebeb7bbfbef5511e667"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/67",
+        "bytes": 23818,
+        "sha256": "026cec5b46931301bf8babe73226ba7a3e5bbdbe7e1763a9e641e41eb8ddeba2"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/68",
+        "bytes": 23833,
+        "sha256": "6446c21932af5caf6359bef4b91e9847cc9de5739c94912c4ca47297ff5dcf03"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/69",
+        "bytes": 23898,
+        "sha256": "a53b3407608e80913d06b075209fdc1330ed3d916b6bf5db98bcbd29c9d6ab44"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/7",
+        "bytes": 23755,
+        "sha256": "5453a32f490d89451057015da5c7a8ee3f23e566e22b0d757d74bf0304364d6e"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/70",
+        "bytes": 23965,
+        "sha256": "3f32cb985effd2d38a8002e23582c6dea6e5351c6e475c51b26ab74771ab5306"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/71",
+        "bytes": 23830,
+        "sha256": "c55fb12bb65191b33d60c685fda96c55b4605c33751675dbe127d615d21fd879"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/72",
+        "bytes": 23831,
+        "sha256": "057e56e70589b395b29449706de37977e4c7cef6c1a50ee55d881601ba362781"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/73",
+        "bytes": 23928,
+        "sha256": "56956df40860004efc66f77f8fb39d415d1b556204bd80a104888df31a441f2f"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/74",
+        "bytes": 24125,
+        "sha256": "9fd880a6e3daf53cf28dc6e0696e2c236277524e87b80f2023cbb6cf92fcacd4"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/75",
+        "bytes": 23939,
+        "sha256": "014dae022e2ec926c1fff8ecc6fe2f76de0e7a734b5265209cd844408b5313db"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/76",
+        "bytes": 23867,
+        "sha256": "687a977468916bb75b33de56bf52c7c99e3303f499bd115929ae7ea72d2276a0"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/77",
+        "bytes": 23708,
+        "sha256": "5a8587489858bfec8b4cae66d706179cdfb3226a5b862390ea73356936b11747"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/78",
+        "bytes": 23592,
+        "sha256": "f9f31a1ac39a670efb830121506390fd4f5f82f6c4d0e2554bf055b211eb5098"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/79",
+        "bytes": 23450,
+        "sha256": "75971a76428e239d9403141e42a006ef7019cdbea8ea28454646860788e38275"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/8",
+        "bytes": 24060,
+        "sha256": "90295d18138eee5662d25e0a6396cec02fd599b1bf63c5287ef40c0d0de5c46f"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/80",
+        "bytes": 23610,
+        "sha256": "1ef9aea58df2e56affcb2972bac3fb4dc06ac58c9db0b27887610926aed662c9"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/81",
+        "bytes": 23649,
+        "sha256": "ddb1bca1cbf312eba5c549c735f312940319db4732f1e913d58ec3ef63f1787c"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/82",
+        "bytes": 5575,
+        "sha256": "b121f4e553e9d36ef069321ffc294237021f2767fa394201fde5659065862049"
+      },
+      {
+        "path": "data/general/zarr_vcfs/tgp/chr20/data.zarr/variant_position/9",
+        "bytes": 24060,
+        "sha256": "6e44b15d3865578caf4a4f565bbf707e49e19d37f6702f6d17103de8da99d049"
+      }
+    ],
+    "note": "Every consumed metadata/chunk is declared by the Snakefile. Read via Zarr >=3; legacy storage encoding does not require a Zarr 2 Python API."
+  },
+  "dependency_backups": [
+    {
+      "path": "data/general/dependencies/tsls.bundle",
+      "bytes": 1401404,
+      "sha256": "61711df0599881c9da2304b21f6a2a5798501b9de14b98b13c76674081a039a2"
+    },
+    {
+      "path": "data/general/dependencies/tsinfer.bundle",
+      "bytes": 6326884,
+      "sha256": "1f73488798ef729f79344955a7c02436042067e5f91936a290cf8225c24eb081"
+    }
+  ],
+  "producing_commands": {
+    "aggregates": "In tsinfer-anc-eval, uv run snakemake data/anc_eval_new/dataframes/PREFIX-aggregated.csv --cores all with the original 20 Mb, n6000, seed1, error-profile configuration. This describes the producer target, not a recovered original invocation; current upstream config is a different pilot.",
+    "validation": "In tsinfer-anc-eval: uv run python /path/to/dphil-analysis/scripts/extract_zarr_validation_data.py OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1 --data-folder data/anc_eval_new --output-folder /path/to/dphil-analysis/data/ch3",
+    "phase_runs": "In tsinfer-anc-eval: uv run python /path/to/dphil-analysis/scripts/extract_phase_data.py --data-prefix OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1 --data-folder data/anc_eval_new --output-folder /path/to/dphil-analysis/data/ch3 --n-per-sim 2 --replicate 0 --spacing-labels 2e5 2e6 2e7 --left 0 --right 20000000",
+    "performance": "External tsinfer-perf-benchmark: uv run snakemake --cores 196 --resources mem_mb=950000 --printshellcmds; retained perf_combined.csv is the only consumed performance input.",
+    "empirical_spans": "External focal-site span extractor: PYTHONPATH=/path/to/built/tsinfer uv run python scripts/extract_spans.py data; retained full-span version CSVs identify original focal-site spans.",
+    "pipeline_illustration": "Manual source asset retained byte-for-byte from dphil-thesis/figures/ch3/anc_eval_pipe.png; not computationally regenerated."
+  },
+  "retention": {
+    "primary": "All identified analysis inputs are retained at the listed data/ch3 and data/general paths. Large inputs are deliberately not stored in Git. Do not remove them as caches.",
+    "source_copies": "Other-demography aggregates also remain in ../tsinfer-anc-eval/data/anc_eval/dataframes; performance CSV remains in ../tsinfer-perf-benchmark/data/dataframes; original final figures remain in ../dphil-thesis until the maintained build is invoked there. Main aggregate/validation exports predate this migration and remain retained in data/ch3.",
+    "upstream_machine": "Benchmark provenance names cloudcomp113.hpc.in.bmrc.ox.ac.uk. Its config records /well/kelleher/users/uuc395/tsinfer-anc-eval and /well/kelleher/users/uuc395/tsinfer-snakemake inputs; remote contents/backup availability were not reverified during this local refactor.",
+    "source_backup": "Pinned tsinfer and tsls Git bundles are committed under data/general/dependencies. tsls pinned commit is not on a local remote-tracking branch, so restore from its bundle rather than assuming GitHub has it."
+  }
+}

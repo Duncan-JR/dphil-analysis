@@ -1,0 +1,176 @@
+{
+  "numerical_tables": [
+    {
+      "table": "focal_counts",
+      "rows": 2,
+      "columns": [
+        "focal_sites",
+        "true_ancestors",
+        "inferred_ancestors"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "rare_overshoot_tail",
+      "rows": 2,
+      "columns": [
+        "lower_0_1_pct_bp"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "ancestor_span_curves",
+      "rows": 100,
+      "columns": [
+        "num_focal_sites",
+        "mean_span_bp",
+        "mean_span_mb",
+        "bin_left",
+        "bin_right",
+        "daf"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "ancestor_overlap_errors",
+      "rows": 10,
+      "columns": [
+        "num_ancestors",
+        "num_error_free",
+        "num_errors",
+        "should_be_0_errors",
+        "should_be_1_errors",
+        "overlap_bp",
+        "overlap_sites",
+        "bin_left",
+        "bin_right",
+        "error_free_fraction",
+        "mismatch_fraction",
+        "should_be_0_mismatch_fraction",
+        "should_be_1_mismatch_fraction"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "genotype_errors",
+      "rows": 5,
+      "columns": [
+        "changed",
+        "total",
+        "error_rate"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "genotype_transitions",
+      "rows": 400,
+      "columns": [
+        "changed",
+        "total",
+        "error_rate"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "combined_mismatch",
+      "rows": 4,
+      "columns": [
+        "num_ancestors",
+        "num_error_free",
+        "num_errors",
+        "should_be_0_errors",
+        "should_be_1_errors",
+        "overlap_bp",
+        "overlap_sites",
+        "error_free_fraction",
+        "mismatch_fraction",
+        "should_be_0_mismatch_fraction",
+        "should_be_1_mismatch_fraction"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "performance_totals",
+      "rows": 5,
+      "columns": [
+        "0.4_minutes",
+        "0.5_minutes",
+        "total_speedup"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    },
+    {
+      "table": "demography_quartiles",
+      "rows": 8,
+      "columns": [
+        "q25_kb",
+        "median_kb",
+        "q75_kb"
+      ],
+      "status": "matches retained numerical checks",
+      "rtol": 1e-09,
+      "atol": 1e-09
+    }
+  ],
+  "figures": {
+    "count": 23,
+    "visual_comparison": "All 23 outputs compared in six side-by-side sheets with current thesis figures; corrected-focal mispolarisation panel rechecked individually after correcting its configuration selection. All 22 PNGs remained byte-identical in the destination Git checkout. Tree PDF rendered and inspected; only the tracked PDF container changed.",
+    "files": [
+      "anc_eval_pipe.png",
+      "ancestor_extension_comparison.png",
+      "ancestor_extension_trees.pdf",
+      "ancestor_overlap_errors.png",
+      "ancestor_overshoot_boxplot.png",
+      "ancestor_span_frequency_simulation.png",
+      "ancestor_span_frequency_tgp.png",
+      "combined_errors.png",
+      "demography_overlap_errors.png",
+      "demography_overshoot_box.png",
+      "genotype_error_overshoot_diff.png",
+      "genotype_error_overshoot_summary.png",
+      "genotype_error_scaling.png",
+      "inference_performance_elapsed.png",
+      "inference_performance_parallelism.png",
+      "inference_performance_speedup.png",
+      "mispolarisation_daf.png",
+      "mispolarisation_overlap_errors.png",
+      "mispolarisation_overshoot_correct_focal_diff.png",
+      "mispolarisation_overshoot_flipped_focal_hist.png",
+      "phase_switch_illustration.png",
+      "phasing_error_overshoot_diff.png",
+      "phasing_error_overshoot_summary.png"
+    ]
+  },
+  "incremental": {
+    "baseline": "Full nine-job temporary build passed; unchanged follow-up dry-run has nothing to do.",
+    "input_change": "Copied performance CSV: multiplied largest updated sample-matching elapsed time by 1.1; statistics target reran on updated input and paired speedup changed from 9.7695794382 to 8.8814358529. Restored the original configuration and rebuilt all outputs. Original scientific input was never modified.",
+    "parameter_change": "Changing configured plot DPI in an isolated config causes params-triggered plot/statistics jobs in a dry run. Actual final corrected-focal filter configuration triggered regeneration.",
+    "helper_change": "Actual changes to maintained preparation and plotting helpers invalidated their producing and consuming rules; final full generation passed.",
+    "missing_data": "Fresh work directory plus missing aggregate fails with MissingInputException naming ch3_prepare_comparisons and the missing CSV. No artifacts emitted.",
+    "destination": "Full default build into ../dphil-thesis passed.",
+    "destination_noop": "Default destination follow-up dry-run has nothing to do."
+  },
+  "tex": {
+    "defined_macros": 60,
+    "referenced_macros": 59,
+    "mechanical_edit": "Reversing every recorded macro substitution and removing the input line restores the original thesis source exactly. No prose was rewritten.",
+    "smoke_compile": "All 60 generated TeX macros compile in a standalone two-page pdflatex validation document.",
+    "thesis_commit": "691af19"
+  }
+}

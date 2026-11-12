@@ -1,0 +1,1024 @@
+thesis_root: ../dphil-thesis
+work_root: data/ch3/thesis_prepared
+chapter3:
+  inputs:
+    aggregate: data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1-aggregated.csv
+    validation: data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv
+    phase_runs: data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_phase_runs.csv
+    demographies:
+      AmericanAdmixture_4B18: data/ch3/demographies/AmericanAdmixture_4B18-chr20-L0-R2e7-n6000-s1-aggregated.csv
+      Africa_1T12: data/ch3/demographies/Africa_1T12-chr20-L0-R2e7-n6000-s1-aggregated.csv
+      Zigzag_1S14: data/ch3/demographies/Zigzag_1S14-chr20-L0-R2e7-n6000-s1-aggregated.csv
+    empirical_spans:
+    - data/ch3/tgp_ancestor_spans_0.4.1.csv
+    - data/ch3/tgp_ancestor_spans.csv
+    empirical_store: data/general/zarr_vcfs/tgp/chr20/data.zarr
+    performance: data/ch3/performance/perf_combined.csv
+    pipeline_illustration: data/ch3/thesis_assets/anc_eval_pipe.png
+  analysis:
+    versions:
+    - 0.4.1
+    - 0.5.1
+    genotype_multipliers:
+    - 1
+    - 2
+    - 5
+    - 10
+    - 100
+    mispol_rates:
+    - 0
+    - 0.01
+    - 0.05
+    - 0.1
+    phase_spacings:
+    - 0
+    - 200000.0
+    - 2000000.0
+    - 20000000.0
+    tgp_region_start: 0
+    tgp_region_end: 20000000
+    tgp_count_prefix: variant_1kgp_all_subset
+    bp_per_mb: 1000000.0
+    bp_per_kb: 1000.0
+    overshoot_summary_threshold_bp: -10000000.0
+  claims:
+    genotype_multipliers:
+    - 0
+    - 1
+    - 2
+    - 5
+    - 10
+    frequency_cutoffs:
+    - 0
+    - 0.001
+    - 0.003
+    - 0.02
+    - 0.5
+    - 1
+    central_lower_quantile: 0.25
+    maf_threshold: 0.001
+    published_genotype_error_rate: 0.00032
+    histogram_bins: 100
+    moderate_phase_spacing: 2000000.0
+    extreme_phase_spacing: 200000.0
+    zigzag_model: Zigzag_1S14
+    baseline_model: OutOfAfrica_3G09
+    tail_probability: 0.001
+    approximation_percent_step: 10
+    baseline_genotype_multiplier: 1
+    extreme_genotype_multiplier: 10
+    combined_profiles:
+    - none
+    - all
+    number_words:
+      1: one
+      2: two
+      3: three
+      4: four
+      5: five
+      6: six
+      7: seven
+      8: eight
+      9: nine
+      10: ten
+    comparison_haplotypes: 10000
+  experiment:
+    sequence_length_bp: 20000000
+    diploid_individuals: 6000
+    empirical_diploid_individuals: 3202
+    benchmark_region_bp: 28100000
+    benchmark_worker_threads: 196
+    benchmark_reference_threads: 192
+    benchmark_memory_mb: 950000
+  performance:
+    versions:
+    - '0.4'
+    - '0.5'
+    stages:
+    - generate_ancestors
+    - match_ancestors
+    - match_samples
+    seconds_per_minute: 60
+    bytes_per_gib: 1073741824
+  empirical_performance_prefix: 1kgp-chr20-L0-R2.81e7
+  demography_labels:
+    OutOfAfrica_3G09: 'Out of Africa
+
+      (3G09)'
+    AmericanAdmixture_4B18: 'American
+
+      admixture
+
+      (4B18)'
+    Africa_1T12: 'Africa
+
+      (1T12)'
+    Zigzag_1S14: 'Zigzag
+
+      (1S14)'
+  extension:
+    genotypes:
+    - - 1
+      - 1
+      - 1
+      - 1
+      - 0
+      - 0
+      - 1
+      - 1
+    - - 1
+      - 1
+      - 1
+      - 1
+      - 0
+      - 0
+      - 1
+      - 1
+    - - 1
+      - 0
+      - 0
+      - 0
+      - 0
+      - 0
+      - 0
+      - 0
+    - - 1
+      - 0
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+    - - 0
+      - 0
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+    - - 0
+      - 0
+      - 1
+      - 1
+      - 0
+      - 0
+      - 1
+      - 1
+    samples:
+    - a
+    - d
+    - b
+    - c
+    - f
+    - g
+    focal_site: 1
+    versions:
+    - 0.4.1
+    - 0.5.1
+  extension_trees:
+    site_positions:
+    - 6
+    - 17
+    - 31
+    - 39
+    - 58
+    - 65
+    - 81
+    - 96
+    topologies:
+    - A:
+      - F
+      - f
+      - g
+      F:
+      - E
+      - b
+      - c
+      E:
+      - a
+      - d
+    - R:
+      - A
+      - b
+      A:
+      - F
+      - f
+      - g
+      F:
+      - E
+      - c
+      E:
+      - a
+      - d
+    - R:
+      - A
+      - b
+      A:
+      - E
+      - G
+      - g
+      E:
+      - a
+      - d
+      G:
+      - c
+      - f
+    sequence_length: 100
+    mutations:
+    - - 1
+      - F
+      - 5.3
+    - - 2
+      - E
+      - 3.1
+    - - 3
+      - A
+      - 7.2
+    - - 4
+      - A
+      - 8.6
+    - - 5
+      - G
+      - 3.2
+    - - 6
+      - G
+      - 4.5
+    - - 7
+      - A
+      - 7.2
+    - - 8
+      - A
+      - 8.6
+    node_ages:
+      E: 2
+      F: 4
+      G: 2
+      A: 6
+      R: 10
+    intervals:
+    - - 0
+      - 24
+    - - 24
+      - 47
+    - - 47
+      - 100
+  export_dpi: 300
+  figures:
+    ancestor_extension_comparison.png:
+      function: plot_ancestor_extension
+      kwargs:
+        allele_fontsize: 10.8
+        allele_text_offset: 0.038
+        bar_height: 0.52
+        circle_radius: 0.205
+        conflict_color: '#ff2626'
+        conflict_line_width: 1.8
+        contained_color: '#8167a6'
+        dpi: 400
+        figsize:
+        - 9.0
+        - 4.9
+        first_conflict_dashes: 3
+        focal_color: '#cc3838'
+        focal_ring_width: 0.065
+        ink_color: '#253642'
+        label_fontsize: 11
+        legend_fontsize: 10
+        legend_width: 6.3
+        neutral_allele_color: '#d7dce0'
+        older_allele_color: '#ead4a5'
+        outside_color: '#d6dfe5'
+        outside_gap: 0.22
+        row_spacing: 0.76
+        sample_color: '#748a98'
+        site_spacing: 1.4
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    ancestor_extension_trees.pdf:
+      function: plot_extension_tree
+      kwargs:
+        svg_id: ancestor_extension_trees
+        ink_color: '#253642'
+        muted_color: '#66747d'
+        background_color: '#f1f4f6'
+        font_size: 14.5
+        sample_font_size: 15.8
+        mutation_font_size: 14.8
+        site_font_size: 13.8
+        label_radius: 11
+        older_color: '#b59a66'
+        size:
+        - 680
+        - 300
+        axis_gap: 14
+        plot_interval:
+        - 0
+        - 100
+        y_ticks:
+        - 0
+        - 2
+        - 4
+        - 6
+        - 8
+        - 10
+        symbol_size: 6
+        canvas_color: white
+        site_label_offset: -16
+    demography_overshoot_box.png:
+      function: plot_demography_overshoot_quantiles
+      kwargs:
+        figsize:
+        - 8
+        - 4.5
+        demography_quantile_cap_size: 8
+        demography_quantile_center_limits_kb:
+        - -25
+        - 250
+        demography_quantile_interval_width: 5
+        demography_quantile_label_fontsize: 9
+        demography_quantile_marker_size: 5
+        demography_quantile_probabilities:
+        - 0.001
+        - 0.01
+        - 0.25
+        - 0.5
+        - 0.75
+        - 0.99
+        - 0.999
+        demography_quantile_size:
+        - 8
+        - 4.5
+        demography_quantile_tail_limits_mb:
+        - -20
+        - 20
+        dpi: 300
+        quantile_line_style: --
+        quantile_line_width: 1.2
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+        zero_color: '#555555'
+    demography_overlap_errors.png:
+      function: plot_ancestor_overlap_errors
+      kwargs:
+        figsize:
+        - 8.5
+        - 4.8
+        group_by: model
+        show_counts: false
+        show_mismatch_change: true
+        panel_labels:
+        - A
+        - B
+        ancestor_error_change_decimals: 2
+        ancestor_error_count_margin: 0.4
+        ancestor_error_hatch: ///
+        ancestor_error_height_ratios:
+        - 1
+        - 1
+        - 0.6
+        ancestor_error_label_decimals: 4
+        ancestor_error_label_fontsize: 8
+        ancestor_error_label_padding: 3
+        ancestor_error_legend_fontsize: 9
+        ancestor_error_log_numticks: 6
+        ancestor_error_log_subs:
+        - 1
+        - 2
+        - 5
+        ancestor_error_size:
+        - 7
+        - 5.4
+        ancestor_error_type_labels:
+        - True = 0, Observed = 1
+        - True = 1, Observed = 0
+        ancestor_error_y_log: false
+        ancestor_mismatch_fraction_label_margin: 0.2
+        dpi: 300
+        mean_bar_group_width: 0.8
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    ancestor_span_frequency_simulation.png:
+      function: plot_ancestor_span_curves
+      kwargs:
+        title: Out-of-Africa simulation (20mbp)
+        y_log: true
+        dpi: 300
+        span_curve_height_ratios:
+        - 3
+        - 0.6
+        span_curve_legend_fontsize: 11
+        span_curve_limit_factor: 1.2
+        span_curve_line_width: 1.8
+        span_curve_size:
+        - 4.5
+        - 4.8
+        span_curve_title_fontsize: 10
+        span_curve_true_color: '#8b0000'
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    ancestor_span_frequency_tgp.png:
+      function: plot_ancestor_span_curves
+      kwargs:
+        y_log: true
+        dpi: 300
+        span_curve_height_ratios:
+        - 3
+        - 0.6
+        span_curve_legend_fontsize: 11
+        span_curve_limit_factor: 1.2
+        span_curve_line_width: 1.8
+        span_curve_size:
+        - 4.5
+        - 4.8
+        span_curve_title_fontsize: 10
+        span_curve_true_color: '#8b0000'
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    ancestor_overshoot_boxplot.png:
+      function: plot_ancestor_overshoot
+      kwargs:
+        cutoffs:
+        - 0
+        - 0.001
+        - 0.003
+        - 0.02
+        - 0.5
+        - 1
+        conf: 0.001
+        figsize:
+        - 7
+        - 4.5
+        y_log: false
+        ancestor_count_fontsize: 8
+        ancestor_count_margin: 0.35
+        ancestor_count_padding: 2
+        ancestor_panel_spacing: 0.18
+        box_size:
+        - 7
+        - 4.5
+        dpi: 300
+        jitter_alpha: 0.15
+        jitter_max_points: null
+        jitter_sample_interval_mb:
+        - -1
+        - 1
+        jitter_seed: 42
+        jitter_size: 3.5
+        jitter_width: 0.32
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        overshoot_diff_panel_labels:
+        - A
+        - B
+        overshoot_linthresh_bp: 1000
+        quantile_line_style: --
+        quantile_line_width: 1.2
+        quantile_secondary_color: '#555555'
+        quantile_secondary_line_style: -.
+        true_color: '#b8b8b8'
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    ancestor_overlap_errors.png:
+      function: plot_ancestor_overlap_errors
+      kwargs:
+        figsize:
+        - 7
+        - 5.4
+        show_mismatch_change: true
+        panel_labels:
+        - A
+        - B
+        - C
+        split_error_types: false
+        ancestor_error_change_decimals: 2
+        ancestor_error_count_margin: 0.4
+        ancestor_error_hatch: ///
+        ancestor_error_height_ratios:
+        - 1
+        - 1
+        - 0.6
+        ancestor_error_label_decimals: 4
+        ancestor_error_label_fontsize: 8
+        ancestor_error_label_padding: 3
+        ancestor_error_legend_fontsize: 9
+        ancestor_error_log_numticks: 6
+        ancestor_error_log_subs:
+        - 1
+        - 2
+        - 5
+        ancestor_error_size:
+        - 7
+        - 5.4
+        ancestor_error_type_labels:
+        - True = 0, Observed = 1
+        - True = 1, Observed = 0
+        ancestor_error_y_log: true
+        ancestor_mismatch_fraction_label_margin: 0.2
+        dpi: 300
+        mean_bar_group_width: 0.8
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    genotype_error_scaling.png:
+      function: plot_genotype_error_scaling
+      kwargs:
+        figsize:
+        - 6
+        - 3.5
+        curve_points: 256
+        curve_size:
+        - 6
+        - 3.5
+        dpi: 300
+        genotype_color_positions:
+        - 0.1
+        - 0.9
+        genotype_scaling_cmap: PRGn
+        genotype_scaling_reference_color: gray
+    genotype_error_overshoot_summary.png:
+      function: plot_overshoot_summary
+      kwargs:
+        dpi: 300
+        overshoot_summary_bar_height: 0.65
+        overshoot_summary_fraction_margin: 0.1
+        overshoot_summary_fraction_ticks: 4
+        overshoot_summary_interval_width: 5
+        overshoot_summary_label_fontsize: 9
+        overshoot_summary_marker_size: 5
+        overshoot_summary_percent_decimals: 1
+        overshoot_summary_size:
+        - 8.5
+        - 5
+        quantile_line_style: --
+        quantile_line_width: 1.2
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+        zero_color: '#555555'
+    genotype_error_overshoot_diff.png:
+      function: plot_genotype_overshoot_diff
+      kwargs:
+        num_bins: 100
+        figsize:
+        - 8.5
+        - 5
+        legend_fontsize: 10
+        combined_error_labels:
+        - No errors
+        - Combined errors
+        combined_error_legend_labels:
+        - No errors
+        - 'Combined
+
+          errors'
+        combined_error_profiles:
+        - none
+        - all
+        dpi: 300
+        histogram_bins: 100
+        overshoot_diff_cmap: viridis
+        overshoot_diff_color_range:
+        - 0
+        - 0.8
+        overshoot_diff_legend_fontsize: 10
+        overshoot_diff_line_width: 1.2
+        overshoot_diff_linthresh_pct: 1
+        overshoot_diff_panel_gap: 0.15
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        overshoot_diff_panel_labels:
+        - A
+        - B
+        overshoot_diff_size:
+        - 8.5
+        - 5
+        phase_ser_decimals: 2
+        zero_color: '#555555'
+    mispolarisation_daf.png:
+      function: plot_mispolarisation_daf
+      kwargs:
+        figsize:
+        - 7
+        - 4.5
+        combined_daf_legend_fontsize: 10
+        combined_daf_legend_x: 0.96
+        combined_daf_simulation_legend_y: 0.97
+        combined_daf_size:
+        - 7
+        - 4.5
+        combined_daf_tgp_legend_y: 0.65
+        combined_tgp_legend_label: '1000 Genomes
+
+          Project (n=6404)'
+        daf_bins: 200
+        daf_size:
+        - 5
+        - 4.5
+        daf_smoothing_bins: 1
+        dpi: 300
+        simulation_daf_legend_label: Simulation (n=12,000)
+        tgp_color: red
+    mispolarisation_overshoot_correct_focal_diff.png:
+      function: plot_mispolarisation_overshoot_diff
+      kwargs:
+        num_bins: 100
+        frequency: all
+        figsize:
+        - 8.5
+        - 5
+        legend_fontsize: 10
+        combined_error_labels:
+        - No errors
+        - Combined errors
+        combined_error_legend_labels:
+        - No errors
+        - 'Combined
+
+          errors'
+        combined_error_profiles:
+        - none
+        - all
+        dpi: 300
+        histogram_bins: 100
+        overshoot_diff_cmap: viridis
+        overshoot_diff_color_range:
+        - 0
+        - 0.8
+        overshoot_diff_legend_fontsize: 10
+        overshoot_diff_line_width: 1.2
+        overshoot_diff_linthresh_pct: 1
+        overshoot_diff_panel_gap: 0.15
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        overshoot_diff_panel_labels:
+        - A
+        - B
+        overshoot_diff_size:
+        - 8.5
+        - 5
+        phase_ser_decimals: 2
+        zero_color: '#555555'
+        focal_site_mispolarised: false
+    mispolarisation_overshoot_flipped_focal_hist.png:
+      function: plot_mispolarised_focal_overshoot_hist
+      kwargs:
+        figsize:
+        - 9
+        - 4.5
+        ancestor_error_version: 0.5.1
+        combined_error_labels:
+        - No errors
+        - Combined errors
+        combined_error_profiles:
+        - none
+        - all
+        dpi: 300
+        histogram_bins: 100
+        histogram_labelled_legend_anchors:
+        - - 0.04
+          - 1
+        - - 0.98
+          - 1
+        histogram_line_width: 1.2
+        histogram_size:
+        - 7
+        - 4.5
+        mispolarised_focal_dac_marker: o
+        mispolarised_focal_dac_marker_max_count: 10
+        mispolarised_focal_dac_marker_size: 4
+        mispolarised_focal_dac_title: 'True DAC spectrum
+
+          (mispol. focal sites)'
+        mispolarised_focal_dac_y_margin: 0.15
+        mispolarised_focal_size:
+        - 9
+        - 4.5
+        mispolarised_focal_width_ratios:
+        - 0.58
+        - 0.42
+        overshoot_cmaps:
+        - Blues
+        - Oranges
+        overshoot_diff_panel_gap: 0.15
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        overshoot_diff_panel_labels:
+        - A
+        - B
+        phase_ser_decimals: 2
+        zero_color: '#555555'
+    mispolarisation_overlap_errors.png:
+      function: plot_mispolarisation_overlap_errors
+      kwargs:
+        ancestor_error_change_decimals: 2
+        ancestor_error_count_margin: 0.4
+        ancestor_error_hatch: ///
+        ancestor_error_height_ratios:
+        - 1
+        - 1
+        - 0.6
+        ancestor_error_label_decimals: 3
+        ancestor_error_label_fontsize: 8
+        ancestor_error_label_padding: 3
+        ancestor_error_legend_fontsize: 9
+        ancestor_error_log_numticks: 6
+        ancestor_error_log_subs:
+        - 1
+        - 2
+        - 5
+        ancestor_error_size:
+        - 7
+        - 5.4
+        ancestor_error_type_labels:
+        - True = 0, Observed = 1
+        - True = 1, Observed = 0
+        ancestor_error_y_log: true
+        ancestor_mismatch_fraction_label_margin: 0.2
+        dpi: 300
+        mean_bar_group_width: 0.8
+        mispolarisation_error_bracket_depth: 0.06
+        mispolarisation_error_bracket_y: -0.5
+        mispolarisation_error_group_fontsize: 9
+        mispolarisation_error_log_subs:
+        - 1
+        mispolarisation_error_rate_label_y: -0.62
+        mispolarisation_error_rates:
+        - 0.01
+        - 0.1
+        mispolarisation_error_size:
+        - 9.5
+        - 6
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+    phase_switch_illustration.png:
+      function: plot_phase_switch_illustration
+      kwargs:
+        figsize:
+        - 8.5
+        - 4.5
+        combined_error_labels:
+        - No errors
+        - Combined errors
+        combined_error_profiles:
+        - none
+        - all
+        dpi: 300
+        phase_colors:
+        - '#4477aa'
+        - '#ee9944'
+        phase_group_gap: 0.45
+        phase_label_fontsize: 9
+        phase_right_mb: 20
+        phase_row_spacing: 0.82
+        phase_ser_decimals: 2
+        phase_size:
+        - 8.5
+        - 4.5
+    phasing_error_overshoot_summary.png:
+      function: plot_overshoot_summary
+      kwargs:
+        dpi: 300
+        overshoot_summary_bar_height: 0.65
+        overshoot_summary_fraction_margin: 0.1
+        overshoot_summary_fraction_ticks: 4
+        overshoot_summary_interval_width: 5
+        overshoot_summary_label_fontsize: 9
+        overshoot_summary_marker_size: 5
+        overshoot_summary_percent_decimals: 1
+        overshoot_summary_size:
+        - 8.5
+        - 5
+        quantile_line_style: --
+        quantile_line_width: 1.2
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+        zero_color: '#555555'
+    phasing_error_overshoot_diff.png:
+      function: plot_phasing_overshoot_diff
+      kwargs:
+        num_bins: 100
+        figsize:
+        - 8.5
+        - 5
+        legend_fontsize: 10
+        combined_error_labels:
+        - No errors
+        - Combined errors
+        combined_error_legend_labels:
+        - No errors
+        - 'Combined
+
+          errors'
+        combined_error_profiles:
+        - none
+        - all
+        dpi: 300
+        histogram_bins: 100
+        overshoot_diff_cmap: viridis
+        overshoot_diff_color_range:
+        - 0
+        - 0.8
+        overshoot_diff_legend_fontsize: 10
+        overshoot_diff_line_width: 1.2
+        overshoot_diff_linthresh_pct: 1
+        overshoot_diff_panel_gap: 0.15
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        overshoot_diff_panel_labels:
+        - A
+        - B
+        overshoot_diff_size:
+        - 8.5
+        - 5
+        phase_ser_decimals: 2
+        zero_color: '#555555'
+    combined_errors.png:
+      function: plot_combined_errors
+      kwargs:
+        num_bins: 100
+        ancestor_error_change_decimals: 2
+        ancestor_error_count_margin: 0.4
+        ancestor_error_hatch: ///
+        ancestor_error_height_ratios:
+        - 1
+        - 1
+        - 0.6
+        ancestor_error_label_decimals: 3
+        ancestor_error_label_fontsize: 8
+        ancestor_error_label_padding: 3
+        ancestor_error_legend_fontsize: 9
+        ancestor_error_log_numticks: 6
+        ancestor_error_log_subs:
+        - 1
+        - 2
+        - 5
+        ancestor_error_size:
+        - 7
+        - 5.4
+        ancestor_error_type_labels:
+        - True = 0, Observed = 1
+        - True = 1, Observed = 0
+        ancestor_error_y_log: true
+        ancestor_mismatch_fraction_label_margin: 0.2
+        combined_error_labels:
+        - No errors
+        - Combined errors
+        combined_error_legend_labels:
+        - No errors
+        - 'Combined
+
+          errors'
+        combined_error_profiles:
+        - none
+        - all
+        combined_error_size:
+        - 11
+        - 5.6
+        combined_error_width_ratios:
+        - 0.4
+        - 0.6
+        dpi: 300
+        histogram_bins: 100
+        mean_bar_group_width: 0.8
+        overshoot_diff_cmap: viridis
+        overshoot_diff_color_range:
+        - 0
+        - 0.8
+        overshoot_diff_legend_fontsize: 10
+        overshoot_diff_line_width: 1.2
+        overshoot_diff_linthresh_pct: 1
+        overshoot_diff_panel_gap: 0.15
+        overshoot_diff_panel_label_fontsize: 12
+        overshoot_diff_panel_label_position:
+        - 0.02
+        - 0.96
+        overshoot_diff_panel_labels:
+        - A
+        - B
+        overshoot_diff_size:
+        - 8.5
+        - 5
+        phase_ser_decimals: 2
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+        zero_color: '#555555'
+    inference_performance_speedup.png:
+      function: plot_speedup
+      kwargs:
+        dpi: 150
+        group_width: 0.8
+        jitter_seed: 42
+        jitter_width: 0.18
+        repetition_alpha: 0.7
+        repetition_marker_size: 13
+        sample_labels:
+          6404: 6,404 (1KGP)
+        speedup_figsize:
+        - 7.5
+        - 3.5
+        speedup_top_margin: 0.1
+        stage_colors:
+        - '#4477aa'
+        - '#228833'
+        - '#ccbb44'
+        stage_labels:
+        - Generate ancestors
+        - Match ancestors
+        - Match samples
+    inference_performance_elapsed.png:
+      function: plot_elapsed
+      kwargs:
+        dpi: 150
+        elapsed_bar_width: 0.65
+        figsize:
+        - 10
+        - 3.8
+        jitter_seed: 42
+        jitter_width: 0.18
+        repetition_alpha: 0.7
+        repetition_marker_size: 13
+        sample_labels:
+          6404: 6,404 (1KGP)
+        sample_titles:
+          6404: '6,404 haplotypes
+
+            (1KGP)'
+        stage_colors:
+        - '#4477aa'
+        - '#228833'
+        - '#ccbb44'
+        stage_labels:
+        - Generate ancestors
+        - Match ancestors
+        - Match samples
+        version_labels:
+        - tsinfer 0.4
+        - tsinfer 0.5
+    inference_performance_parallelism.png:
+      function: plot_resources
+      kwargs:
+        dpi: 150
+        figsize:
+        - 10
+        - 3.8
+        jitter_seed: 42
+        parallelism_reference_cores: 192
+        reference_markers:
+        - ^
+        - ^
+        repetition_alpha: 0.7
+        repetition_marker_size: 13
+        resource_jitter_log10: 0.025
+        resource_range_capsize: 4
+        resource_range_linewidth: 0.65
+        stage_labels:
+        - Generate ancestors
+        - Match ancestors
+        - Match samples
+        version_colors:
+        - '#1a80bb'
+        - '#ea801c'
+        version_labels:
+        - tsinfer 0.4
+        - tsinfer 0.5
+  span_curve_bins: 20
+  transition_bins: 40
+  empirical_span_title: 1KGP chromosome 20p ({extent_mb:.1f}mbp)
+  formatting:
+    integer: 0
+    one: 1
+    two: 2
+    three: 3

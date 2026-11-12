@@ -74,3 +74,49 @@ configuration. No scientific methods were replaced to accommodate tests.
 Every notebook retains its original output/attachment/execution-count hash.
 The saved visible outputs remain from historical runs; separate migrated-cell
 checks do not alter that provenance. No rough-work automated tests were added.
+
+## Phase 6
+
+The root Snakemake workflow generated all 23 final CH3 figures, TeX values and
+claim/check JSONs first under `/private/tmp/dphil_thesis_build` with fresh
+prepared tables under `/private/tmp/dphil_thesis_prepared`, then at the default
+`../dphil-thesis` destination. All six preparation jobs have declared inputs and
+outputs. Final modules have no exploratory imports. Zarr's consumed metadata
+and chunks are individually declared; large genotype arrays are not read.
+
+Nine independently retained numerical check tables match within 1e-9 relative
+and absolute tolerance, including focal counts, rare tails, span curves, pooled
+overlap errors, genotype errors/transitions, combined overlaps, demographic
+quartiles and paired total performance. Counts/denominators and units are
+preserved. Six side-by-side contact sheets covered every final figure; the tree
+PDF was rendered separately. All 22 PNGs remain byte-identical to the tracked
+thesis exports. Only the PDF container changed. Visual inspection caught and
+corrected an initially selected exploratory high-frequency subset in the
+correctly polarised mispolarisation panel before final generation.
+
+The statistics explicitly distinguish relative percentages, percentage points,
+per-site and per-bp denominators, sides versus focal sites, and haploid versus
+diploid sample counts. The [claim review](thesis_claims.md) records numerical
+rounding corrections. Upper bounds round outwards; the quoted severe histogram
+claim uses severe bins, rather than every negative bin. The phase-summary
+interface now retains SER metadata in both final and exploratory helpers;
+its actual-data notebook-style call was separately rendered successfully.
+
+Input-change validation altered only a temporary copied performance CSV. The
+statistics rule reran on the changed input and the largest paired sample speedup
+changed from 9.7695794382 to 8.8814358529 as predicted by multiplying the new
+elapsed time by 1.1. The real input stayed unchanged; original configuration and
+outputs were rebuilt. Config parameter changes and actual maintained helper
+edits trigger regeneration. Both the temporary and default completed workflows
+report nothing to do on unchanged follow-up dry runs. A fresh build with a
+missing aggregate fails at `ch3_prepare_comparisons`, naming the missing CSV.
+
+Mechanical macro substitutions in the sibling thesis are reversible back to
+its exact original source; no prose was rewritten. All generated macros compile
+in a standalone TeX smoke check. Thesis commit `691af19` contains that integration
+and generated statistics. The input manifest records file/chunk SHA-256 values,
+producer commands, known revisions, historical provenance limits and retention
+locations. Pinned dependency Git bundles are committed for recovery, including
+the unpublished tsls commit. This reproduces maintained analyses from retained
+inputs; it does not claim to have rerun upstream inference or to have recovered
+unrecorded historical producer invocations.

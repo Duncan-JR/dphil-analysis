@@ -765,7 +765,11 @@ def summarise_overshoots(frame, by, rates, config=None):
         ).mean(),
     )
     index = pd.MultiIndex.from_product([rates, config.versions], names=[by, "version"])
-    return summary.reindex(index).reset_index()
+    result = summary.reindex(index).reset_index()
+    if by == "space_per_switch":
+        metadata = selected[[by, "phase_ser"]].drop_duplicates()
+        result = result.merge(metadata, on=by, how="left", validate="many_to_one")
+    return result
 
 
 def _mean_overshoot_by_profile(frame, by, rates):

@@ -4,7 +4,7 @@ Run from tsinfer-anc-eval: ``uv run python /path/to/extract_zarr_validation_data
 The default input is data/anc_eval/zarr_vcfs and the output is
 ``data/anc_eval/dataframes/PREFIX_zarr_data.csv``. This script is standalone:
 only numpy, pandas and zarr are required. The phase-switch illustration is
-excluded; it continues to use its separate chromosome 1 Zarr dataset.
+excluded; export it separately with extract_phase_data.py for the same dataset.
 
 Record types are profile metadata, truth (unflipped counts at each variant),
 genotype (diploid error/transition counts by true allele count), and daf
