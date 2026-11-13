@@ -55,3 +55,7 @@ is also retained in a committed Git bundle; a new installation needs that
 local Git object before `uv sync --locked`. This workspace's source URL names
 `/Users/duncan/work/tsls`; restoration and relocation are documented in the
 chapter 3 README. The bundle, rather than a moving checkout, identifies the code.
+
+The maintained test suite contains six synthetic correctness cases for final
+chapter 3 calculations and retained chapter 4 methods. It needs no research
+data or HPC access. Exploratory helpers, notebooks and chapter 5 have no tests.

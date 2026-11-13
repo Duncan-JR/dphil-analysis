@@ -120,3 +120,16 @@ locations. Pinned dependency Git bundles are committed for recovery, including
 the unpublished tsls commit. This reproduces maintained analyses from retained
 inputs; it does not claim to have rerun upstream inference or to have recovered
 unrecorded historical producer invocations.
+
+## Phase 7
+
+Pytest discovery is restricted to `tests/`. Collection contains exactly six
+class-based tests with pytest fixtures: four CH3 final calculation cases for
+pooled inference-site denominators/error directions, pooled sides/strict tail
+thresholds, relative histogram counts with zero-baseline gaps, and paired
+stage/total speedup aggregation; two retained CH4 checks for masked/focal
+exclusion across Zarr v3 chunks and tied-score ROC/precision-recall metrics.
+All six pass locally in under two seconds. Inputs are tiny synthetic arrays
+and frames; there are no research-data, sibling-checkout or HPC requirements.
+No rough helper, notebook, plotting-artist/style, chapter 5 or old-suite tests
+were added or retained. Production methods were not complicated to fit tests.

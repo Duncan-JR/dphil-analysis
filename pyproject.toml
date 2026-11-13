@@ -40,3 +40,9 @@ packages = ["src/ch3", "src/ch4", "src/ch5"]
 [tool.uv.sources]
 tsinfer = { git = "https://github.com/Duncan-JR/tsinfer", rev = "e2f8de7c950179215ece27e1d31c7b096308b4c8" }
 tsls = { git = "file:///Users/duncan/work/tsls", rev = "c560b405761ae09625e266d39c2356ccc4b54b69" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
