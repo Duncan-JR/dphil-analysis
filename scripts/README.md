@@ -84,3 +84,31 @@ JSON selection format for detailed path archives. Diagnostic distance-bin
 edges, worker count and logging interval are explicit CLI options. The driver
 retains the historical matcher calculations; CLI help/import checks were run,
 while expensive matching/topology jobs were not launched during migration.
+
+## Chapter 5 isolated native tie-breaking comparison
+
+`compare_tie_breaking.py` replaces the notebook's direct execution of archived
+source. The historical sources remain unchanged as research provenance in
+`data/ch5/tie_breaking/source/`; active preparation, matching workers, toy
+calculations and summaries live in `ch5.nb_utils`.
+
+```sh
+uv run python scripts/compare_tie_breaking.py \
+  --config data/ch5/tie_breaking/experiment_config.json \
+  --output data/ch5/tie_breaking/reproduced \
+  --tsinfer-repository /path/to/recorded/tsinfer
+```
+
+This command **compiles and runs native matching experiments**. Use a fresh
+output directory. It reads existing `hpc_perf2_diagnostics` archives and builds
+only in temporary directories. `--workers` defaults to available CPUs;
+`--worker-python` selects an interpreter with this workspace installed and the
+recorded historical matching API. Native variants are selected in separate
+processes through their compiled-extension directory; no notebook/package
+`sys.path` edits or compatibility modules are used. `--stage` exposes the toy,
+matching and summary stages for explicitly prepared inputs.
+
+The current pinned tsinfer revision lacks `MatcherIndexes`/`AncestorMatcher`
+and has changed its C build layout. The driver fails before native builds with
+a clear historical-environment requirement. CLI import/help and saved-result
+summary checks were performed; the compiler/matcher experiment was not rerun.

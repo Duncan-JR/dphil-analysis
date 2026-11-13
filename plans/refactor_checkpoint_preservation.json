@@ -1,0 +1,128 @@
+[
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch3_figure_gen-checkpoint.ipynb",
+    "archive": "data/ch3/provenance/notebook_checkpoints.zip",
+    "member": "ch3_figure_gen-checkpoint.ipynb",
+    "bytes": 72,
+    "sha256": "4a62b68a633d79c53a6fd8893e8ea42dcf2b9a8a3e907b1b9861661f04f21517"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch3_figure_gen-checkpoint.py",
+    "archive": "data/ch3/provenance/notebook_checkpoints.zip",
+    "member": "ch3_figure_gen-checkpoint.py",
+    "bytes": 1209,
+    "sha256": "d2b0cc81cacbcdd35b5c166a873719db75d94e9d8fa0d99eef149db69b34ce4e"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch4_initial_testing-Copy1-checkpoint.py",
+    "archive": "data/ch4/provenance/notebook_checkpoints.zip",
+    "member": "ch4_initial_testing-Copy1-checkpoint.py",
+    "bytes": 54272,
+    "sha256": "c45e40383976e744c85e3ed930d520ccc8ec09b605571d8912a62cbc64c79379"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch4_initial_testing-checkpoint.ipynb",
+    "archive": "data/ch4/provenance/notebook_checkpoints.zip",
+    "member": "ch4_initial_testing-checkpoint.ipynb",
+    "bytes": 265865,
+    "sha256": "8b4481b6b309284981febc3d784b01ab837c671389b26e5b77856a7fa8b82430"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch4_initial_testing-checkpoint.py",
+    "archive": "data/ch4/provenance/notebook_checkpoints.zip",
+    "member": "ch4_initial_testing-checkpoint.py",
+    "bytes": 13252,
+    "sha256": "804a4055f8e36cc97808ebbbac867fe37b05872265328748a2c296513e043283"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_ancestor_coverage-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_ancestor_coverage-checkpoint.ipynb",
+    "bytes": 710356,
+    "sha256": "ca5f78c093aab5b4c9997bc899fc81aa660c302b8f522b6c838a8f2753c0eaa0"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_initial_testing-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_initial_testing-checkpoint.ipynb",
+    "bytes": 477747,
+    "sha256": "f59cecadb4eb0d89860970f7c06a536c90f6c410c38c97c575df0ced0a0c7ca3"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_initial_testing-checkpoint.py",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_initial_testing-checkpoint.py",
+    "bytes": 12431,
+    "sha256": "5db7215f2094352fcbbc649f9b7aa651874ab7b7e84512961a0602d0f7cfad0b"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching__scratch-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching__scratch-checkpoint.ipynb",
+    "bytes": 224621,
+    "sha256": "643e7926849066a4f7be6d8c9c0dfe73c462de868a66d23e5800af133b613f38"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt1-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt1-checkpoint.ipynb",
+    "bytes": 1659823,
+    "sha256": "eb23b306bb836ca4e1af7f1461cc43df9112b10838dbb87aef283f30fe4c5246"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt2-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt2-checkpoint.ipynb",
+    "bytes": 1956823,
+    "sha256": "51e84a86b953475b3bd770e9f77ea183d0eb6552fc75f07c7dfe0f6fc39ada9a"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt2-checkpoint.py",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt2-checkpoint.py",
+    "bytes": 44673,
+    "sha256": "c88c920ff8614e302b7a2b2632b26d29523dd4bc75b75d67312d4d6e8e4213ab"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt3_hyperparams-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt3_hyperparams-checkpoint.ipynb",
+    "bytes": 1284010,
+    "sha256": "144cee39b0c81d142e3c81194762a0d7672548f1d04098b24197c9de18ecfc08"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt3_hyperparams-checkpoint.py",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt3_hyperparams-checkpoint.py",
+    "bytes": 23876,
+    "sha256": "f9dba2962a59d08892c821ea2c486c066bdecf25e71ba1f39dc95ebcc461f6a1"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt4_perf-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt4_perf-checkpoint.ipynb",
+    "bytes": 424164,
+    "sha256": "a676e026de5173179aa6d97d97baac2eccfa11eb3c5196bed9875927184f8619"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt4_perf-checkpoint.py",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt4_perf-checkpoint.py",
+    "bytes": 20744,
+    "sha256": "2b43720ce573fb1fbafc9bca6909175c8abf50c3498af0fc8d1a0f695b0f06f9"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt5-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt5-checkpoint.ipynb",
+    "bytes": 659712,
+    "sha256": "84c8a5c23f429dace7c37664af9a932a8314aaa10a65c0184a4d3f5cd600f5a3"
+  },
+  {
+    "source": "notebooks/.ipynb_checkpoints/ch5_stitching_pt6_min_sizes-checkpoint.ipynb",
+    "archive": "data/ch5/provenance/notebook_checkpoints.zip",
+    "member": "ch5_stitching_pt6_min_sizes-checkpoint.ipynb",
+    "bytes": 1600619,
+    "sha256": "32fc486477d9ee866f5c9b25fc374c352821a7b085e4c330a5fa4d8828001178"
+  }
+]

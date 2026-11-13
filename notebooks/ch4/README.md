@@ -73,3 +73,11 @@ were not restarted for the reorganisation. The original inputs are explicitly
 selected in cells. The retained numerical result table was loaded and plotted;
 that does not claim recomputation of the fitted values. New final-library
 correctness checks use synthetic data, not personal stores.
+
+The shared error-evaluation stores and simulated truth are exposed through
+`data/general/zarr_vcfs/sim` and `data/general/simulated_error_truth`. Their
+external symlink targets are recorded in `plans/refactor_data_symlinks.json`.
+Older ignored autosave checkpoints, including their original outputs and
+unsynchronised source snapshots, are retained unchanged in the committed
+`data/ch4/provenance/notebook_checkpoints.zip` recovery archive. Current work
+uses the directly tracked paired notebook above.

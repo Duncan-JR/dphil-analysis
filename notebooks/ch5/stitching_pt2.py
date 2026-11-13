@@ -109,7 +109,6 @@ if not input_dir.is_absolute():
     input_dir = repository_dir / input_dir
 if not output_dir.is_absolute():
     output_dir = repository_dir / output_dir
-nb_plot.configure_notebook({"figure.dpi": 120, "font.size": 10})
 stitching_pt2_result = nb_plot.make_path_colormaps()
 category_cmap = stitching_pt2_result.category_cmap
 category_norm = stitching_pt2_result.category_norm
@@ -151,6 +150,9 @@ nb_plot.plot_extra_switches_vs_hyperparameters(
     requested_mismatch_settings=requested_mismatch_settings,
     switch_counts=switch_counts,
     figsize=[12, 8],
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -165,6 +167,9 @@ nb_plot.plot_extra_switches_vs_hyperparameters_2(
     figsize=[12, 5],
     marker="o",
     fontsize="small",
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %%
@@ -243,6 +248,9 @@ fig = nb_plot.plot_population_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons=population_comparisons,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.plot_extra_switches_by_population(
     fig=fig, population_output_dir=population_output_dir
@@ -286,6 +294,9 @@ fig = nb_plot.plot_population_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons=population_comparisons,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.plot_percentage_increase_in_switches_by_population(
     fig=fig, population_output_dir=population_output_dir
@@ -309,6 +320,9 @@ gap_population_handles = nb_plot.plot_gap_properties(
     config=config,
     population_comparisons=population_comparisons,
     population_output_dir=population_output_dir,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %%
@@ -342,6 +356,9 @@ fig = nb_plot.plot_gap_property_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons=population_comparisons,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.plot_gap_properties_2(fig=fig, population_output_dir=population_output_dir)
 
@@ -362,6 +379,9 @@ nb_plot.plot_gap_properties_3(
     linewidths=0,
     ylabel="Mean sites per gap",
     alpha_2=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -386,6 +406,9 @@ nb_plot.plot_gap_properties_4(
     alpha=0.6,
     linewidths=0,
     alpha_2=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -445,6 +468,9 @@ nb_plot.plot_decomposing_switches_by_type(
     xlim=(0, 100),
     xlabel="Mean proportion of switches (%)",
     alpha=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -473,6 +499,9 @@ nb_plot.plot_decomposing_switches_by_type_2(
     s_2=90,
     xlim=(-0.15, 1.15),
     linestyle="none",
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -503,6 +532,9 @@ nb_plot.plot_parent_agreement_proportions(
     xlim=(0, 100),
     xlabel="Mean proportion of all inference sites (%)",
     alpha=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -544,6 +576,9 @@ fig = nb_plot.plot_population_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons=population_comparisons,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.plot_parent_agreement_in_focal_regions(
     fig=fig, population_output_dir=population_output_dir
@@ -588,6 +623,9 @@ fig = nb_plot.plot_population_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons=population_comparisons,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.plot_parent_agreement_in_gaps(
     fig=fig, population_output_dir=population_output_dir
@@ -694,6 +732,9 @@ outlier_summary = nb_plot.plot_case_summary(
     plot_cohort_figsize=[16, 8],
     plot_switch_colors=["#009E73", "#E69F00", "#7B61A8"],
     plot_switch_labels=["Within focal coverage", "Within gaps", "At focal/gap seams"],
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.save_notebook_figure(
     outlier_summary.figure, outlier_output_dir / "outlier_site_and_switch_summary.png"
@@ -707,6 +748,9 @@ nb_plot.plot_summary_plots(
     outlier_summary=outlier_summary,
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %%
@@ -718,6 +762,9 @@ nb_plot.plot_summary_plots_2(
     outlier_output_dir=outlier_output_dir,
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -830,6 +877,9 @@ nb_plot.plot_deep_dive(
     height=0.32,
     xlabel="Parent switches",
     alpha=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -850,6 +900,9 @@ nb_plot.plot_deep_dive_2(
     outlier_output_dir=outlier_output_dir,
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -880,6 +933,9 @@ nb_plot.plot_deep_dive_3(
     outlier_windows=outlier_windows,
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 pd.DataFrame(outlier_window_rows).to_csv(
     outlier_output_dir / "outlier_detail_windows.csv", index=False
@@ -901,6 +957,9 @@ outlier_distance_rows = nb_plot.plot_deep_dive_4(
     marker="o",
     ylim=(0, 1),
     alpha=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 pd.DataFrame(outlier_distance_rows).to_csv(
     outlier_output_dir / "outlier_seam_distance_counts.csv", index=False
@@ -999,6 +1058,9 @@ case_summary = nb_plot.plot_case_summary(
     plot_cohort_figsize=[16, 8],
     plot_switch_colors=["#009E73", "#E69F00", "#7B61A8"],
     plot_switch_labels=["Within focal coverage", "Within gaps", "At focal/gap seams"],
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.show_figure()
 switch_table = case_summary.switches
@@ -1016,7 +1078,12 @@ ipython_display.display(switch_table)
 
 # %%
 nb_plot.plot_extra_switch_fraction_2(
-    datasets=datasets, figsize=[16, 4], color="#6A3D9A"
+    datasets=datasets,
+    figsize=[16, 4],
+    color="#6A3D9A",
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -1042,6 +1109,9 @@ fig = nb_plot.plot_case_tracks(
     plot_tracks_figsize=[16, 7],
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 nb_plot.show_figure()
 
@@ -1062,6 +1132,9 @@ nb_plot.plot_whole_span_paths_for_the_selected_simulated_and_real(
     datasets=datasets,
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -1144,6 +1217,9 @@ nb_plot.plot_detailed_parent_paths_covered_focal_pieces_gap_fills(
     detail_windows=detail_windows,
     source_cmap=source_cmap,
     source_norm=source_norm,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -1173,6 +1249,9 @@ nb_plot.plot_does_disagreement_concentrate_near_focal_gap_seams_2(
     ylim=(0, 1),
     xlabel="Distance to nearest seam (inference-site steps)",
     alpha=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 distance_table = pd.DataFrame(distance_rows)
 ipython_display.display(distance_table.loc[distance_table.num_sites > 0].round(4))

@@ -2220,7 +2220,7 @@ def _overshoot_scatter(
 ):
     """Connect mean signed overshoots against error rates, with Pearson r.
 
-    Use the same means as `_overshoot_mean`. Vertical guides label the error
+    Pool focal-site means with `nb_utils._mean_overshoot_by_profile`. Vertical guides label the error
     profiles below zero. Orange labels give the signed difference in mean
     overshoot (0.5 minus 0.4), using compact bp/kb/Mb units. The x-axis is linear and retains
     the error-free profile at zero. With x_log=True, correlate against log10(x)
@@ -2365,204 +2365,6 @@ def _overshoot_scatter(
         frameon=False,
     )
     return save_figure(fig, figure_folder, f"{name}_scatter", config, dpi=dpi)
-
-
-def _overshoot_mean(
-    data,
-    frame,
-    by,
-    rates,
-    label,
-    name,
-    figure_folder,
-    figsize=None,
-    *,
-    combined_error_labels=("No errors", "Combined errors"),
-    combined_error_profiles=("none", "all"),
-    curve_size=(6, 3.5),
-    dpi=300,
-    mean_bar_group_width=0.8,
-    mean_bar_y_margin=0.05,
-    mean_change_decimals=1,
-    mean_change_fontsize=8,
-    mean_change_padding=4,
-    phase_ser_decimals=2,
-    version_colors=("#1a80bb", "#ea801c"),
-):
-    """Grouped mean signed overshoot by error profile, coloured by version.
-
-    Each focal site contributes its mean left/right overshoot. Focal sites
-    are pooled across replicates, as in `_overshoot_histogram`. Labels below
-    the second version's bars give 100 * (new mean - old mean) / abs(old mean),
-    so a decrease remains negative when the reference mean is negative.
-    """
-    config = data.config
-    means = nb_utils._mean_overshoot_by_profile(frame, by, rates)
-    if figsize is None:
-        figsize = curve_size
-    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
-    positions = np.arange(len(rates))
-    width = mean_bar_group_width / len(config.versions)
-    for index, (version, color) in enumerate(zip(config.versions, version_colors)):
-        values = means.loc[version].reindex(rates)
-        offsets = positions - mean_bar_group_width / 2 + width * (index + 0.5)
-        ax.bar(
-            offsets,
-            values / config.bp_per_mb,
-            width=width,
-            color=color,
-            label=nb_utils._version_label(version),
-        )
-        if index == 1:
-            reference = means.loc[config.versions[0]].reindex(rates)
-            changes = 100 * (values - reference) / reference.abs()
-            for offset, value, change in zip(offsets, values, changes):
-                ax.annotate(
-                    f"{change:+.{mean_change_decimals}f}%",
-                    xy=(offset, min(value / config.bp_per_mb, 0)),
-                    xytext=(0, -mean_change_padding),
-                    textcoords="offset points",
-                    ha="center",
-                    va="top",
-                    color=color,
-                    fontsize=mean_change_fontsize,
-                )
-    labels = [
-        _profile_label(
-            rate,
-            by,
-            config,
-            combined_error_labels=combined_error_labels,
-            combined_error_profiles=combined_error_profiles,
-            phase_ser_decimals=phase_ser_decimals,
-        )
-        for rate in rates
-    ]
-    ax.set_xticks(positions, labels)
-    ax.set_xlabel(label)
-    ax.set_ylabel("Mean overshoot (Mb)")
-    ax.axhline(
-        0, color="black", linestyle="--", linewidth=ax.spines["left"].get_linewidth()
-    )
-    ax.use_sticky_edges = False
-    ax.margins(y=mean_bar_y_margin)
-    ax.legend(frameon=False)
-    return save_figure(fig, figure_folder, f"{name}_mean", config, dpi=dpi)
-
-
-def plot_genotype_overshoot_mean(
-    data,
-    figure_folder=None,
-    figsize=None,
-    *,
-    combined_error_labels=("No errors", "Combined errors"),
-    combined_error_profiles=("none", "all"),
-    curve_size=(6, 3.5),
-    dpi=300,
-    mean_bar_group_width=0.8,
-    mean_bar_y_margin=0.05,
-    mean_change_decimals=1,
-    mean_change_fontsize=8,
-    mean_change_padding=4,
-    phase_ser_decimals=2,
-    version_colors=("#1a80bb", "#ea801c"),
-):
-    """Grouped mean overshoot by genotype error; see `_overshoot_mean`."""
-    return _overshoot_mean(
-        data,
-        nb_utils._genotype_overshoots(data),
-        "geno_multiplier",
-        data.config.genotype_multipliers,
-        "Error multiplier",
-        "genotype_error_overshoot",
-        figure_folder,
-        figsize=figsize,
-        combined_error_labels=combined_error_labels,
-        combined_error_profiles=combined_error_profiles,
-        curve_size=curve_size,
-        dpi=dpi,
-        mean_bar_group_width=mean_bar_group_width,
-        mean_bar_y_margin=mean_bar_y_margin,
-        mean_change_decimals=mean_change_decimals,
-        mean_change_fontsize=mean_change_fontsize,
-        mean_change_padding=mean_change_padding,
-        phase_ser_decimals=phase_ser_decimals,
-        version_colors=version_colors,
-    )
-
-
-def plot_genotype_overshoot_scatter(
-    data,
-    figure_folder=None,
-    figsize=None,
-    *,
-    combined_error_labels=("No errors", "Combined errors"),
-    combined_error_profiles=("none", "all"),
-    dpi=300,
-    genotype_scatter_connector_width=0.8,
-    genotype_scatter_error_change_offset=(-5, -4),
-    mean_change_decimals=1,
-    overshoot_diff_line_width=1.2,
-    overshoot_scatter_change_fontsize=10,
-    overshoot_scatter_change_offset=(-5, 4),
-    overshoot_scatter_correlation_decimals=3,
-    overshoot_scatter_guide_depth=0.05,
-    overshoot_scatter_label_fontsize=10,
-    overshoot_scatter_label_padding=3,
-    overshoot_scatter_marker_size=5,
-    overshoot_scatter_size=(5, 4.5),
-    overshoot_scatter_tick_decimals=2,
-    overshoot_scatter_vertical_dash=(0, (2, 3)),
-    overshoot_scatter_x_margin=0.15,
-    overshoot_scatter_y_margin=0.18,
-    overshoot_scatter_zero_dash=(0, (6, 3)),
-    phase_scatter_change_offset=(-5, 4),
-    phase_scatter_guide_depth=0.2,
-    phase_ser_decimals=2,
-    version_colors=("#1a80bb", "#ea801c"),
-    zero_color="#555555",
-):
-    """Mean overshoot versus measured pooled diploid error rate, as in scaling."""
-    exported = data.zarr_data.loc[data.zarr_data.record_type == "genotype"]
-    pooled = exported.groupby("geno_multiplier")[["changed", "total"]].sum()
-    x_rates = pooled.changed / pooled.total
-    x_rates.loc[0] = 0
-    return _overshoot_scatter(
-        data,
-        nb_utils._genotype_overshoots(data),
-        "geno_multiplier",
-        data.config.genotype_multipliers,
-        x_rates,
-        "Diploid genotype error rate",
-        "genotype_error_overshoot",
-        figure_folder,
-        figsize=figsize,
-        combined_error_labels=combined_error_labels,
-        combined_error_profiles=combined_error_profiles,
-        dpi=dpi,
-        genotype_scatter_connector_width=genotype_scatter_connector_width,
-        genotype_scatter_error_change_offset=genotype_scatter_error_change_offset,
-        mean_change_decimals=mean_change_decimals,
-        overshoot_diff_line_width=overshoot_diff_line_width,
-        overshoot_scatter_change_fontsize=overshoot_scatter_change_fontsize,
-        overshoot_scatter_change_offset=overshoot_scatter_change_offset,
-        overshoot_scatter_correlation_decimals=overshoot_scatter_correlation_decimals,
-        overshoot_scatter_guide_depth=overshoot_scatter_guide_depth,
-        overshoot_scatter_label_fontsize=overshoot_scatter_label_fontsize,
-        overshoot_scatter_label_padding=overshoot_scatter_label_padding,
-        overshoot_scatter_marker_size=overshoot_scatter_marker_size,
-        overshoot_scatter_size=overshoot_scatter_size,
-        overshoot_scatter_tick_decimals=overshoot_scatter_tick_decimals,
-        overshoot_scatter_vertical_dash=overshoot_scatter_vertical_dash,
-        overshoot_scatter_x_margin=overshoot_scatter_x_margin,
-        overshoot_scatter_y_margin=overshoot_scatter_y_margin,
-        overshoot_scatter_zero_dash=overshoot_scatter_zero_dash,
-        phase_scatter_change_offset=phase_scatter_change_offset,
-        phase_scatter_guide_depth=phase_scatter_guide_depth,
-        phase_ser_decimals=phase_ser_decimals,
-        version_colors=version_colors,
-        zero_color=zero_color,
-    )
 
 
 def plot_genotype_overshoot_hist(
@@ -3723,47 +3525,6 @@ def plot_mispolarisation_low_count_overshoot_diff(
     )
 
 
-def plot_phasing_overshoot_mean(
-    data,
-    figure_folder=None,
-    figsize=None,
-    *,
-    combined_error_labels=("No errors", "Combined errors"),
-    combined_error_profiles=("none", "all"),
-    curve_size=(6, 3.5),
-    dpi=300,
-    mean_bar_group_width=0.8,
-    mean_bar_y_margin=0.05,
-    mean_change_decimals=1,
-    mean_change_fontsize=8,
-    mean_change_padding=4,
-    phase_ser_decimals=2,
-    version_colors=("#1a80bb", "#ea801c"),
-):
-    """Grouped mean overshoot by mean switch gap; see `_overshoot_mean`."""
-    return _overshoot_mean(
-        data,
-        nb_utils._phasing_overshoots(data),
-        "space_per_switch",
-        data.config.phase_spacings,
-        "Mean gap (Mb)",
-        "phasing_error_overshoot",
-        figure_folder,
-        figsize=figsize,
-        combined_error_labels=combined_error_labels,
-        combined_error_profiles=combined_error_profiles,
-        curve_size=curve_size,
-        dpi=dpi,
-        mean_bar_group_width=mean_bar_group_width,
-        mean_bar_y_margin=mean_bar_y_margin,
-        mean_change_decimals=mean_change_decimals,
-        mean_change_fontsize=mean_change_fontsize,
-        mean_change_padding=mean_change_padding,
-        phase_ser_decimals=phase_ser_decimals,
-        version_colors=version_colors,
-    )
-
-
 def plot_phasing_overshoot_hist(
     data,
     figure_folder=None,
@@ -3810,80 +3571,6 @@ def plot_phasing_overshoot_hist(
         overshoot_diff_panel_label_position=overshoot_diff_panel_label_position,
         overshoot_diff_panel_labels=overshoot_diff_panel_labels,
         phase_ser_decimals=phase_ser_decimals,
-        zero_color=zero_color,
-    )
-
-
-def plot_phasing_overshoot_scatter(
-    data,
-    figure_folder=None,
-    figsize=None,
-    x_log=True,
-    *,
-    combined_error_labels=("No errors", "Combined errors"),
-    combined_error_profiles=("none", "all"),
-    dpi=300,
-    genotype_scatter_connector_width=0.8,
-    genotype_scatter_error_change_offset=(-5, -4),
-    mean_change_decimals=1,
-    overshoot_diff_line_width=1.2,
-    overshoot_scatter_change_fontsize=10,
-    overshoot_scatter_change_offset=(-5, 4),
-    overshoot_scatter_correlation_decimals=3,
-    overshoot_scatter_guide_depth=0.05,
-    overshoot_scatter_label_fontsize=10,
-    overshoot_scatter_label_padding=3,
-    overshoot_scatter_marker_size=5,
-    overshoot_scatter_size=(5, 4.5),
-    overshoot_scatter_tick_decimals=2,
-    overshoot_scatter_vertical_dash=(0, (2, 3)),
-    overshoot_scatter_x_margin=0.15,
-    overshoot_scatter_y_margin=0.18,
-    overshoot_scatter_zero_dash=(0, (6, 3)),
-    phase_scatter_change_offset=(-5, 4),
-    phase_scatter_guide_depth=0.2,
-    phase_ser_decimals=2,
-    version_colors=("#1a80bb", "#ea801c"),
-    zero_color="#555555",
-):
-    """Mean overshoot versus fitted SER; omit the zero-rate no-switch profile."""
-    rates = tuple((gap for gap in data.config.phase_spacings if gap > 0))
-    x_rates = data.phase_settings.set_index("space_per_switch").phase_ser
-    return _overshoot_scatter(
-        data,
-        nb_utils._phasing_overshoots(data),
-        "space_per_switch",
-        rates,
-        x_rates,
-        "Switch error rate",
-        "phasing_error_overshoot",
-        figure_folder,
-        figsize=figsize,
-        x_log=x_log,
-        combined_error_labels=combined_error_labels,
-        combined_error_profiles=combined_error_profiles,
-        dpi=dpi,
-        genotype_scatter_connector_width=genotype_scatter_connector_width,
-        genotype_scatter_error_change_offset=genotype_scatter_error_change_offset,
-        mean_change_decimals=mean_change_decimals,
-        overshoot_diff_line_width=overshoot_diff_line_width,
-        overshoot_scatter_change_fontsize=overshoot_scatter_change_fontsize,
-        overshoot_scatter_change_offset=overshoot_scatter_change_offset,
-        overshoot_scatter_correlation_decimals=overshoot_scatter_correlation_decimals,
-        overshoot_scatter_guide_depth=overshoot_scatter_guide_depth,
-        overshoot_scatter_label_fontsize=overshoot_scatter_label_fontsize,
-        overshoot_scatter_label_padding=overshoot_scatter_label_padding,
-        overshoot_scatter_marker_size=overshoot_scatter_marker_size,
-        overshoot_scatter_size=overshoot_scatter_size,
-        overshoot_scatter_tick_decimals=overshoot_scatter_tick_decimals,
-        overshoot_scatter_vertical_dash=overshoot_scatter_vertical_dash,
-        overshoot_scatter_x_margin=overshoot_scatter_x_margin,
-        overshoot_scatter_y_margin=overshoot_scatter_y_margin,
-        overshoot_scatter_zero_dash=overshoot_scatter_zero_dash,
-        phase_scatter_change_offset=phase_scatter_change_offset,
-        phase_scatter_guide_depth=phase_scatter_guide_depth,
-        phase_ser_decimals=phase_ser_decimals,
-        version_colors=version_colors,
         zero_color=zero_color,
     )
 
@@ -5323,11 +5010,6 @@ def plot_ancestor_errors_by_genotype_error_multiplier(
     return buffering_error_figure
 
 
-def configure_notebook(settings):
-    """Apply explicit notebook display defaults."""
-    plt.rcParams.update(settings)
-
-
 def close_figure(figure):
     """Release an already-displayed notebook figure."""
     plt.close(figure)
@@ -5487,8 +5169,3 @@ def save_notebook_figure(
     path = pathlib.Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, dpi=dpi, bbox_inches=bbox_inches, facecolor=facecolor)
-
-
-def resize_figure(figure, *, figsize):
-    """Set a displayed figure's physical dimensions explicitly."""
-    figure.set_size_inches(*figsize)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import collections
 import concurrent.futures as cf
 import csv
+import difflib
 import dataclasses
 import hashlib
 import importlib.metadata
@@ -20,9 +21,11 @@ import multiprocessing
 import os
 import pathlib
 import subprocess
+import shutil
 import time
 import tomllib
 
+import _tsinfer
 import numcodecs
 import numpy as np
 import pandas as pd
@@ -32,6 +35,7 @@ import tscompare
 import tscompare.methods
 import tsdate
 import tsinfer
+import tsinfer.matching
 import tskit
 import tszip
 import yaml
@@ -6757,3 +6761,507 @@ def comparison_topology_comparison(settings: dict, all_matches: dict) -> pd.Data
                 }
             )
     return pd.DataFrame(rows)
+
+
+# Tie-breaking native experiment: archived sources remain immutable provenance.
+
+
+@dataclasses.dataclass
+class TieMatchTask:
+    case: dict
+    haplotype: int
+    settings: dict
+
+
+@dataclasses.dataclass
+class TieMatchResult:
+    row: dict
+    left: np.ndarray
+    right: np.ndarray
+    parent: np.ndarray
+
+
+@dataclasses.dataclass
+class TieToyCase:
+    name: str
+    times: list[float]
+    edges: list[tuple[int, int]]
+    mutations: list[int | None]
+    haplotype: list[int]
+    rho: float = 0.01
+    mu: float = 1e-20
+
+
+@dataclasses.dataclass
+class ParentPath:
+    left: np.ndarray
+    right: np.ndarray
+    parent: np.ndarray
+
+
+_tie_match_cache = {}
+
+
+def tie_prepare_builds(repo, scratch, modes):
+    """Copy and patch the three historical C variants only inside scratch."""
+    for mode in modes:
+        target = scratch / mode
+        target.mkdir(exist_ok=True)
+        for name in ["_tsinfermodule.c", "setup.py"]:
+            shutil.copy2(repo / name, target / name)
+        (target / "lib").mkdir(exist_ok=True)
+        for source in (repo / "lib").iterdir():
+            if source.suffix in [".c", ".h"]:
+                shutil.copy2(source, target / "lib" / source.name)
+        tsk_target = target / "git-submodules/tskit/c"
+        tsk_target.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(repo / "git-submodules/tskit/c/tskit.h", tsk_target)
+        for name in ["tskit", "subprojects/kastore"]:
+            shutil.copytree(
+                repo / "git-submodules/tskit/c" / name,
+                tsk_target / name,
+                dirs_exist_ok=True,
+            )
+        shutil.copytree(
+            repo / "lwt_interface", target / "lwt_interface", dirs_exist_ok=True
+        )
+        setup = (target / "setup.py").read_text()
+        setup = setup.replace(
+            "setup(\n",
+            'setup(\n    name="tsinfer-tie-experiment",\n    version="0.0.0",\n',
+        )
+        (target / "setup.py").write_text(setup)
+        if mode == "youngest":
+            header = target / "lib/tsinfer.h"
+            code = header.read_text()
+            original = "    edge_t *left_index_edges;\n"
+            assert code.count(original) == 1
+            header.write_text(
+                code.replace(original, "    double *node_time;\n" + original)
+            )
+            source = target / "lib/ancestor_matcher.c"
+            code = source.read_text()
+            original = "    self->num_nodes = tables->nodes.num_rows;\n"
+            insertion = "    self->node_time = malloc(self->num_nodes * sizeof(*self->node_time));\n    if (self->node_time == NULL) {\n        return TSI_ERR_NO_MEMORY;\n    }\n    memcpy(self->node_time, tables->nodes.time,\n        self->num_nodes * sizeof(*self->node_time));\n"
+            assert code.count(original) == 1
+            code = code.replace(original, original + insertion)
+            original = "    tsk_safe_free(self->left_index_edges);\n"
+            assert code.count(original) == 1
+            code = code.replace(
+                original, "    tsk_safe_free(self->node_time);\n" + original
+            )
+            original = "        if (L[u] > max_L) {\n"
+            assert code.count(original) == 1
+            code = code.replace(
+                original,
+                "        if (L[u] > max_L\n            || (L[u] == max_L\n                && self->matcher_indexes->node_time[u]\n                    < self->matcher_indexes->node_time[max_L_node])) {\n",
+            )
+            source.write_text(code)
+        elif mode == "last_tie":
+            source = target / "lib/ancestor_matcher.c"
+            code = source.read_text()
+            original = "        if (L[u] > max_L) {\n"
+            assert code.count(original) == 1
+            source.write_text(code.replace(original, "        if (L[u] >= max_L) {\n"))
+        diff = []
+        for name in ["lib/tsinfer.h", "lib/ancestor_matcher.c"]:
+            diff.extend(
+                difflib.unified_diff(
+                    (repo / name).read_text().splitlines(keepends=True),
+                    (target / name).read_text().splitlines(keepends=True),
+                    fromfile="a/" + name,
+                    tofile="b/" + name,
+                )
+            )
+        (scratch / f"{mode}.diff").write_text("".join(diff))
+
+
+def tie_prepare_data(scratch, settings):
+    """Prepare fixed haplotypes and archived paths from identified CH5 inputs."""
+    base = pathlib.Path(settings["analysis_root"]) / "data/ch5/hpc_perf2_diagnostics"
+    manifest = json.loads((base / "manifest.json").read_text())
+    numcodecs.blosc.set_nthreads(1)
+    config = dict(settings)
+    config.update(datasets=[], scratch=str(scratch))
+    archive_rows = []
+    for ds in manifest["datasets"]:
+        name = ds["name"]
+        ref = tszip.decompress(base / ds["reference"])
+        full = tszip.decompress(base / ds["full_hmm"])
+        count = (
+            full.num_samples
+            if name == settings["full_cohort"]
+            else settings["subset_haplotypes"]
+        )
+        indices = np.linspace(0, full.num_samples - 1, count, dtype=int)
+        haps = full.genotype_matrix(samples=full.samples()[indices]).T.astype(np.int8)
+        assert np.all((haps == 0) | (haps == 1))
+        np.save(scratch / f"{name}_haps.npy", haps)
+        ref.dump(scratch / f"{name}_reference.trees")
+        np.save(scratch / f"{name}_indices.npy", indices)
+        root = ref.edge(-1).child
+        assert root == 1
+        np.testing.assert_array_equal(
+            full.samples(), np.arange(ref.num_nodes, full.num_nodes)
+        )
+        selected = np.isin(full.edges_child, full.samples()[indices])
+        left = full.edges_left[selected]
+        right = full.edges_right[selected]
+        parents = full.edges_parent[selected]
+        children = full.edges_child[selected]
+        order = np.lexsort((left, children))
+        np.savez_compressed(
+            scratch / f"{name}_archive_paths.npz",
+            left=left[order],
+            right=right[order],
+            parent=parents[order],
+            child=children[order],
+        )
+        metadata = [full.node(int(full.samples()[index])).metadata for index in indices]
+        (scratch / f"{name}_metadata.json").write_text(json.dumps(metadata))
+        cases = [
+            dict(
+                name=name,
+                data=name,
+                start=0,
+                end=ref.num_sites,
+                haplotypes=list(range(len(indices))),
+                scope="whole_chr20p",
+            )
+        ]
+        if name == settings["full_cohort"]:
+            for lo, hi in settings["windows_bp"]:
+                a, b = np.searchsorted(ref.sites_position, [lo, hi])
+                cases.append(
+                    dict(
+                        name=f"{name}_{lo // 1000000}_to_{hi // 1000000}mb",
+                        data=name,
+                        start=int(a),
+                        end=int(b),
+                        haplotypes=np.linspace(
+                            0,
+                            len(indices) - 1,
+                            settings["window_haplotypes"],
+                            dtype=int,
+                        ).tolist(),
+                        scope="independent_1mb_window",
+                    )
+                )
+        for case in cases:
+            case["root"] = root
+            case["num_reference_nodes"] = ref.num_nodes
+            case["num_reference_edges"] = ref.num_edges
+            case["num_sites"] = case["end"] - case["start"]
+            case["left_bp"] = float(ref.sites_position[case["start"]])
+            case["right_bp"] = float(ref.sites_position[case["end"] - 1])
+            case["num_selected_haplotypes"] = len(case["haplotypes"])
+            config["datasets"].append(case)
+        root_edges = full.edges_parent == root
+        root_edges &= np.isin(full.edges_child, full.samples())
+        lo, hi = ds["analysis_extent_bp"]
+        spans = np.maximum(
+            0,
+            np.minimum(full.edges_right[root_edges], hi)
+            - np.maximum(full.edges_left[root_edges], lo),
+        )
+        archive_rows.append(
+            dict(
+                dataset=name,
+                haplotypes=full.num_samples,
+                root_edges=int(np.sum(spans > 0)),
+                root_span_bp=float(spans.sum()),
+                literal_node0_sample_edges=int(
+                    np.sum(
+                        (full.edges_parent == 0) & (full.edges_child >= ref.num_nodes)
+                    )
+                ),
+                reference=ds["reference"],
+                full_hmm=ds["full_hmm"],
+                reference_sha256=hashlib.sha256(
+                    (base / ds["reference"]).read_bytes()
+                ).hexdigest(),
+                full_hmm_sha256=hashlib.sha256(
+                    (base / ds["full_hmm"]).read_bytes()
+                ).hexdigest(),
+            )
+        )
+        print(
+            name,
+            ref.num_nodes,
+            ref.num_sites,
+            "prepared haplotypes",
+            len(indices),
+            flush=True,
+        )
+    (scratch / "experiment_config.json").write_text(json.dumps(config, indent=2))
+    pd.DataFrame(archive_rows).to_csv(scratch / "archive_summary.csv", index=False)
+
+
+def tie_merged_path(left, right, parent):
+    """Sort nonempty copying segments and squash touching equal-parent intervals."""
+    order = np.argsort(left)
+    left, right, parent = (left[order], right[order], parent[order])
+    valid = right > left
+    left, right, parent = (left[valid], right[valid], parent[valid])
+    first = np.ones(len(left), dtype=bool)
+    first[1:] = (parent[1:] != parent[:-1]) | (left[1:] != right[:-1])
+    starts = np.flatnonzero(first)
+    stops = np.r_[starts[1:] - 1, len(left) - 1]
+    return ParentPath(left[starts], right[stops], parent[starts])
+
+
+def tie_match_one(job):
+    """Match one haplotype with a process-local native matcher and retain its path."""
+    case = job.case
+    haplotype = job.haplotype
+    settings = job.settings
+    scratch = pathlib.Path(settings["scratch"])
+    name = case["data"]
+    if _tie_match_cache.get("name") != name:
+        _tie_match_cache.clear()
+        ref = tskit.load(scratch / f"{name}_reference.trees")
+        indexes = tsinfer.matching.MatcherIndexes(ref, vestigial_root=False)
+        matcher = tsinfer.matching.AncestorMatcher(
+            indexes,
+            np.full(ref.num_sites, settings["recombination"]),
+            np.full(ref.num_sites, settings["mismatch"]),
+        )
+        _tie_match_cache.update(
+            name=name,
+            reference=ref,
+            matcher=matcher,
+            haps=np.load(scratch / f"{name}_haps.npy", mmap_mode="r"),
+            indices=np.load(scratch / f"{name}_indices.npy"),
+            metadata=json.loads((scratch / f"{name}_metadata.json").read_text()),
+            archived=dict(np.load(scratch / f"{name}_archive_paths.npz")),
+            copied=np.empty(ref.num_sites, dtype=np.int8),
+        )
+    ref = _tie_match_cache["reference"]
+    hap = _tie_match_cache["haps"][haplotype]
+    start, end = (case["start"], case["end"])
+    before = time.process_time()
+    left, right, parent = _tie_match_cache["matcher"].find_path(
+        hap, start, end, _tie_match_cache["copied"]
+    )
+    elapsed = time.process_time() - before
+    path = tie_merged_path(left.copy(), right.copy(), parent.copy())
+    left = path.left
+    right = path.right
+    parent = path.parent
+    span = np.maximum(
+        0, np.minimum(right, case["right_bp"]) - np.maximum(left, case["left_bp"])
+    )
+    root = parent == case["root"]
+    site_counts = np.searchsorted(ref.sites_position, right) - np.searchsorted(
+        ref.sites_position, left
+    )
+    assert site_counts.sum() == case["num_sites"]
+    mismatches = np.sum(hap[start:end] != _tie_match_cache["copied"][start:end])
+    switches = len(parent) - 1
+    rho, mu = (settings["recombination"], settings["mismatch"])
+    log_stay = math.log(1 - rho + rho / ref.num_nodes)
+    log_switch = math.log(rho / ref.num_nodes)
+    score = (case["num_sites"] - switches) * log_stay + switches * log_switch
+    score += (case["num_sites"] - mismatches) * math.log1p(-mu) + mismatches * math.log(
+        mu
+    )
+    original_index = int(_tie_match_cache["indices"][haplotype])
+    archived = _tie_match_cache["archived"]
+    select = archived["child"] == ref.num_nodes + original_index
+    a_left, a_right, a_parent = (
+        archived["left"][select],
+        archived["right"][select],
+        archived["parent"][select],
+    )
+    a_sites = np.searchsorted(a_left, ref.sites_position[start:end], side="right") - 1
+    new_sites = np.searchsorted(left, ref.sites_position[start:end], side="right") - 1
+    archived_site_differences = np.sum(a_parent[a_sites] != parent[new_sites])
+    metadata = _tie_match_cache["metadata"][haplotype]
+    row = dict(
+        dataset=case["name"],
+        data=name,
+        haplotype_slot=haplotype,
+        haplotype_index=original_index,
+        sample_id=metadata["sample_id"],
+        ploidy_index=metadata["ploidy_index"],
+        root_edges=int(np.sum(root & (span > 0))),
+        root_span_bp=float(span[root].sum()),
+        root_sites=int(site_counts[root].sum()),
+        node0_edges=int(np.sum((parent == 0) & (span > 0))),
+        segments=len(parent),
+        switches=switches,
+        mismatches=int(mismatches),
+        log_likelihood=score,
+        cpu_seconds=elapsed,
+        archived_parent_differences=int(archived_site_differences),
+        module_file=str(_tsinfer.__file__),
+    )
+    return TieMatchResult(row, left, right, parent)
+
+
+def tie_parent_at_sites(paths, row, positions):
+    """Decode a retained copying path at the supplied inference-site positions."""
+    a, b = paths["offsets"][row : row + 2]
+    index = np.searchsorted(paths["left"][a:b], positions, side="right") - 1
+    return paths["parent"][a:b][index]
+
+
+def tie_summarise(scratch, settings):
+    """Summarise paired native variants, verifying equal scores and mismatches."""
+    all_rows = []
+    paired_rows = []
+    summary = []
+    for case in settings["datasets"]:
+        name = case["name"]
+        ref = tskit.load(scratch / f"{case['data']}_reference.trees")
+        positions = ref.sites_position[case["start"] : case["end"]]
+        control = pd.read_csv(scratch / f"{name}_control.csv")
+        control_paths = dict(np.load(scratch / f"{name}_control_paths.npz"))
+        assert control.root_edges.sum() > 0
+        for mode in settings["modes"]:
+            table = pd.read_csv(scratch / f"{name}_{mode}.csv")
+            paths = dict(np.load(scratch / f"{name}_{mode}_paths.npz"))
+            np.testing.assert_array_equal(table.haplotype_slot, control.haplotype_slot)
+            np.testing.assert_allclose(
+                table.log_likelihood, control.log_likelihood, rtol=0, atol=1e-08
+            )
+            np.testing.assert_array_equal(table.mismatches, control.mismatches)
+            for i in range(len(table)):
+                base = tie_parent_at_sites(control_paths, i, positions)
+                altered = tie_parent_at_sites(paths, i, positions)
+                changed = base != altered
+                old_root = base == case["root"]
+                new_root = altered == case["root"]
+                age_delta = ref.nodes_time[altered] - ref.nodes_time[base]
+                row = table.iloc[i].to_dict()
+                row.update(
+                    control_root_edges=int(control.root_edges.iloc[i]),
+                    control_root_span_bp=float(control.root_span_bp.iloc[i]),
+                    root_edge_change=int(
+                        table.root_edges.iloc[i] - control.root_edges.iloc[i]
+                    ),
+                    root_span_change_bp=float(
+                        table.root_span_bp.iloc[i] - control.root_span_bp.iloc[i]
+                    ),
+                    changed_parent_sites=int(changed.sum()),
+                    root_sites_removed=int(np.sum(old_root & ~new_root)),
+                    root_sites_added=int(np.sum(~old_root & new_root)),
+                    changed_to_younger_sites=int(np.sum(changed & (age_delta < 0))),
+                    changed_to_older_sites=int(np.sum(changed & (age_delta > 0))),
+                    changed_same_age_sites=int(np.sum(changed & (age_delta == 0))),
+                )
+                paired_rows.append(row)
+            selected = pd.DataFrame(paired_rows[-len(table) :])
+            summary.append(
+                dict(
+                    dataset=name,
+                    mode=mode,
+                    scope=case["scope"],
+                    haplotypes=len(table),
+                    sites_per_haplotype=case["num_sites"],
+                    root_edges=int(table.root_edges.sum()),
+                    root_span_bp=float(table.root_span_bp.sum()),
+                    root_sites=int(table.root_sites.sum()),
+                    haplotypes_with_root_edges=int((table.root_edges > 0).sum()),
+                    fewer_root_edges=int((selected.root_edge_change < 0).sum()),
+                    equal_root_edges=int((selected.root_edge_change == 0).sum()),
+                    more_root_edges=int((selected.root_edge_change > 0).sum()),
+                    changed_parent_sites=int(selected.changed_parent_sites.sum()),
+                    root_sites_removed=int(selected.root_sites_removed.sum()),
+                    root_sites_added=int(selected.root_sites_added.sum()),
+                    changed_to_younger_sites=int(
+                        selected.changed_to_younger_sites.sum()
+                    ),
+                    changed_to_older_sites=int(selected.changed_to_older_sites.sum()),
+                    log_likelihood_max_abs_difference=float(
+                        np.max(np.abs(table.log_likelihood - control.log_likelihood))
+                    ),
+                    mutations=int(table.mismatches.sum()),
+                    node0_edges=int(table.node0_edges.sum()),
+                )
+            )
+            all_rows.append(table)
+    summary = pd.DataFrame(summary)
+    base = summary.loc[
+        summary["mode"] == "control", ["dataset", "root_edges", "root_span_bp"]
+    ]
+    base = base.rename(
+        columns={
+            "root_edges": "control_root_edges",
+            "root_span_bp": "control_root_span_bp",
+        }
+    )
+    summary = summary.merge(base, on="dataset", validate="many_to_one")
+    summary["root_edge_reduction_percentage"] = 100 * (
+        1 - summary.root_edges / summary.control_root_edges
+    )
+    summary["root_span_reduction_percentage"] = 100 * (
+        1 - summary.root_span_bp / summary.control_root_span_bp
+    )
+    summary.to_csv(scratch / "summary.csv", index=False)
+    pd.concat(all_rows, ignore_index=True).to_csv(
+        scratch / "per_haplotype.csv", index=False
+    )
+    pd.DataFrame(paired_rows).to_csv(scratch / "paired_haplotypes.csv", index=False)
+    pd.concat(
+        [pd.read_csv(scratch / f"toys_{mode}.csv") for mode in settings["modes"]],
+        ignore_index=True,
+    ).to_csv(scratch / "toy_results.csv", index=False)
+    print(
+        summary[
+            [
+                "dataset",
+                "mode",
+                "root_edges",
+                "root_span_bp",
+                "root_edge_reduction_percentage",
+                "root_span_reduction_percentage",
+                "changed_parent_sites",
+                "root_sites_removed",
+                "root_sites_added",
+            ]
+        ].to_string(index=False)
+    )
+
+
+def tie_toy_case(case, mode):
+    """Run one explicitly configured toy genealogy through the selected native variant."""
+    name = case.name
+    times = case.times
+    edges = case.edges
+    mutations = case.mutations
+    haplotype = case.haplotype
+    rho = case.rho
+    mu = case.mu
+    tables = tskit.TableCollection(10 * (len(haplotype) + 1))
+    for time in times:
+        tables.nodes.add_row(time=time)
+    for parent, child in edges:
+        tables.edges.add_row(0, tables.sequence_length, parent, child)
+    for j, node in enumerate(mutations):
+        site = tables.sites.add_row(10 * (j + 1), "0")
+        if node is not None:
+            tables.mutations.add_row(site=site, node=node, derived_state="1")
+    tables.sort()
+    reference = tables.tree_sequence()
+    indexes = tsinfer.matching.MatcherIndexes(reference, vestigial_root=False)
+    matcher = tsinfer.matching.AncestorMatcher(
+        indexes, np.full(len(haplotype), rho), np.full(len(haplotype), mu)
+    )
+    copied = np.empty(len(haplotype), dtype=np.int8)
+    left, right, parent = matcher.find_path(
+        np.array(haplotype, dtype=np.int8), 0, len(haplotype), copied
+    )
+    order = np.argsort(left)
+    left, right, parent = (left[order], right[order], parent[order])
+    roots = parent == 1
+    path = [(int(l), int(r), int(p)) for l, r, p in zip(left, right, parent)]
+    return dict(
+        example=name,
+        mode=mode,
+        root_edges=int(roots.sum()),
+        root_span_bp=float((right - left)[roots].sum()),
+        mismatches=int(np.sum(np.asarray(haplotype) != copied)),
+        path=json.dumps(path),
+        module_file=str(_tsinfer.__file__),
+    )

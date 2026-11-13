@@ -2,8 +2,9 @@
 
 ## Scope
 
-This is the revised plan, not an instruction to implement the refactor now.
-The current change updates only this document and the root `AGENTS.md`.
+Implemented at the user's request on 12–13 November 2026. The execution record
+below gives all phase commits, validation evidence and historical-environment
+limitations. The specified structure and ownership are now implemented.
 
 Keep a simple personal research workspace with two distinct responsibilities:
 rough notebook work, and reproducible, polished thesis outputs. Consolidate
@@ -562,10 +563,10 @@ Chapter READMEs document analyses and commands, not exceptions to root policy.
 
 ## Implementation phases and commit titles
 
-This remains a planning-only change: do not execute these phases or make their
-commits now. Once implementation is explicitly requested, carry the complete
-plan through all phases without asking the user to choose routine destinations,
-find callers or approve each phase. Use judgement within the stated structure;
+The user authorised the complete implementation and all phase commits. These
+phase descriptions record the agreed work and acceptance checks; completion
+evidence is recorded below. Implementation proceeds without asking the user
+to choose routine destinations or find callers or approve each phase. Use judgement within the stated structure;
 only a genuinely missing scientific decision or unavailable required input
 justifies a blocker. Continue all independent work and record the exact gap.
 
@@ -755,13 +756,11 @@ target. Do not silently defer code, documentation or consumer cleanup.
 
 ## Execution record
 
-Leave this table planned during the current documentation-only task. During
-implementation, update it in each phase commit with actual evidence and the
-preceding phase's commit hash. In phase 8, use `this commit` for its own hash
-cell and report the exact final hash in the handover; a commit cannot include
-its own hash. Keep any remaining data/blocker details with the relevant phase
-and chapter README. Do not add an ongoing tracking framework or leave the final
-table as an unverified checklist.
+The complete migration was authorised and implemented. Each row records its
+commit and concrete verification. Phase 8 uses `this commit` for its own hash;
+the exact final hash is reported in the handover. Historical environment and
+producer-provenance limits are documented alongside their analyses, separately
+from the successful maintained thesis build.
 
 | Phase | Exact commit title | Status | Commit | Evidence or precise blocker |
 | --- | --- | --- | --- | --- |
@@ -771,5 +770,5 @@ table as an unverified checklist.
 | 4 | Move standalone scripts and remove experiments | Complete | b04a5f6 | Four flat scripts; exporter/driver help passes; reusable workers in CH5 nb_utils. Moved 22 data units with equal counts/bytes and verified 13,895 experiment scientific files by SHA-256. All four recorded symlinks resolve. experiments is absent; active references and docs updated. |
 | 5 | Preserve notebook outputs and document chapter analyses | Complete | 2ec585f | All 19 pairs/visible records preserved and allowed by ignore rules; every notebook has inputs, methods and explicit selected-cell evidence. 19 selected checks passed in isolated temporary destinations, using multiprocessing queues; representative figures inspected. No upstream inference/dating jobs launched. |
 | 6 | Add the CH3 thesis plot and statistics workflow | Complete | 914e8e8 | Independent final subset; six producing preparation jobs, 23 individually declared figures and named TeX/statistics outputs. Temporary and configured-destination builds passed; nine retained numerical tables match, all figures inspected, incremental and missing-input checks passed. Mechanical thesis integration committed as 691af19 in dphil-thesis. See thesis_inputs.json, thesis_claims.md, thesis_validation.json and refactor_validation.md. |
-| 7 | Add minimal tests for finalised chapter code | Complete | this commit | Exactly six class-based synthetic checks: four final CH3 pooling/tail/histogram/paired-performance cases and two retained CH4 masked-window/ranking cases. Collection restricted to tests; all six pass without research data, sibling checkouts or HPC. No CH5, notebook, nb_ or presentation tests. |
-| 8 | Complete the repository reorganisation | Planned | — | — |
+| 7 | Add minimal tests for finalised chapter code | Complete | c779d5d | Exactly six class-based synthetic checks: four final CH3 pooling/tail/histogram/paired-performance cases and two retained CH4 masked-window/ranking cases. Collection restricted to tests; all six pass without research data, sibling checkouts or HPC. No CH5, notebook, nb_ or presentation tests. |
+| 8 | Complete the repository reorganisation | Complete | this commit | Permanent root policy installed verbatim; final layout/consumer audit passed, all 19 visible notebook records and 18 checkpoint records preserved, 13,895 scientific files and five symlinks verified. Five flat drivers; redundant/unused rough plotting helpers removed and explicit presentation calls exercised. Fresh portable locked installation and all six tests pass. Final 23-figure/60-value thesis build, nine numerical comparisons, deterministic statistics repeat and unchanged dry run pass; final thesis artifacts committed as 4d3b1d5. See refactor_final_audit.json and phase 8 validation. No required thesis build blocker; historical native reruns require their recorded environment. |

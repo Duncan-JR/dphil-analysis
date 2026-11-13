@@ -37,9 +37,14 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/ch3", "src/ch4", "src/ch5"]
 
+# Replace the pinned tsinfer checkout's machine-specific tsls source with the
+# identical retained release built from commit c560b405761ae09625e266d39c2356ccc4b54b69.
+[tool.uv]
+override-dependencies = ["tsls==0.1.dev121"]
+
 [tool.uv.sources]
 tsinfer = { git = "https://github.com/Duncan-JR/tsinfer", rev = "e2f8de7c950179215ece27e1d31c7b096308b4c8" }
-tsls = { git = "file:///Users/duncan/work/tsls", rev = "c560b405761ae09625e266d39c2356ccc4b54b69" }
+tsls = { path = "data/general/dependencies/tsls-0.1.dev121.tar.gz" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

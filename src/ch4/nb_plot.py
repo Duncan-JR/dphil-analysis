@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pathlib
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -895,25 +894,6 @@ def plot_real_tier_3_epsilon_against_simulation_estimates(
     return fig
 
 
-def configure_notebook(settings):
-    """Apply explicit notebook display defaults."""
-    plt.rcParams.update(settings)
-
-
 def close_figure(figure):
     """Release an already-displayed notebook figure."""
     plt.close(figure)
-
-
-def save_notebook_figure(
-    figure, path, *, dpi=150, bbox_inches="tight", facecolor="white"
-):
-    """Save a local exploratory figure at its explicit notebook destination."""
-    path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(path, dpi=dpi, bbox_inches=bbox_inches, facecolor=facecolor)
-
-
-def resize_figure(figure, *, figsize):
-    """Set a displayed figure's physical dimensions explicitly."""
-    figure.set_size_inches(*figsize)

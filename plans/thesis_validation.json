@@ -163,14 +163,23 @@
     "parameter_change": "Changing configured plot DPI in an isolated config causes params-triggered plot/statistics jobs in a dry run. Actual final corrected-focal filter configuration triggered regeneration.",
     "helper_change": "Actual changes to maintained preparation and plotting helpers invalidated their producing and consuming rules; final full generation passed.",
     "missing_data": "Fresh work directory plus missing aggregate fails with MissingInputException naming ch3_prepare_comparisons and the missing CSV. No artifacts emitted.",
-    "destination": "Full default build into ../dphil-thesis passed.",
-    "destination_noop": "Default destination follow-up dry-run has nothing to do."
+    "destination": "Final full default build into ../dphil-thesis passed after the portable dependency input and deterministic diagnostic ordering changes; all 23 figures and 60 TeX values generated.",
+    "destination_noop": "Default destination follow-up dry-run has nothing to do.",
+    "deterministic_statistics": "Forced ch3_statistics a second time; ch3_checks.json SHA-256 identical. Compared the final diagnostic JSON with thesis commit 691af19: only row order changed, no calculated values."
   },
   "tex": {
     "defined_macros": 60,
     "referenced_macros": 59,
     "mechanical_edit": "Reversing every recorded macro substitution and removing the input line restores the original thesis source exactly. No prose was rewritten.",
     "smoke_compile": "All 60 generated TeX macros compile in a standalone two-page pdflatex validation document.",
-    "thesis_commit": "691af19"
+    "thesis_commit": "691af19",
+    "final_artifact_commit": "4d3b1d5"
+  },
+  "installation": {
+    "source": "Same pinned tsls commit c560b405761ae09625e266d39c2356ccc4b54b69, version 0.1.dev121; 149 Python/C/header source files verified against its original checkout, excluding generated version metadata.",
+    "portable": "Fresh locked sync passed in an isolated directory containing only chapter source, tests, packaging files and the retained tsls source distribution. Locked package wheels were downloaded; no scientific data or sibling checkouts were present.",
+    "tests": "All six maintained tests passed in the isolated installation (7.38 seconds) and root environment (0.78 seconds).",
+    "offline": "Root locked offline sync passed with the retained archive.",
+    "dependencies": "Project metadata, lockfile and relative tsls archive explicitly declared as rule inputs."
   }
 }

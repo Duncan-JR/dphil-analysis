@@ -276,3 +276,22 @@ configuration is presented as original provenance.
 provisional interpretation. `tie_breaking` retains its archived reproduction
 source as evidence beside the inputs; ordinary execution reads saved outputs
 and leaves its explicit expensive-reproduction flag false.
+
+The optional native tie-breaking command now uses the flat
+`scripts/compare_tie_breaking.py` entry point, with preparation/workers and
+scientific summaries in `ch5.nb_utils`. Its original source snapshots remain
+immutable provenance, rather than active imported helpers. The explicit
+`run_experiments=False` cell preserves ordinary saved-result execution.
+See `scripts/README.md` for the historical native-API/compiler requirement.
+
+Notebook plot DPI and spine visibility are explicit call keywords; no global
+style-setting cell or notebook plotting config object is needed. The shared
+benchmark panel constructor returns named figure/axes fields, matching the
+grid-panel interface. All affected consumers were updated together.
+`ancestor_coverage` reads shared truth through
+`data/general/simulated_error_truth`, also used by chapter 4.
+
+Older ignored autosave checkpoints are retained unchanged, with their visible
+outputs and original source snapshots, in the committed
+`data/ch5/provenance/notebook_checkpoints.zip` recovery archive. They are
+historical records; use the directly tracked current notebook pairs above.

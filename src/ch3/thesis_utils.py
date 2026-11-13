@@ -1457,6 +1457,7 @@ def write_statistics(paths, settings, tex_path, claims_path, checks_path):
     pooled = (
         overlap_query.group_by(["error_profile", "version"])
         .agg(pl.col("num_errors").sum(), pl.col("overlap_site_span").sum())
+        .sort(["error_profile", "version"])
         .collect()
     )
     pooled = pd.DataFrame(pooled.to_dict(as_series=False))
@@ -1488,6 +1489,7 @@ def write_statistics(paths, settings, tex_path, claims_path, checks_path):
     severe = (
         sides.group_by(["error_profile", "geno_multiplier", "version"])
         .agg(pl.col("severe").sum().alias("severe_focal_sites"))
+        .sort(["error_profile", "geno_multiplier", "version"])
         .collect()
     )
     severe = pd.DataFrame(severe.to_dict(as_series=False))

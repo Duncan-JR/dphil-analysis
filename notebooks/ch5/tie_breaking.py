@@ -387,8 +387,10 @@ print("All paired real-data likelihood, mismatch and root-edge checks passed.")
 # and reconstructed genotype arrays live in temporary directories. There are no
 # permanent source or extension changes in tsinfer.
 #
-# The source snapshots reproduce the experiment with the existing tsinfer and
-# tsinfer-match-eval environments; `uv run` is used for Python tooling. The
+# Archived source snapshots preserve the original native experiment as provenance.
+# The active entry point is scripts/compare_tie_breaking.py; it requires the
+# recorded historical tsinfer source/API and a worker environment with this
+# workspace installed. `uv run` is used for Python tooling. The
 # following opt-in cell runs all three builds and writes a fresh set of results.
 # It needs a C compiler, the recorded local input archives, and the checkout at
 # the recorded revision. Ordinary notebook execution only reads saved results
@@ -400,11 +402,8 @@ if run_experiments:
     command = [
         "uv",
         "run",
-        "--no-project",
-        "--python",
-        settings["matching_python"],
         "python",
-        str(artifact_dir / "source/reproduce.py"),
+        str(repository_dir / "scripts/compare_tie_breaking.py"),
         "--config",
         str(artifact_dir / "experiment_config.json"),
         "--output",

@@ -108,7 +108,6 @@ ac_colors = dict(
     )
 )
 mismatch_colors = dict(zip(mismatch_allowances, ["#0072B2", "#D55E00"], strict=True))
-nb_plot.configure_notebook({"figure.dpi": 120, "font.size": 10})
 
 # %% [markdown]
 # ## Load and validate the saved runs
@@ -174,6 +173,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(
         fig, "extra_switches_vs_mismatch_allowance", output_dir=output_dir
@@ -201,6 +203,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(
         fig, "switch_increase_vs_mismatch_allowance", output_dir=output_dir
@@ -239,6 +244,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "focal_region_coverage", output_dir=output_dir)
 
@@ -265,6 +273,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "focal_region_length_distributions", output_dir=output_dir)
 
@@ -295,6 +306,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "gap_coverage", output_dir=output_dir)
 
@@ -321,6 +335,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "gap_length_distributions", output_dir=output_dir)
 
@@ -355,6 +372,9 @@ if __name__ == "__main__":
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
         baseline_partition=10,
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "switch_composition_changes", output_dir=output_dir)
 
@@ -388,6 +408,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "parent_agreement_in_focal_regions", output_dir=output_dir)
 
@@ -413,6 +436,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "parent_agreement_in_gaps", output_dir=output_dir)
 
@@ -453,6 +479,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "comparison_of_ts_statistics", output_dir=output_dir)
 
@@ -503,6 +532,9 @@ if __name__ == "__main__":
         x_label="AC cutoff",
         curve_label="{value} mismatches allowed",
         x_value_label="AC {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "comparing_arg_metrics", output_dir=output_dir)
 
@@ -546,6 +578,9 @@ if __name__ == "__main__":
         x_value_label="AC {value}",
         baseline_x=1,
         stitched_method="stitched_hmm",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "arg_metrics_against_truth", output_dir=output_dir)
 
@@ -612,6 +647,9 @@ if __name__ == "__main__":
         panel_width=7,
         x_label="AC cutoff",
         x_parameter="ac_cutoff",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "mutation_age_correlations", output_dir=output_dir)
 
@@ -646,6 +684,9 @@ if __name__ == "__main__":
         panel_width=7,
         x_label="AC cutoff",
         x_parameter="ac_cutoff",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(
         fig, "mutation_age_correlations_by_frequency", output_dir=output_dir
@@ -685,6 +726,9 @@ if __name__ == "__main__":
                 identity_color="#D55E00",
                 panel_size=3.6,
                 x_parameter="ac_cutoff",
+                dpi=120,
+                show_top_spine=True,
+                show_right_spine=True,
             )
             nb_plot.save_figure(
                 fig, f"mutation_age_density_{dataset['name']}", output_dir=output_dir

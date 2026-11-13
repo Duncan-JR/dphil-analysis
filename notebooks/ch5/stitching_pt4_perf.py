@@ -49,27 +49,15 @@ config_path = {
         "analysis_span_bp": [1000000, 31000000],
     },
     "correctness": {"mode": "from_reference", "repeat": 0},
-    "methods": {
-        "full_hmm": {"label": "Full HMM", "color": "#0072B2"},
-        "reduced_hmm": {"label": "Reduced HMM", "color": "#D55E00"},
-        "greedy": {"label": "Greedy", "color": "#009E73"},
-    },
+    "methods": {"full_hmm": {}, "reduced_hmm": {}, "greedy": {}},
 }
 config_path["base_dir"] = repository_dir
 config = config_path
 output_dir = nb_utils.resolve_path(config["output_dir"], repository_dir)
 methods = list(config["methods"])
 stitched_methods = [method for method in methods if method != "full_hmm"]
-colors = {method: values["color"] for method, values in config["methods"].items()}
-labels = {method: values["label"] for method, values in config["methods"].items()}
-nb_plot.configure_notebook(
-    {
-        "figure.dpi": 120,
-        "font.size": 10,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-    }
-)
+colors = {"full_hmm": "#0072B2", "reduced_hmm": "#D55E00", "greedy": "#009E73"}
+labels = {"full_hmm": "Full HMM", "reduced_hmm": "Reduced HMM", "greedy": "Greedy"}
 
 # %%
 if __name__ == "__main__":
@@ -109,9 +97,17 @@ if __name__ == "__main__":
 if __name__ == "__main__":
     message = f"**{len(results.quality)} saved checks passed:** zero allele reconstruction errors and zero mismatches."
     ipython_display.display(ipython_display.Markdown(message))
-    fig, axes = nb_plot.panels(
-        columns=2, rows=2, plot_panel_height=4.7, plot_panel_width=7
+    figure_panels = nb_plot.panels(
+        columns=2,
+        rows=2,
+        plot_panel_height=4.7,
+        plot_panel_width=7,
+        dpi=120,
+        show_top_spine=False,
+        show_right_spine=False,
     )
+    fig = figure_panels.figure
+    axes = figure_panels.axes
     nb_plot.distribution(
         axes[0, 0],
         "num_extra_switches",
@@ -153,7 +149,15 @@ if __name__ == "__main__":
 
 # %%
 if __name__ == "__main__":
-    fig, axes = nb_plot.panels(plot_panel_height=4.7, plot_panel_width=7)
+    figure_panels = nb_plot.panels(
+        plot_panel_height=4.7,
+        plot_panel_width=7,
+        dpi=120,
+        show_top_spine=False,
+        show_right_spine=False,
+    )
+    fig = figure_panels.figure
+    axes = figure_panels.axes
     nb_plot.resize_figure(fig, figsize=(10, 4.7))
     ax = axes[0, 0]
     selected = runs.loc[runs["mode"].eq("from_reference")]
@@ -211,7 +215,16 @@ if __name__ == "__main__":
 # %%
 if __name__ == "__main__":
     resident = runs.loc[runs["mode"].eq("resident_match")]
-    fig, axes = nb_plot.panels(columns=2, plot_panel_height=4.7, plot_panel_width=7)
+    figure_panels = nb_plot.panels(
+        columns=2,
+        plot_panel_height=4.7,
+        plot_panel_width=7,
+        dpi=120,
+        show_top_spine=False,
+        show_right_spine=False,
+    )
+    fig = figure_panels.figure
+    axes = figure_panels.axes
     ax = axes[0, 0]
     full_mean = resident.loc[
         resident.method.eq("full_hmm"), "wall_ms_per_haplotype"
@@ -281,7 +294,16 @@ if __name__ == "__main__":
 
 # %%
 if __name__ == "__main__":
-    fig, axes = nb_plot.panels(columns=2, plot_panel_height=4.7, plot_panel_width=7)
+    figure_panels = nb_plot.panels(
+        columns=2,
+        plot_panel_height=4.7,
+        plot_panel_width=7,
+        dpi=120,
+        show_top_spine=False,
+        show_right_spine=False,
+    )
+    fig = figure_panels.figure
+    axes = figure_panels.axes
     ax = axes[0, 0]
     width = 0.3
     mode_count = len(
@@ -364,4 +386,7 @@ if __name__ == "__main__":
         ylabel_2="Samples",
         xlabel_2="Samples",
         title="Population",
+        dpi=120,
+        show_top_spine=False,
+        show_right_spine=False,
     )

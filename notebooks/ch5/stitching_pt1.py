@@ -138,7 +138,6 @@ if not coverage_input_dir.is_absolute():
     coverage_input_dir = repository_dir / coverage_input_dir
 if not gap_comparison_dir.is_absolute():
     gap_comparison_dir = repository_dir / gap_comparison_dir
-nb_plot.configure_notebook({"figure.dpi": 120, "font.size": 10})
 diagnosing_stitched_focal_and_gap_matches_result = nb_plot.make_path_colormaps()
 category_cmap = diagnosing_stitched_focal_and_gap_matches_result.category_cmap
 category_norm = diagnosing_stitched_focal_and_gap_matches_result.category_norm
@@ -210,6 +209,9 @@ coverage_agreement_and_switches_across_the_saved_haplotypes_result = (
         fontsize="small",
         height=0.35,
         xlabel_2="Parent switches (upper: full HMM; lower: stitched)",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
 )
 handles = coverage_agreement_and_switches_across_the_saved_haplotypes_result.handles
@@ -231,7 +233,13 @@ ipython_display.display(switch_table)
 
 # %%
 nb_plot.plot_extra_switch_fraction(
-    datasets=datasets, figsize=[16, 4], color="#6A3D9A", ylim=(0, 1)
+    datasets=datasets,
+    figsize=[16, 4],
+    color="#6A3D9A",
+    ylim=(0, 1),
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]
@@ -254,6 +262,9 @@ coverage_handles = (
         source_cmap=source_cmap,
         source_norm=source_norm,
         figsize=[16, 7],
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
 )
 
@@ -280,6 +291,9 @@ for dataset in datasets:
         plot_stitched_color="#6A3D9A",
         source_cmap=source_cmap,
         source_norm=source_norm,
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
 
 # %% [markdown]
@@ -368,6 +382,9 @@ for dataset in datasets:
             plot_stitched_color="#6A3D9A",
             source_cmap=source_cmap,
             source_norm=source_norm,
+            dpi=120,
+            show_top_spine=True,
+            show_right_spine=True,
         )
 
 # %% [markdown]
@@ -397,6 +414,9 @@ nb_plot.plot_does_disagreement_concentrate_near_focal_gap_seams(
     ylim=(0, 1),
     xlabel="Distance to nearest seam (inference-site steps)",
     alpha=0.2,
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 distance_table = pd.DataFrame(distance_rows)
 ipython_display.display(distance_table.loc[distance_table.num_sites > 0].round(4))
@@ -464,6 +484,9 @@ nb_plot.plot_gap_determination(
     figsize=(12, 4),
     width=0.35,
     ylabel="Number of maximal gap intervals",
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %%
@@ -474,6 +497,9 @@ nb_plot.plot_gap_determination_2(
     width=0.35,
     ylabel="Total number of gap intervals across saved haplotypes",
     title="Total gaps: HMM extraction versus zero-mismatch coverage",
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %%
@@ -483,11 +509,20 @@ handles = nb_plot.plot_gap_determination_3(
     figsize=(12, 5),
     xlim=(0, 1),
     xlabel="Fraction of inference sites",
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %%
 nb_plot.plot_gap_determination_4(
-    datasets=datasets, gap_comparisons=gap_comparisons, handles=handles, figsize=(12, 6)
+    datasets=datasets,
+    gap_comparisons=gap_comparisons,
+    handles=handles,
+    figsize=(12, 6),
+    dpi=120,
+    show_top_spine=True,
+    show_right_spine=True,
 )
 
 # %% [markdown]

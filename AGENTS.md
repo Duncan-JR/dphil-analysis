@@ -1,6 +1,5 @@
 # AGENTS.md
 
-Migration in progress: phases 1–7 complete. The structure below is the target until phase 8; see `plans/refactor_project.md` for phase evidence.
 ## Git usage
 
 - Don't include Co-authored-By lines in git commits.
@@ -87,9 +86,10 @@ Migration in progress: phases 1–7 complete. The structure below is the target 
 
 ## Repository structure
 
-- This is a personal research and thesis workspace. Follow
-  `plans/refactor_project.md` for the planned migration; guidance here describes
-  the target organisation, not authorisation to implement that plan unasked.
+- This is a personal research and thesis workspace. These are the permanent
+  ownership rules for the implemented structure and all future changes. Read
+  this guidance and the relevant chapter README before editing. Superseded
+  plans and historical layouts do not override these rules.
 - Keep chapter packages directly in `src/ch3/`, `src/ch4/` and `src/ch5/`, with
   minimal `__init__.py` files. Import modules explicitly without compatibility
   aliases or `sys.path` edits.
@@ -109,9 +109,9 @@ Migration in progress: phases 1–7 complete. The structure below is the target 
 - Keep notebooks and Jupytext pairs in `notebooks/chN/`. Put notebook-specific
   methods, input/output descriptions, run notes and caveats in that folder's
   `README.md`. Read it before changing the chapter's notebooks.
-- There is no `experiments/` directory in the target structure. Move useful
-  notebooks, data, documentation and standalone drivers to their owners before
-  removing it. Do not recreate it under another name.
+- There is no `experiments/` directory. Put notebook work, data, documentation
+  and standalone drivers in their owners above. Do not recreate an experiments
+  collection under another name.
 - Put standalone entry points in a flat `scripts/` directory, with descriptive
   names and no chapter prefixes or chapter subdirectories. Use
   `extract_zarr_validation_data.py` and `extract_phase_data.py` for the existing
@@ -179,15 +179,15 @@ Migration in progress: phases 1–7 complete. The structure below is the target 
 ## Testing
 
 - Organise tests in classes, not flat functions. Use pytest fixtures for setup.
-- During the planned refactor, delete the old test suite from the repository.
-  Do not archive it, move it outside collection, skip it or keep compatibility
-  code for it. Protect current user work before applying planned deletions.
+- The old analysis test suite has been deleted. Do not restore or archive it,
+  move it outside collection, skip it or keep compatibility code for it. Git
+  history is the reference for retired tests.
 - Tests are only for finalised code: a few meaningful correctness cases for
   functions used by the final thesis plots/statistics and minimal chapter 4
   estimator/validation checks. Do not migrate the old suite wholesale.
 - Never test any chapter's `nb_utils.py`, `nb_plot.py`, notebooks or other rough
   work, regardless of reuse. Keep no chapter 5 tests, including metric or
-  algorithm tests. Do not create a chapter 5 suite as part of this refactor.
+  algorithm tests. Do not create a chapter 5 suite.
 - Use tiny synthetic known-answer cases or scientific invariants. Do not test
   plot labels, artist counts, styling, exact image/PDF bytes or notebook execution.
   Do not add coverage targets, generic test frameworks or personal-data/HPC

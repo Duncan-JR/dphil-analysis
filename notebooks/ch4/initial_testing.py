@@ -47,13 +47,12 @@ repository_dir = pathlib.Path.cwd()
 #    "~/work/tsinfer-anc-eval/data/anc_eval/simulated/"
 #    "OutOfAfrica_4J17-chr20-L0-R1e7-n600-s1-rep0.trees"
 # ).expanduser()
-zarr_dir = pathlib.Path(
-    "~/work/tsinfer-anc-eval/data/error_eval/zarr_vcfs/"
-).expanduser()
+zarr_dir = repository_dir / "data/general/zarr_vcfs/sim"
 zarr_prefix = "OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0"
-ts_path = pathlib.Path(
-    "~/work/tsinfer-anc-eval/data/error_eval/simulated/OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees"
-).expanduser()
+ts_path = (
+    repository_dir
+    / "data/general/simulated_error_truth/OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees"
+)
 recombination = (
     repository_dir / "data/general/HapMapII_GRCh38/genetic_map_Hg38_chr17.txt"
 ).expanduser()

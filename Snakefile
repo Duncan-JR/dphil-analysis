@@ -1,5 +1,6 @@
 """Maintained thesis outputs. Run from the analysis repository root."""
 import pathlib
+import tomllib
 
 from ch3 import steps, thesis_utils
 
@@ -9,8 +10,11 @@ CH3 = config["chapter3"]
 INPUTS = CH3["inputs"]
 THESIS = pathlib.Path(config["thesis_root"])
 WORK = pathlib.Path(config["work_root"])
-SOURCES = ["src/ch3/thesis_utils.py", "src/ch3/thesis_plot.py", "src/ch3/steps.py", "pyproject.toml", "uv.lock"]
-PREPARATION_SOURCES = ["src/ch3/thesis_utils.py", "pyproject.toml", "uv.lock"]
+PROJECT = tomllib.loads(pathlib.Path("pyproject.toml").read_text())
+TSLS_SOURCE = PROJECT["tool"]["uv"]["sources"]["tsls"]["path"]
+SOFTWARE_INPUTS = ["pyproject.toml", "uv.lock", TSLS_SOURCE]
+SOURCES = ["src/ch3/thesis_utils.py", "src/ch3/thesis_plot.py", "src/ch3/steps.py"] + SOFTWARE_INPUTS
+PREPARATION_SOURCES = ["src/ch3/thesis_utils.py"] + SOFTWARE_INPUTS
 FIGURE_NAMES = [
     "ancestor_extension_trees.pdf", "ancestor_extension_comparison.png", "anc_eval_pipe.png",
     "demography_overshoot_box.png", "demography_overlap_errors.png",

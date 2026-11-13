@@ -7,6 +7,9 @@ resolution-markers = [
     "sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[manifest]
+overrides = [{ name = "tsls", path = "data/general/dependencies/tsls-0.1.dev121.tar.gz" }]
+
 [[package]]
 name = "annotated-types"
 version = "0.8.0"
@@ -475,7 +478,7 @@ requires-dist = [
     { name = "tsdate", specifier = ">=0.2.7" },
     { name = "tsinfer", git = "https://github.com/Duncan-JR/tsinfer?rev=e2f8de7c950179215ece27e1d31c7b096308b4c8" },
     { name = "tskit" },
-    { name = "tsls", git = "file:///Users/duncan/work/tsls?rev=c560b405761ae09625e266d39c2356ccc4b54b69" },
+    { name = "tsls", path = "data/general/dependencies/tsls-0.1.dev121.tar.gz" },
     { name = "tszip", specifier = ">=0.3.1" },
     { name = "zarr", specifier = ">=3" },
 ]
@@ -2203,10 +2206,17 @@ wheels = [
 [[package]]
 name = "tsls"
 version = "0.1.dev121"
-source = { git = "file:///Users/duncan/work/tsls?rev=c560b405761ae09625e266d39c2356ccc4b54b69#c560b405761ae09625e266d39c2356ccc4b54b69" }
+source = { path = "data/general/dependencies/tsls-0.1.dev121.tar.gz" }
 dependencies = [
     { name = "numpy" },
     { name = "tskit" },
+]
+sdist = { hash = "sha256:d68fe3fd4e45d9e9bcacb7725a6d64bc66af4d624d0f8761d97d93c0961d118a" }
+
+[package.metadata]
+requires-dist = [
+    { name = "numpy", specifier = ">=2" },
+    { name = "tskit", specifier = ">=1.0.0" },
 ]
 
 [[package]]

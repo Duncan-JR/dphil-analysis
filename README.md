@@ -8,8 +8,10 @@ uv run jupyter lab notebooks/ch3/figure_gen.ipynb
 uv run python notebooks/ch5/stitching_pt13_jerome_update.py
 ```
 
-Use the repository root as the Jupyter kernel working directory too. Notebook
-cells use `pathlib.Path.cwd()` for this root and initialise scientific settings
+Use the repository root as the Jupyter kernel working directory too. Check `%pwd`
+in Jupyter; if the kernel started in `notebooks/chN/`, run `%cd ../..`
+before the first code cell. Notebook cells use `pathlib.Path.cwd()` for this
+root and initialise scientific settings
 explicitly. Presentation choices are plot-call keyword arguments. The committed
 `.ipynb` files preserve visible historical outputs; inspect both sides of a
 Jupytext pair before editing and reconcile code cells without clearing outputs.
@@ -23,7 +25,7 @@ Jupytext pair before editing and reconcile code cells without clearing outputs.
 - `scripts/`: flat standalone entry points. See [commands](scripts/README.md)
   for portable Zarr/phase exporters and the historical matching drivers.
 - `data/chN/`, `data/general/`: chapter-owned results and genuinely shared
-  stores/maps/metadata. Run configurations beside archived data are provenance.
+  stores/maps/metadata and simulated truth. Run configurations beside archived data are provenance.
 - `figures/chN/`: local exploratory exports, independent of maintained thesis
   output. Do not overwrite an earlier scientific run as incidental cleanup.
 
@@ -50,11 +52,11 @@ or benchmarks. Install `rsvg-convert` (librsvg) for the tree PDF. See
 for data identities, claim mappings and dependency restoration. Later chapters
 acquire thesis rules only when their final outputs are defined.
 
-The lockfile pins tsinfer and tsls source commits. The unpublished tsls commit
-is also retained in a committed Git bundle; a new installation needs that
-local Git object before `uv sync --locked`. This workspace's source URL names
-`/Users/duncan/work/tsls`; restoration and relocation are documented in the
-chapter 3 README. The bundle, rather than a moving checkout, identifies the code.
+The lockfile pins tsinfer and a retained tsls source distribution built from
+commit `c560b405761ae09625e266d39c2356ccc4b54b69`. Both dependency Git histories
+are backed up under `data/general/dependencies/`. The relative source archive
+and explicit same-version UV override remove the unpublished dependency's
+machine-specific sibling URL. No sibling checkout is needed for installation.
 
 The maintained test suite contains six synthetic correctness cases for final
 chapter 3 calculations and retained chapter 4 methods. It needs no research

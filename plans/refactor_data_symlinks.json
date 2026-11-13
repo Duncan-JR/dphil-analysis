@@ -18,5 +18,12 @@
     "path": "data/ch3/alt_version/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1-aggregated.csv",
     "target": "/Users/duncan/work/dphil-analysis/data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1-aggregated_alt_version.csv",
     "resolves": true
+  },
+  {
+    "path": "data/general/simulated_error_truth",
+    "previous_path": "data/trees/error_sim",
+    "target": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated",
+    "resolves": true,
+    "ownership": "Shared error-evaluation simulated truth used by CH4 validation and CH5 ancestor coverage"
   }
 ]

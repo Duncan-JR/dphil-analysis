@@ -32,9 +32,7 @@ repository_dir = pathlib.Path.cwd()
 # Uncomment both alternatives together to run the 10 Mb analysis later.
 # All available CPUs; use 1 to avoid process startup on small runs.
 match_eval_dir = pathlib.Path("~/work/tsinfer-match-eval/data/match_eval").expanduser()
-simulation_dir = pathlib.Path(
-    "~/work/tsinfer-anc-eval/data/error_eval/simulated"
-).expanduser()
+simulation_dir = repository_dir / "data/general/simulated_error_truth"
 dataset_names = {"stdpopsim": "out_of_africa_n100_1mbp", "1KGP": "tgp_chr20_n100_1mbp"}
 simulation_ts = simulation_dir / "OutOfAfrica_4J17-chr20-L0-R1e6-n100-s1-rep0.trees"
 dataset_names = {"stdpopsim": "out_of_africa_n100_10mbp", "1KGP": "tgp_chr20_n100"}

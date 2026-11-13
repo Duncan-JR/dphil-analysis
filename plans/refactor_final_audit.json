@@ -1,0 +1,148 @@
+{
+  "date": "2026-11-13",
+  "status": "All structural and consumer acceptance checks passed",
+  "layout": {
+    "ch3": [
+      "__init__.py",
+      "nb_plot.py",
+      "nb_utils.py",
+      "steps.py",
+      "thesis_plot.py",
+      "thesis_utils.py"
+    ],
+    "ch4": [
+      "__init__.py",
+      "error_estimation.py",
+      "error_validation.py",
+      "nb_plot.py",
+      "nb_utils.py"
+    ],
+    "ch5": [
+      "__init__.py",
+      "nb_plot.py",
+      "nb_utils.py"
+    ]
+  },
+  "scripts": [
+    "chunk_matching.py",
+    "compare_tie_breaking.py",
+    "extract_phase_data.py",
+    "extract_zarr_validation_data.py",
+    "stitching_method_comparison.py"
+  ],
+  "notebooks": {
+    "current_pairs": 19,
+    "visible_records": "All original output/attachment/execution-count hashes and cell counts preserved",
+    "selected_reruns": "All 19 passed; exact cells in refactor_notebook_reruns.json",
+    "historical_checkpoint_records": 18,
+    "checkpoint_archives": "Three chapter-owned recovery ZIPs, exact member SHA-256 checks, committed with the final phase"
+  },
+  "data": {
+    "verified_experiment_scientific_files": 13895,
+    "symlinks": 5,
+    "root_owners": [
+      "ch3",
+      "ch4",
+      "ch5",
+      "general"
+    ],
+    "temporary_logs": "Retained as chapter 3 producer/notebook-run provenance; obsolete writing scripts retired after external protection"
+  },
+  "test_files": [
+    "tests/ch3/test_thesis_utils.py",
+    "tests/ch4/test_methods.py"
+  ],
+  "permanent_guidance": "Root ownership and maintenance policy exactly matches the plan required content",
+  "rough_helpers_removed": [
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "plot_genotype_overshoot_mean",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "plot_genotype_overshoot_scatter",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "plot_phasing_overshoot_mean",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "plot_phasing_overshoot_scatter",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "configure_notebook",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "resize_figure",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch4/nb_plot.py",
+      "definition": "configure_notebook",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch4/nb_plot.py",
+      "definition": "save_notebook_figure",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch4/nb_plot.py",
+      "definition": "resize_figure",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch5/nb_plot.py",
+      "definition": "configure_notebook",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch5/nb_plot.py",
+      "definition": "close_figure",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    },
+    {
+      "module": "src/ch3/nb_plot.py",
+      "definition": "_overshoot_mean",
+      "outcome": "Removed unused rough helper after searching every chapter notebook, paired source, module and script; historical implementation remains in Git"
+    }
+  ],
+  "native_tie_breaking": "Active CLI and helpers migrated; saved summary rebuilt from retained paths/references and compared with all four archived tables. Native matching intentionally not launched; missing historical MatcherIndexes/AncestorMatcher API fails before native builds.",
+  "test_results": {
+    "collected": 6,
+    "passed": 6,
+    "root_seconds": 0.78,
+    "isolated_seconds": 7.38,
+    "personal_data_or_siblings_required": false
+  },
+  "consumers": {
+    "signature_mismatches": 0,
+    "selected_notebook_checks_passed": 19,
+    "shared_truth_notebooks_rechecked_after_move": [
+      "ch4/initial_testing",
+      "ch5/ancestor_coverage"
+    ],
+    "cli_help_checks_passed": 5,
+    "undefined_name_check": "Passed"
+  },
+  "thesis": {
+    "figures_built": 23,
+    "tex_values": 60,
+    "reference_tables_matched": 9,
+    "tolerance": 1e-09,
+    "unchanged_dry_run": "Nothing to do",
+    "forced_statistics_repeat": "Identical diagnostic JSON SHA-256; no calculated values changed",
+    "integration_commit": "691af19",
+    "final_artifact_commit": "4d3b1d5",
+    "required_build_blockers": []
+  },
+  "installation": "Fresh locked installation and six tests passed with the relative retained tsls source archive, without research data or sibling checkouts. Native historical matching requires its separately recorded source/environment."
+}

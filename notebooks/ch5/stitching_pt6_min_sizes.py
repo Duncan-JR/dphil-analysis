@@ -18,7 +18,8 @@
 # %% [markdown]
 # # Stitching hyperparameters: minimum focal-region size
 #
-# Read the current `match-eval/config.yaml` parameter grid: Greedy matching,
+# Initialise the historical grid from retained run-summary/raw-file identities:
+# Greedy matching,
 # AC 10 and 20, zero mismatches, minimum focal sizes 1, 25, 50, 100 and 200
 # inference sites. The minimum applies to connected focal regions after union.
 # Simulation is on the left and 1KGP on the right. Both diploid
@@ -118,7 +119,6 @@ minimum_colors = dict(
     )
 )
 cutoff_colors = dict(zip(ac_cutoffs, ["#0072B2", "#D55E00"], strict=True))
-nb_plot.configure_notebook({"figure.dpi": 120, "font.size": 10})
 
 # %% [markdown]
 # ## Load and validate the saved runs
@@ -184,6 +184,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(
         fig, "extra_switches_vs_minimum_focal_size", output_dir=output_dir
@@ -211,6 +214,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(
         fig, "switch_increase_vs_minimum_focal_size", output_dir=output_dir
@@ -249,6 +255,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "focal_region_coverage", output_dir=output_dir)
 
@@ -275,6 +284,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "focal_region_length_distributions", output_dir=output_dir)
 
@@ -305,6 +317,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "gap_coverage", output_dir=output_dir)
 
@@ -331,6 +346,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "gap_length_distributions", output_dir=output_dir)
 
@@ -365,6 +383,9 @@ if __name__ == "__main__":
         curve_label="AC {value}",
         x_value_label="Min {value}",
         baseline_partition=1,
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "switch_composition_changes", output_dir=output_dir)
 
@@ -398,6 +419,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "parent_agreement_in_focal_regions", output_dir=output_dir)
 
@@ -423,6 +447,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "parent_agreement_in_gaps", output_dir=output_dir)
 
@@ -462,6 +489,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "comparison_of_ts_statistics", output_dir=output_dir)
 
@@ -509,6 +539,9 @@ if __name__ == "__main__":
         x_label="Minimum focal size (inference sites)",
         curve_label="AC {value}",
         x_value_label="Min {value}",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "comparing_arg_metrics", output_dir=output_dir)
 
@@ -553,6 +586,9 @@ if __name__ == "__main__":
         x_value_label="Min {value}",
         baseline_x=1,
         stitched_method="stitched_greedy",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "arg_metrics_against_truth", output_dir=output_dir)
 
@@ -617,6 +653,9 @@ if __name__ == "__main__":
         panel_width=7,
         x_label="Minimum focal size (inference sites)",
         x_parameter="min_focal_region_size",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(fig, "mutation_age_correlations", output_dir=output_dir)
 
@@ -651,6 +690,9 @@ if __name__ == "__main__":
         panel_width=7,
         x_label="Minimum focal size (inference sites)",
         x_parameter="min_focal_region_size",
+        dpi=120,
+        show_top_spine=True,
+        show_right_spine=True,
     )
     nb_plot.save_figure(
         fig, "mutation_age_correlations_by_frequency", output_dir=output_dir
@@ -690,6 +732,9 @@ if __name__ == "__main__":
                 identity_color="#D55E00",
                 panel_size=3.6,
                 x_parameter="min_focal_region_size",
+                dpi=120,
+                show_top_spine=True,
+                show_right_spine=True,
             )
             nb_plot.save_figure(
                 fig, f"mutation_age_density_{dataset['name']}", output_dir=output_dir

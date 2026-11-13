@@ -3,8 +3,8 @@
   "python": "3.12.13",
   "lockfile": {
     "path": "uv.lock",
-    "bytes": 224840,
-    "sha256": "27543853d566e0053fe8ad4b30ca499355e9444686835168771ed49af4e03c02"
+    "bytes": 225073,
+    "sha256": "3f42c45219f3fae405f19d675282a4e6f771d199811f6dcf4d6f074c0bf6c86e"
   },
   "dependency_revisions": {
     "tsinfer": "e2f8de7c950179215ece27e1d31c7b096308b4c8",
@@ -704,13 +704,13 @@
   "dependency_backups": [
     {
       "path": "data/general/dependencies/tsls.bundle",
-      "bytes": 1401404,
-      "sha256": "61711df0599881c9da2304b21f6a2a5798501b9de14b98b13c76674081a039a2"
+      "bytes": 1401073,
+      "sha256": "c56e2385c4502fc4a1dac5981eb9100458131d02baa83dbf4f50b34b227da2f9"
     },
     {
       "path": "data/general/dependencies/tsinfer.bundle",
-      "bytes": 6326884,
-      "sha256": "1f73488798ef729f79344955a7c02436042067e5f91936a290cf8225c24eb081"
+      "bytes": 5923501,
+      "sha256": "a005ca692ab351dbaeceb70d9bef700554d4826a46bf68233197c4d367d458f2"
     }
   ],
   "producing_commands": {
@@ -725,6 +725,18 @@
     "primary": "All identified analysis inputs are retained at the listed data/ch3 and data/general paths. Large inputs are deliberately not stored in Git. Do not remove them as caches.",
     "source_copies": "Other-demography aggregates also remain in ../tsinfer-anc-eval/data/anc_eval/dataframes; performance CSV remains in ../tsinfer-perf-benchmark/data/dataframes; original final figures remain in ../dphil-thesis until the maintained build is invoked there. Main aggregate/validation exports predate this migration and remain retained in data/ch3.",
     "upstream_machine": "Benchmark provenance names cloudcomp113.hpc.in.bmrc.ox.ac.uk. Its config records /well/kelleher/users/uuc395/tsinfer-anc-eval and /well/kelleher/users/uuc395/tsinfer-snakemake inputs; remote contents/backup availability were not reverified during this local refactor.",
-    "source_backup": "Pinned tsinfer and tsls Git bundles are committed under data/general/dependencies. tsls pinned commit is not on a local remote-tracking branch, so restore from its bundle rather than assuming GitHub has it."
+    "source_backup": "The relative, committed tsls source distribution is used by the locked installation; no sibling checkout is required. Pinned tsinfer and tsls Git histories are also committed under data/general/dependencies for recovery. The unpublished tsls commit can be restored from its bundle without assuming GitHub has it."
+  },
+  "dependency_backup_refinement": "13 November 2026: recovery bundles contain only a pinned ref and HEAD, with complete reachable history, excluding unrelated branches/stashes.",
+  "tsls_source_distribution": {
+    "path": "data/general/dependencies/tsls-0.1.dev121.tar.gz",
+    "bytes": 2321486,
+    "sha256": "d68fe3fd4e45d9e9bcacb7725a6d64bc66af4d624d0f8761d97d93c0961d118a",
+    "source_commit": "c560b405761ae09625e266d39c2356ccc4b54b69",
+    "version": "0.1.dev121",
+    "tskit_submodule": "143cd7845774e323fa7992f9f7e6d8ef9cc5bbda",
+    "matched_source_files": 149,
+    "build_command": "UV_CACHE_DIR=/private/tmp/dphil_uv_cache uv build --sdist --offline --no-create-gitignore --out-dir /private/tmp/dphil_tsls_sdist /private/tmp/dphil_uv_cache/git-v1/checkouts/a76918320f529efc/c560b40",
+    "note": "Source distribution from the exact already-installed pinned Git checkout, retaining the same version and matching Python/C/header bytes. Relative root source plus explicit same-version UV override replaces the upstream machine-specific transitive Git URL."
   }
 }

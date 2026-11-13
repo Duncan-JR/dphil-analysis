@@ -133,3 +133,69 @@ All six pass locally in under two seconds. Inputs are tiny synthetic arrays
 and frames; there are no research-data, sibling-checkout or HPC requirements.
 No rough helper, notebook, plotting-artist/style, chapter 5 or old-suite tests
 were added or retained. Production methods were not complicated to fit tests.
+
+## Phase 8
+
+The final acceptance audit passed on 13 November 2026. The permanent root
+ownership/maintenance guidance matches the plan's required content verbatim.
+The source tree has exactly the fourteen specified chapter files and five flat
+drivers. All active notebook and script consumers were checked against the
+consolidated helper signatures, with zero mismatches. Twelve unused rough
+helpers were removed. Shared plotting remains specific to each geometry;
+benchmark panels return a dataclass, and notebook DPI, spine, colour and label
+choices are explicit plot-call arguments. Updated plotting calls were exercised
+on retained data and inspected against the earlier figures.
+
+All nineteen notebook pairs retain their original visible-record hashes and
+cell counts. Their selected-cell checks pass in separate temporary destinations;
+this does not relabel historical saved outputs as new runs. Eighteen ignored
+autosave source/notebook records were also preserved byte-for-byte in three
+chapter-owned recovery ZIPs. Their member hashes and the final artifact outcomes
+are recorded in `refactor_checkpoint_preservation.json` and
+`refactor_final_retirements.json`. Historical console/config/run logs moved from
+`tmp/` into chapter 3 provenance; superseded notebook/thesis-writing drivers were
+retired after protecting their sources externally. Neither `tmp/` nor an active
+checkpoint directory remains.
+
+The final data audit rechecked all 13,895 moved scientific files by SHA-256 and
+all five external symlinks. Simulated error truth, consumed by both chapters 4
+and 5, now belongs under `data/general/`; both affected notebooks passed their
+selected checks after the move. The only data root owners are `ch3`, `ch4`,
+`ch5` and `general`.
+
+The tie-breaking notebook's optional native rerun now invokes the fifth flat
+driver, `compare_tie_breaking.py`, rather than archived research source. Its
+preparation, workers and summary calculations belong to CH5 `nb_utils`.
+Regenerating summaries from retained paths and references reproduced all four
+saved result tables. All five drivers pass import/help checks. The pinned
+tsinfer lacks the historical `MatcherIndexes`/`AncestorMatcher` API and has a
+different C build layout; native reruns fail clearly before compilation. The
+original native matching experiments were not launched or claimed reproduced.
+
+Installation no longer requires a machine-specific sibling tsls checkout. A
+committed source distribution contains the same pinned commit/version and
+149 verified Python/C/header files, including its pinned tskit source. A
+same-version UV override replaces the transitive absolute Git URL; dependency
+versions are unchanged. The retained Git bundles contain the pinned histories
+without unrelated branches/stashes. A fresh locked installation containing only
+source, tests, packaging files and that archive succeeded after downloading the
+locked package wheels; all six tests then passed without scientific data or
+sibling checkouts. The local locked offline sync and all six tests also pass.
+
+The final default thesis build regenerated all 23 figures and 60 TeX values.
+Nine retained numerical tables match again at 1e-9 tolerance. Two diagnostic
+tables now have stable row ordering; forcing the statistics target a second time
+produced an identical `ch3_checks.json`. No calculated values changed. An
+unchanged final dry run reports nothing to do. The relative dependency archive,
+lockfile and project metadata are explicit rule inputs. All 22 PNGs remain
+byte-identical to the earlier thesis exports; the tree PDF container timestamp
+changes on regeneration. Final generated artifacts are committed in the sibling
+thesis as `4d3b1d5`, following the mechanical integration in `691af19`.
+
+Final collection contains exactly the six permitted class-based cases; all pass
+(0.78 seconds locally, 7.38 seconds in the fresh installation). Source
+compilation, undefined-name checks, signature checks, output preservation,
+provenance hashes, final layout and working documentation commands were checked.
+`refactor_final_audit.json` records the acceptance results. There is no required
+CH3 build blocker. Historical producer-invocation gaps and unavailable native
+rerun environments remain documented limitations, not unfinished migration.

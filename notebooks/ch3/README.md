@@ -104,19 +104,24 @@ derivations from these inputs. Fixed experimental settings can be emitted from
 `thesis_config.yaml`; notebook parameters remain independent.
 
 Python 3.12.13 and the root `uv.lock` were used. tsinfer is pinned to
-`e2f8de7c950179215ece27e1d31c7b096308b4c8`, tsls to
-`c560b405761ae09625e266d39c2356ccc4b54b69`. Their source Git bundles are retained
-at `data/general/dependencies/{tsinfer,tsls}.bundle` and tracked in Git.
-To restore the unpublished tsls source when the sibling checkout is absent:
+`e2f8de7c950179215ece27e1d31c7b096308b4c8`; tsls source is
+`c560b405761ae09625e266d39c2356ccc4b54b69`, version `0.1.dev121`.
+The retained `data/general/dependencies/tsls-0.1.dev121.tar.gz` is built from
+that exact installed Git checkout; its Python/C/header files match the pinned
+source. A relative archive source and a same-version UV override replace the
+upstream machine-specific tsls Git URL. `uv sync --locked` needs no sibling
+checkout. A fresh isolated installation and all six tests were checked using
+only copied source/test files, this archive and the lockfile, without research
+data or sibling checkouts.
 
-```sh
-git clone data/general/dependencies/tsls.bundle ../tsls
-git -C ../tsls checkout c560b405761ae09625e266d39c2356ccc4b54b69
-uv sync --locked
-```
+Pinned dependency Git bundles are also tracked at
+`data/general/dependencies/{tsinfer,tsls}.bundle`. Each contains only a pinned
+ref/HEAD and its complete reachable history. They are recovery sources, not
+moving editable dependencies. The input manifest records the tsls archive's
+SHA-256, producing command, source commit and tskit submodule revision. The
+workflow declares the source archive along with the lockfile as a software
+input, so changing a retained dependency invalidates generated outputs.
 
-On a different directory layout, point only the tsls `file://` source URL in
-`pyproject.toml` to the restored clone and run `uv lock`, retaining the same
-commit. The absolute URL reflects this personal workspace; the committed
-bundle makes the source recoverable without assuming an unpublished commit
-exists on GitHub. Neither dependency is an editable moving sibling source.
+Older ignored autosave checkpoints were preserved byte-for-byte in
+`data/ch3/provenance/notebook_checkpoints.zip`. They are historical recovery
+records; the current output-bearing paired notebook remains tracked directly.

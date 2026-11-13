@@ -20,11 +20,11 @@
         "exists": true
       },
       "zarr_dir": {
-        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/zarr_vcfs",
+        "path": "/Users/duncan/work/dphil-analysis/data/general/zarr_vcfs/sim",
         "exists": true
       },
       "ts_path": {
-        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated/OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees",
+        "path": "/Users/duncan/work/dphil-analysis/data/general/simulated_error_truth/OutOfAfrica_4J17-chr17-L0-R22.7e6-n3202-s1-rep0.trees",
         "exists": true
       },
       "recombination": {
@@ -47,11 +47,11 @@
         "exists": true
       },
       "simulation_dir": {
-        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated",
+        "path": "/Users/duncan/work/dphil-analysis/data/general/simulated_error_truth",
         "exists": true
       },
       "simulation_ts": {
-        "path": "/Users/duncan/work/tsinfer-anc-eval/data/error_eval/simulated/OutOfAfrica_4J17-chr20-L0-R1e7-n100-s1-rep0.trees",
+        "path": "/Users/duncan/work/dphil-analysis/data/general/simulated_error_truth/OutOfAfrica_4J17-chr20-L0-R1e7-n100-s1-rep0.trees",
         "exists": true
       }
     }

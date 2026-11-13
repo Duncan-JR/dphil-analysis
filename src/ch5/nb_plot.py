@@ -1703,6 +1703,9 @@ def correlation_figure(
     panel_width=7,
     x_label="AC cutoff",
     x_parameter="ac_cutoff",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Place truth comparisons left and Full HMM comparisons right in each row."""
     x_parameter = x_parameter
@@ -1720,7 +1723,11 @@ def correlation_figure(
         squeeze=False,
         layout="constrained",
         figsize=(panel_width * 2, panel_height * len(groups)),
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for row, group in enumerate(groups):
         table = results.loc[results.frequency_bin.eq(group)]
         truth = table.loc[table.reference_method.eq("true_arg")]
@@ -1803,6 +1810,9 @@ def stitched_age_density_figure(
     identity_color="#D55E00",
     panel_size=3.6,
     x_parameter="ac_cutoff",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Arrange Full HMM versus stitched densities by the two grid parameters."""
     column_parameter = x_parameter
@@ -1838,7 +1848,11 @@ def stitched_age_density_figure(
         sharey=True,
         layout="constrained",
         figsize=(panel_size * len(column_values), panel_size * len(row_values)),
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for index, ax in enumerate(axes.flat):
         row, column = divmod(index, len(column_values))
         case = cases[index]
@@ -2488,6 +2502,9 @@ def plot_overview(
     plot_stitched_color="#6A3D9A",
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> None:
     """Align provenance, both parent paths, and agreement over the inference span."""
     case = dataset.primary
@@ -2499,7 +2516,11 @@ def plot_overview(
         figsize=plot_overview_figsize,
         gridspec_kw={"height_ratios": [0.5, 2, 2, 0.5]},
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     draw_strip(
         axes[0],
         edges,
@@ -2560,6 +2581,9 @@ def plot_detail(
     plot_stitched_color="#6A3D9A",
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> None:
     """Plot both paths on shared categorical parent rows and annotate the target."""
     case = dataset.primary
@@ -2580,7 +2604,11 @@ def plot_detail(
         figsize=figsize,
         gridspec_kw={"height_ratios": [0.4, 4, 0.4, 0.6]},
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     draw_strip(
         axes[0],
         edges,
@@ -2698,6 +2726,9 @@ def path_diagnostics_plot_overview(
     plot_stitched_color="#6A3D9A",
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Align provenance, both parent paths, and agreement over the inference span."""
     case = dataset.primary
@@ -2709,7 +2740,11 @@ def path_diagnostics_plot_overview(
         figsize=plot_overview_figsize,
         gridspec_kw={"height_ratios": [0.5, 2, 2, 0.5]},
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     draw_strip(
         axes[0],
         edges,
@@ -2771,6 +2806,9 @@ def path_diagnostics_plot_detail(
     plot_stitched_color="#6A3D9A",
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Plot both paths on shared categorical parent rows and annotate the target."""
     case = dataset.primary
@@ -2794,7 +2832,11 @@ def path_diagnostics_plot_detail(
         figsize=figsize,
         gridspec_kw={"height_ratios": [0.4, 4, 0.4, 0.6]},
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     draw_strip(
         axes[0],
         edges,
@@ -2928,6 +2970,9 @@ def plot_case_summary(
     plot_cohort_figsize=[16, 8],
     plot_switch_colors=["#009E73", "#E69F00", "#7B61A8"],
     plot_switch_labels=["Within focal coverage", "Within gaps", "At focal/gap seams"],
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> CaseSummaryFigure:
     """Compare site compositions and switch-type counts for selected haplotypes."""
     fig, axes = plt.subplots(
@@ -2936,7 +2981,11 @@ def plot_case_summary(
         figsize=plot_cohort_figsize,
         layout="constrained",
         squeeze=False,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     switch_rows = []
     for column, dataset in enumerate(datasets):
         y = np.arange(len(dataset.cases))
@@ -3018,6 +3067,9 @@ def plot_case_tracks(
     plot_tracks_figsize=[16, 7],
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Align provenance and parent agreement for all selected haplotypes."""
     fig, axes = plt.subplots(
@@ -3026,7 +3078,11 @@ def plot_case_tracks(
         figsize=plot_tracks_figsize,
         layout="constrained",
         squeeze=False,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         edges = dataset.site_edges / plot_genome_unit_bp
         for index, case in enumerate(dataset.cases):
@@ -3093,6 +3149,9 @@ def plot_population_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Show distributions, every defined haplotype, KDEs, and population means.
 
@@ -3108,7 +3167,11 @@ def plot_population_histograms(
         sharex="col",
         sharey="col",
         squeeze=False,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     rng = np.random.default_rng(plot_population_results_random_seed)
     for column, settings in enumerate(config["datasets"]):
         dataset_table = population_comparisons.loc[
@@ -3247,6 +3310,9 @@ def plot_gap_property_histograms(
     plot_population_results_random_seed=42,
     plot_population_results_range_padding=0.05,
     population_comparisons,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Pool haplotype gap properties by dataset, retaining population point colours."""
     fig, axes = plt.subplots(
@@ -3255,7 +3321,11 @@ def plot_gap_property_histograms(
         figsize=plot_population_results_gap_histogram_figsize,
         layout="constrained",
         squeeze=False,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     rng = np.random.default_rng(plot_population_results_random_seed)
     for ax, settings in zip(axes[0], config["datasets"], strict=True):
         dataset_table = population_comparisons.loc[
@@ -3372,6 +3442,9 @@ def plot_outlier_switch_genome(
     plot_stitched_color="#6A3D9A",
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Locate gaps, parent differences, switch gains/losses, and cumulative excess."""
     case = dataset.primary
@@ -3383,7 +3456,11 @@ def plot_outlier_switch_genome(
         figsize=plot_outliers_genome_figsize,
         gridspec_kw={"height_ratios": [0.3, 0.3, 1, 1, 1]},
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     draw_strip(
         axes[0],
         edges,
@@ -3465,13 +3542,19 @@ def plot_outlier_gap_properties(
         "CHB": "tab:gray",
         "EAS": "tab:gray",
     },
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ) -> plt.Figure:
     """Show gap length against its local switch excess and parent agreement."""
     case = dataset.primary
     gaps = analysis.gaps
     fig, axes = plt.subplots(
-        1, 2, figsize=plot_outliers_gap_figsize, layout="constrained"
+        1, 2, figsize=plot_outliers_gap_figsize, layout="constrained", dpi=dpi
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     color = plot_population_results_population_colors[case.summary["population"]]
     for ax, metric, ylabel in (
         (
@@ -3531,6 +3614,9 @@ def _parameter_panels(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Keep dataset columns and, where requested, mismatch rows consistent."""
     nrows = len(curve_values) if by_curve else 1
@@ -3542,7 +3628,11 @@ def _parameter_panels(
         squeeze=False,
         sharey="row",
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for row in range(nrows):
         for column, settings in enumerate(config["datasets"]):
             title_text = settings["label"]
@@ -3629,6 +3719,9 @@ def plot_parameter_metric(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Plot haplotype metric means and SEMs across a saved parameter grid."""
     panels = _parameter_panels(
@@ -3642,6 +3735,9 @@ def plot_parameter_metric(
         x_label=x_label,
         curve_label=curve_label,
         x_value_label=x_value_label,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     fig = panels.figure
     axes = panels.axes
@@ -3689,6 +3785,9 @@ def plot_parameter_coverage(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Average physical window coverage within analogous population groups."""
     panels = _parameter_panels(
@@ -3703,6 +3802,9 @@ def plot_parameter_coverage(
         x_label=x_label,
         curve_label=curve_label,
         x_value_label=x_value_label,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     fig = panels.figure
     axes = panels.axes
@@ -3757,6 +3859,9 @@ def plot_parameter_length_distribution(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Plot common-bin interval histograms and reflected KDE count curves."""
     panels = _parameter_panels(
@@ -3771,6 +3876,9 @@ def plot_parameter_length_distribution(
         x_label=x_label,
         curve_label=curve_label,
         x_value_label=x_value_label,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     fig = panels.figure
     axes = panels.axes
@@ -3835,6 +3943,9 @@ def plot_parameter_switch_composition(
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
     baseline_partition,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Show raw mean switch counts, with one explicitly partitioned full bar."""
     panels = _parameter_panels(
@@ -3849,6 +3960,9 @@ def plot_parameter_switch_composition(
         x_label=x_label,
         curve_label=curve_label,
         x_value_label=x_value_label,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     fig = panels.figure
     axes = panels.axes
@@ -3939,6 +4053,9 @@ def plot_parameter_metric_rows(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Use metric rows and dataset columns with mismatch-coloured curves."""
     figsize = (
@@ -3953,7 +4070,11 @@ def plot_parameter_metric_rows(
         sharex=True,
         sharey="row",
         layout="constrained",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for row, (metric, ylabel) in enumerate(metrics.items()):
         for column, settings in enumerate(config["datasets"]):
             ax = axes[row, column]
@@ -3994,6 +4115,9 @@ def plot_parameter_statistic_differences(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Plot signed raw edge/tree count changes relative to Full HMM."""
     metrics = {
@@ -4017,6 +4141,9 @@ def plot_parameter_statistic_differences(
         x_label=x_label,
         curve_label=curve_label,
         x_value_label=x_value_label,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for ax in panels.axes.flat:
         ax.axhline(0, color="gray", linestyle="--", linewidth=plot_line_width)
@@ -4040,6 +4167,9 @@ def plot_parameter_arg_metrics(
     x_label="AC cutoff",
     curve_label="{value} mismatches allowed",
     x_value_label="AC {value}",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Plot ARF and TPR against Full HMM for both datasets."""
     metrics = {"arf": "ARF", "tpr": "TPR"}
@@ -4060,6 +4190,9 @@ def plot_parameter_arg_metrics(
         x_label=x_label,
         curve_label=curve_label,
         x_value_label=x_value_label,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     return panels.figure
 
@@ -4081,10 +4214,16 @@ def plot_parameter_truth_arg_metrics(
     x_value_label="AC {value}",
     baseline_x=1,
     stitched_method="stitched_hmm",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Show Full HMM and stitched simulation ARF/TPR against biological truth."""
     figsize = (plot_panel_width * 2, plot_panel_height)
-    fig, axes = plt.subplots(1, 2, figsize=figsize, layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=figsize, layout="constrained", dpi=dpi)
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     full = truth_comparisons.loc[truth_comparisons.comparison_method.eq("full_hmm")]
     full_cutoff = baseline_x
     metrics = {"arf": "ARF", "tpr": "TPR"}
@@ -4122,15 +4261,29 @@ def plot_parameter_truth_arg_metrics(
     return fig
 
 
-def panels(columns=1, rows=1, *, plot_panel_height=4.7, plot_panel_width=7):
+def panels(
+    columns=1,
+    rows=1,
+    *,
+    plot_panel_height=4.7,
+    plot_panel_width=7,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
+):
     """Use the same panel sizing across the notebook."""
-    return plt.subplots(
+    fig, axes = plt.subplots(
         rows,
         columns,
         squeeze=False,
         layout="constrained",
         figsize=(plot_panel_width * columns, plot_panel_height * rows),
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
+    return Panels(fig, axes)
 
 
 def benchmark_save_figure(fig, name, *, output_dir, plot_export_dpi=200):
@@ -4240,6 +4393,9 @@ def parameter_grid_panel_grid(
     plot_panel_height=3.5,
     plot_panel_width=5,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Always keep sample sizes in columns and the chosen quantity in rows."""
     fig, axes = plt.subplots(
@@ -4249,7 +4405,11 @@ def parameter_grid_panel_grid(
         sharey=sharey,
         layout="constrained",
         figsize=(plot_panel_width * len(datasets), plot_panel_height * len(row_labels)),
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for row, label in enumerate(row_labels):
         for col, dataset in enumerate(datasets):
             cohort = populations.loc[populations.dataset.eq(dataset["name"])]
@@ -4342,6 +4502,9 @@ def metric_lines(
     plot_panel_width=5,
     plot_range_margin=0.08,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Metric rows and sample-size columns; one line per AF cutoff."""
     panels = parameter_grid_panel_grid(
@@ -4351,6 +4514,9 @@ def metric_lines(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for row, (metric, ylabel) in enumerate(metrics.items()):
         for col, dataset in enumerate(datasets):
@@ -4438,6 +4604,9 @@ def minimum_size_kb_plot(
     plot_panel_width=5,
     plot_range_margin=0.08,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     rows = []
     for dataset in datasets:
@@ -4464,6 +4633,9 @@ def minimum_size_kb_plot(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for col, dataset in enumerate(datasets):
         ax = panels.axes[0, col]
@@ -4493,6 +4665,9 @@ def focal_coverage(
     plot_range_margin=0.08,
     population_coverage,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     panels = parameter_grid_panel_grid(
         "Focal region coverage",
@@ -4502,6 +4677,9 @@ def focal_coverage(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for row, cutoff in enumerate(af_cutoffs):
         for col, dataset in enumerate(datasets):
@@ -4544,6 +4722,9 @@ def focal_lengths(
     plot_panel_height=3.5,
     plot_panel_width=5,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     panels = parameter_grid_panel_grid(
         "Focal region lengths · minimum size 1",
@@ -4554,6 +4735,9 @@ def focal_lengths(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for row, cutoff in enumerate(af_cutoffs):
         selected = lengths.af_cutoff.eq(cutoff) & ~lengths.is_gap
@@ -4609,6 +4793,9 @@ def gap_lengths(
     plot_panel_width=5,
     plot_range_margin=0.08,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     panels = parameter_grid_panel_grid(
         "Gap length distributions",
@@ -4618,6 +4805,9 @@ def gap_lengths(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for row, cutoff in enumerate(af_cutoffs):
         table = lengths.loc[lengths.af_cutoff.eq(cutoff) & lengths.is_gap]
@@ -4673,6 +4863,9 @@ def one_site_gaps(
     plot_panel_width=5,
     plot_range_margin=0.08,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     gaps = lengths.loc[lengths.is_gap]
     totals = gaps.groupby(grid_keys)["count"].sum().rename("total_gaps")
@@ -4689,6 +4882,9 @@ def one_site_gaps(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for row, cutoff in enumerate(af_cutoffs):
         for col, dataset in enumerate(datasets):
@@ -4731,6 +4927,9 @@ def parameter_grid_switch_composition(
     plot_switch_labels=["Within focal coverage", "Within gaps", "At gap seams"],
     populations,
     summary,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     panels = parameter_grid_panel_grid(
         "Switch composition",
@@ -4740,6 +4939,9 @@ def parameter_grid_switch_composition(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     x = np.concatenate(([0], np.arange(len(minimum_sizes)) + 2 * plot_bar_width))
     for row, cutoff in enumerate(af_cutoffs):
@@ -4793,6 +4995,9 @@ def mutation_age_plots(
     plot_panel_width=5,
     plot_range_margin=0.08,
     populations,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Reference/bin rows and sample-size columns with consistent AF colours."""
     references = {
@@ -4812,6 +5017,9 @@ def mutation_age_plots(
         plot_panel_height=plot_panel_height,
         plot_panel_width=plot_panel_width,
         populations=populations,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     for group_index, group in enumerate(groups):
         for reference_index, (reference, label) in enumerate(references.items()):
@@ -4912,16 +5120,6 @@ def plot_mean_proportion_of_ancestors_included(
         ax.grid(alpha=alpha)
     axes[0].set_ylim(bottom=0)
     plt.show()
-
-
-def configure_notebook(settings):
-    """Apply explicit notebook display defaults."""
-    plt.rcParams.update(settings)
-
-
-def close_figure(figure):
-    """Release an already-displayed notebook figure."""
-    plt.close(figure)
 
 
 def plot_cumulative_inferred_ancestors_by_focal_frequency(
@@ -5054,11 +5252,17 @@ def plot_coverage_agreement_and_switches_across_the_saved_haplotypes(
     fontsize="small",
     height=0.35,
     xlabel_2="Parent switches (upper: full HMM; lower: stitched)",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Coverage, agreement, and switches across the saved haplotypes. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
-        2, len(datasets), figsize=figsize, layout="constrained", squeeze=False
+        2, len(datasets), figsize=figsize, layout="constrained", squeeze=False, dpi=dpi
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     switch_rows = []
     for column, dataset in enumerate(datasets):
         y = np.arange(len(dataset.cases))
@@ -5154,7 +5358,14 @@ def plot_coverage_agreement_and_switches_across_the_saved_haplotypes(
 
 
 def plot_extra_switch_fraction(
-    *, datasets, figsize=[16, 4], color="#6A3D9A", ylim=(0, 1)
+    *,
+    datasets,
+    figsize=[16, 4],
+    color="#6A3D9A",
+    ylim=(0, 1),
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Extra switch fraction. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -5164,7 +5375,11 @@ def plot_extra_switch_fraction(
         layout="constrained",
         squeeze=False,
         sharey=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         fractions = [case.summary["extra_switch_fraction"] for case in dataset.cases]
         bars = ax.bar(np.arange(len(fractions)), fractions, color=color)
@@ -5180,12 +5395,24 @@ def plot_extra_switch_fraction(
 
 
 def plot_where_retained_focal_pieces_and_gap_fills_agree_with_the_full(
-    *, category_cmap, category_norm, datasets, source_cmap, source_norm, figsize=[16, 7]
+    *,
+    category_cmap,
+    category_norm,
+    datasets,
+    source_cmap,
+    source_norm,
+    figsize=[16, 7],
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Where retained focal pieces and gap fills agree with the full path. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
-        1, len(datasets), figsize=figsize, layout="constrained", squeeze=False
+        1, len(datasets), figsize=figsize, layout="constrained", squeeze=False, dpi=dpi
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         edges = dataset.site_edges / 1000000
         for index, case in enumerate(dataset.cases):
@@ -5246,6 +5473,9 @@ def plot_does_disagreement_concentrate_near_focal_gap_seams(
     ylim=(0, 1),
     xlabel="Distance to nearest seam (inference-site steps)",
     alpha=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Does disagreement concentrate near focal/gap seams?. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -5255,7 +5485,11 @@ def plot_does_disagreement_concentrate_near_focal_gap_seams(
         layout="constrained",
         squeeze=False,
         sharey=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         for focal, label, color in zip(
             (True, False),
@@ -5315,11 +5549,17 @@ def plot_gap_determination(
     figsize=(12, 4),
     width=0.35,
     ylabel="Number of maximal gap intervals",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Gap determination. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
-        1, len(datasets), figsize=figsize, layout="constrained", squeeze=False
+        1, len(datasets), figsize=figsize, layout="constrained", squeeze=False, dpi=dpi
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         results = gap_comparisons[dataset.name]
         x = np.arange(len(results))
@@ -5355,9 +5595,15 @@ def plot_gap_determination_2(
     width=0.35,
     ylabel="Total number of gap intervals across saved haplotypes",
     title="Total gaps: HMM extraction versus zero-mismatch coverage",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Gap determination. Presentation choices are supplied by the notebook."""
-    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained", dpi=dpi)
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     x = np.arange(len(datasets))
     for offset, field, label, color in zip(
         (-0.2, 0.2),
@@ -5393,6 +5639,9 @@ def plot_gap_determination_3(
     figsize=(12, 5),
     xlim=(0, 1),
     xlabel="Fraction of inference sites",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Gap determination. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -5402,7 +5651,11 @@ def plot_gap_determination_3(
         layout="constrained",
         squeeze=False,
         sharex=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         results = gap_comparisons[dataset.name]
         y = np.arange(len(results))
@@ -5445,7 +5698,16 @@ def plot_gap_determination_3(
     return handles
 
 
-def plot_gap_determination_4(*, datasets, gap_comparisons, handles, figsize=(12, 6)):
+def plot_gap_determination_4(
+    *,
+    datasets,
+    gap_comparisons,
+    handles,
+    figsize=(12, 6),
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
+):
     """Gap determination. Presentation choices are supplied by the notebook."""
     overlap_cmap = mcolors.ListedColormap(["#7B61A8", "#0072B2", "#E69F00", "#DDDDDD"])
     overlap_norm = mcolors.BoundaryNorm(np.arange(5) - 0.5, overlap_cmap.N)
@@ -5459,8 +5721,11 @@ def plot_gap_determination_4(*, datasets, gap_comparisons, handles, figsize=(12,
         )
         edges = dataset.site_edges / 1000000
         fig, axes = plt.subplots(
-            3, 1, sharex=True, figsize=figsize, layout="constrained"
+            3, 1, sharex=True, figsize=figsize, layout="constrained", dpi=dpi
         )
+        for axis in fig.axes:
+            axis.spines["top"].set_visible(show_top_spine)
+            axis.spines["right"].set_visible(show_right_spine)
         for ax, mask, label, color in zip(
             axes[:2],
             (~result.case.accepted, result.coverage == 0),
@@ -5657,9 +5922,15 @@ def plot_extra_switches_vs_hyperparameters(
     requested_mismatch_settings,
     switch_counts,
     figsize=[12, 8],
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Extra switches vs hyperparameters. Presentation choices are supplied by the notebook."""
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=figsize, sharex=True)
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=figsize, sharex=True, dpi=dpi)
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     available_cutoffs = sorted(switch_counts.ac_cutoff.unique())
     for column, mismatch_count in enumerate(requested_mismatch_settings):
         for row, (metric, ylabel) in enumerate(hyperparameter_metrics):
@@ -5689,9 +5960,15 @@ def plot_extra_switches_vs_hyperparameters_2(
     figsize=[12, 5],
     marker="o",
     fontsize="small",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Extra switches vs hyperparameters. Presentation choices are supplied by the notebook."""
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize)
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=figsize, dpi=dpi)
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, (metric, ylabel) in zip(axes, hyperparameter_metrics, strict=True):
         summary = switch_counts.groupby("ac_cutoff")[metric].agg(["mean", "sem"])
         ax.errorbar(
@@ -5751,7 +6028,15 @@ def plot_percentage_increase_in_switches_by_population(*, fig, population_output
     plt.show()
 
 
-def plot_gap_properties(*, config, population_comparisons, population_output_dir):
+def plot_gap_properties(
+    *,
+    config,
+    population_comparisons,
+    population_output_dir,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
+):
     """Gap properties. Presentation choices are supplied by the notebook."""
     gap_population_handles = [
         mpatches.Patch(
@@ -5802,6 +6087,9 @@ def plot_gap_properties(*, config, population_comparisons, population_output_dir
         plot_population_results_random_seed=42,
         plot_population_results_range_padding=0.05,
         population_comparisons=population_comparisons,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     fig.savefig(population_output_dir / "population_number_of_gaps_histograms.png")
     plt.show()
@@ -5826,6 +6114,9 @@ def plot_gap_properties_3(
     linewidths=0,
     ylabel="Mean sites per gap",
     alpha_2=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Gap properties. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -5835,7 +6126,11 @@ def plot_gap_properties_3(
         layout="constrained",
         squeeze=False,
         sharey="col",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for column, settings in enumerate(config["datasets"]):
         dataset_table = population_comparisons.loc[
             population_comparisons.dataset.eq(settings["name"])
@@ -5901,6 +6196,9 @@ def plot_gap_properties_4(
     alpha=0.6,
     linewidths=0,
     alpha_2=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Gap properties. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -5910,7 +6208,11 @@ def plot_gap_properties_4(
         layout="constrained",
         squeeze=False,
         sharey="row",
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for row, settings in enumerate(config["datasets"]):
         row_label = ["Simulation", "1KGP chr20"][row]
         dataset_table = population_comparisons.loc[
@@ -5973,6 +6275,9 @@ def plot_decomposing_switches_by_type(
     xlim=(0, 100),
     xlabel="Mean proportion of switches (%)",
     alpha=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Decomposing switches by type. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -5982,7 +6287,11 @@ def plot_decomposing_switches_by_type(
         layout="constrained",
         squeeze=False,
         sharex=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, settings in zip(axes[0], config["datasets"], strict=True):
         populations = settings["populations"]
         y = np.arange(len(populations))
@@ -6050,11 +6359,22 @@ def plot_decomposing_switches_by_type_2(
     s_2=90,
     xlim=(-0.15, 1.15),
     linestyle="none",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Decomposing switches by type. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
-        1, len(config["datasets"]), figsize=figsize, layout="constrained", squeeze=False
+        1,
+        len(config["datasets"]),
+        figsize=figsize,
+        layout="constrained",
+        squeeze=False,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     triangle_height = np.sqrt(3) / 2
     for ax, settings in zip(axes[0], config["datasets"], strict=True):
         ax.plot([0, 1, 0.5, 0], [0, 0, triangle_height, 0], color=color)
@@ -6213,6 +6533,9 @@ def plot_parent_agreement_proportions(
     xlim=(0, 100),
     xlabel="Mean proportion of all inference sites (%)",
     alpha=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Parent agreement proportions. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -6222,7 +6545,11 @@ def plot_parent_agreement_proportions(
         layout="constrained",
         squeeze=False,
         sharex=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, settings in zip(axes[0], config["datasets"], strict=True):
         populations = settings["populations"]
         y = np.arange(len(populations))
@@ -6283,6 +6610,9 @@ def plot_summary_plots(
     outlier_summary,
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Summary plots. Presentation choices are supplied by the notebook."""
     plt.show()
@@ -6301,6 +6631,9 @@ def plot_summary_plots(
         plot_tracks_figsize=[16, 7],
         source_cmap=source_cmap,
         source_norm=source_norm,
+        dpi=dpi,
+        show_top_spine=show_top_spine,
+        show_right_spine=show_right_spine,
     )
     fig.savefig(outlier_output_dir / "outlier_provenance_and_agreement.png")
     plt.show()
@@ -6315,6 +6648,9 @@ def plot_summary_plots_2(
     outlier_output_dir,
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Summary plots. Presentation choices are supplied by the notebook."""
     for dataset in outlier_case_datasets:
@@ -6332,6 +6668,9 @@ def plot_summary_plots_2(
             plot_stitched_color="#6A3D9A",
             source_cmap=source_cmap,
             source_norm=source_norm,
+            dpi=dpi,
+            show_top_spine=show_top_spine,
+            show_right_spine=show_right_spine,
         )
         fig.savefig(outlier_output_dir / f"{prefix}_whole_span_paths.png")
         plt.show()
@@ -6346,11 +6685,22 @@ def plot_deep_dive(
     height=0.32,
     xlabel="Parent switches",
     alpha=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Deep dive. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
-        1, len(outlier_datasets), figsize=figsize, layout="constrained", squeeze=False
+        1,
+        len(outlier_datasets),
+        figsize=figsize,
+        layout="constrained",
+        squeeze=False,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], outlier_datasets, strict=True):
         y = np.arange(len(dataset.cases))
         for method_index, method in enumerate(("full", "stitched")):
@@ -6417,6 +6767,9 @@ def plot_deep_dive_2(
     outlier_output_dir,
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Deep dive. Presentation choices are supplied by the notebook."""
     for dataset in outlier_case_datasets:
@@ -6491,6 +6844,9 @@ def plot_deep_dive_2(
             plot_stitched_color="#6A3D9A",
             source_cmap=source_cmap,
             source_norm=source_norm,
+            dpi=dpi,
+            show_top_spine=show_top_spine,
+            show_right_spine=show_right_spine,
         )
         fig.savefig(outlier_output_dir / f"{prefix}_switch_distribution.png")
         plt.show()
@@ -6508,6 +6864,9 @@ def plot_deep_dive_2(
                 "CHB": "tab:gray",
                 "EAS": "tab:gray",
             },
+            dpi=dpi,
+            show_top_spine=show_top_spine,
+            show_right_spine=show_right_spine,
         )
         fig.savefig(outlier_output_dir / f"{prefix}_gap_properties.png")
         plt.show()
@@ -6525,6 +6884,9 @@ def plot_deep_dive_3(
     outlier_windows,
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Deep dive. Presentation choices are supplied by the notebook."""
     for dataset in outlier_case_datasets:
@@ -6567,6 +6929,9 @@ def plot_deep_dive_3(
                 plot_stitched_color="#6A3D9A",
                 source_cmap=source_cmap,
                 source_norm=source_norm,
+                dpi=dpi,
+                show_top_spine=show_top_spine,
+                show_right_spine=show_right_spine,
             )
             fig.savefig(outlier_output_dir / f"{prefix}_detail_{index + 1}.png")
             plt.show()
@@ -6582,6 +6947,9 @@ def plot_deep_dive_4(
     marker="o",
     ylim=(0, 1),
     alpha=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Deep dive. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -6591,7 +6959,11 @@ def plot_deep_dive_4(
         layout="constrained",
         squeeze=False,
         sharey=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     outlier_distance_rows = []
     bins = np.array(config["distance_bin_edges"])
     distance_labels = [
@@ -6665,7 +7037,15 @@ def plot_deep_dive_4(
     return outlier_distance_rows
 
 
-def plot_extra_switch_fraction_2(*, datasets, figsize=[16, 4], color="#6A3D9A"):
+def plot_extra_switch_fraction_2(
+    *,
+    datasets,
+    figsize=[16, 4],
+    color="#6A3D9A",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
+):
     """Extra switch fraction. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
         1,
@@ -6674,7 +7054,11 @@ def plot_extra_switch_fraction_2(*, datasets, figsize=[16, 4], color="#6A3D9A"):
         layout="constrained",
         squeeze=False,
         sharey=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         fractions = [case.summary["extra_switch_fraction"] for case in dataset.cases]
         bars = ax.bar(np.arange(len(fractions)), fractions, color=color)
@@ -6696,6 +7080,9 @@ def plot_whole_span_paths_for_the_selected_simulated_and_real(
     datasets,
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Whole-span paths for the selected simulated and real haplotypes. Presentation choices are supplied by the notebook."""
     for dataset in datasets:
@@ -6711,6 +7098,9 @@ def plot_whole_span_paths_for_the_selected_simulated_and_real(
             plot_stitched_color="#6A3D9A",
             source_cmap=source_cmap,
             source_norm=source_norm,
+            dpi=dpi,
+            show_top_spine=show_top_spine,
+            show_right_spine=show_right_spine,
         )
         plt.show()
 
@@ -6724,6 +7114,9 @@ def plot_detailed_parent_paths_covered_focal_pieces_gap_fills(
     detail_windows,
     source_cmap,
     source_norm,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Detailed parent paths: covered focal pieces, gap fills, agreement, and difference. Presentation choices are supplied by the notebook."""
     for dataset in datasets:
@@ -6743,6 +7136,9 @@ def plot_detailed_parent_paths_covered_focal_pieces_gap_fills(
                 plot_stitched_color="#6A3D9A",
                 source_cmap=source_cmap,
                 source_norm=source_norm,
+                dpi=dpi,
+                show_top_spine=show_top_spine,
+                show_right_spine=show_right_spine,
             )
             plt.show()
 
@@ -6757,6 +7153,9 @@ def plot_does_disagreement_concentrate_near_focal_gap_seams_2(
     ylim=(0, 1),
     xlabel="Distance to nearest seam (inference-site steps)",
     alpha=0.2,
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Does disagreement concentrate near focal/gap seams?. Presentation choices are supplied by the notebook."""
     fig, axes = plt.subplots(
@@ -6766,7 +7165,11 @@ def plot_does_disagreement_concentrate_near_focal_gap_seams_2(
         layout="constrained",
         squeeze=False,
         sharey=True,
+        dpi=dpi,
     )
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     for ax, dataset in zip(axes[0], datasets, strict=True):
         for focal, label, color in zip(
             (True, False),
@@ -7161,6 +7564,9 @@ def plot_per_sample_data(
     ylabel_2="Samples",
     xlabel_2="Samples",
     title="Population",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Per-sample data. Presentation choices are supplied by the notebook."""
     if len(worker_tables) != len(sample_runs):
@@ -7185,7 +7591,10 @@ def plot_per_sample_data(
         sample_data.to_csv(
             output_dir / "per_sample_matching_performance.csv", index=False
         )
-        fig = plt.figure(figsize=figsize, layout="constrained")
+        fig = plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
+        for axis in fig.axes:
+            axis.spines["top"].set_visible(show_top_spine)
+            axis.spines["right"].set_visible(show_right_spine)
         fig.suptitle("Per-sample matching performance")
         subfigures = fig.subfigures(1, len(stitched_methods))
         population_handles = []
@@ -7411,9 +7820,15 @@ def plot_per_sample_data_2(
     ylabel_2="Samples",
     xlabel_2="Samples",
     title="Population",
+    dpi=100,
+    show_top_spine=True,
+    show_right_spine=True,
 ):
     """Per-sample data. Presentation choices are supplied by the notebook."""
-    fig = plt.figure(figsize=figsize, layout="constrained")
+    fig = plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
+    for axis in fig.axes:
+        axis.spines["top"].set_visible(show_top_spine)
+        axis.spines["right"].set_visible(show_right_spine)
     fig.suptitle("Per-sample matching performance")
     subfigures = fig.subfigures(1, len(stitched_methods))
     population_handles = []

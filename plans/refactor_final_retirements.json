@@ -1,0 +1,38 @@
+[
+  {
+    "source": "tmp/console.log",
+    "destination": "data/ch3/performance/provenance/console.log",
+    "sha256": "d3a8df17c17a056c12e5b7f4a4586fbc79f8f4328fe2263d7ddd86f0f0753d1d",
+    "status": "Preserved historical execution provenance; not active workflow configuration"
+  },
+  {
+    "source": "tmp/resources.yaml",
+    "destination": "data/ch3/performance/provenance/resources.yaml",
+    "sha256": "bf9125aefff3f6dd0867f54224ee741788107089e71cfca0b0ad8499236b8108",
+    "status": "Preserved historical execution provenance; not active workflow configuration"
+  },
+  {
+    "source": "tmp/launch_settings.txt",
+    "destination": "data/ch3/performance/provenance/launch_settings.txt",
+    "sha256": "a9d7b7c5fcf8c25018588742743901c55a351e7771e9c79debd2baeb6a20ea85",
+    "status": "Preserved historical execution provenance; not active workflow configuration"
+  },
+  {
+    "source": "tmp/ch3_refresh/execution.log",
+    "destination": "data/ch3/provenance/notebook_refresh.log",
+    "sha256": "fc110f792dcb2e4c3221e687447c31d9dd6428cfdd7a4d392a7e89114c5ed2d3",
+    "status": "Preserved historical execution provenance; not active workflow configuration"
+  },
+  {
+    "source": "tmp/ch3_refresh/run_notebook.py",
+    "sha256": "874d98f318ca7316465544efe86826552b099f052f002db1903a6eddaad05633",
+    "destination": "/private/tmp/dphil_refactor_20261112/final_temporary_files.tgz",
+    "status": "Retired obsolete entry point after protecting its original source externally; maintained Snakefile/statistics replace notebook execution and hard-coded thesis replacements"
+  },
+  {
+    "source": "tmp/ch3_refresh/update_thesis_numbers.py",
+    "sha256": "10154be2fdf520e95daa4a997f156eec8c8ddeaf31952842fcd851368b94be0d",
+    "destination": "/private/tmp/dphil_refactor_20261112/final_temporary_files.tgz",
+    "status": "Retired obsolete entry point after protecting its original source externally; maintained Snakefile/statistics replace notebook execution and hard-coded thesis replacements"
+  }
+]
