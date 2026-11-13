@@ -131,7 +131,6 @@ nb_plot.plot_error_estimates(
 # %%
 ## Doubleton ascertainment testing
 
-
 # %%
 cutoff_proportions = [0.1, 0.25, 0.5, 0.75]
 L_mismatch_trim_values = [config.window_sizes[0], config.window_sizes[-1]]

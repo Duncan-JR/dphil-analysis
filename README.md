@@ -40,12 +40,16 @@ The maintained thesis build uses `Snakefile` and `thesis_config.yaml`:
 uv run snakemake --cores all --dry-run
 uv run snakemake --cores all
 uv run snakemake ch3_plots ch3_statistics --cores all \
-  --config thesis_root=/private/tmp/ch3_thesis work_root=/private/tmp/ch3_prepared
+  --config thesis_root=/private/tmp/ch3_thesis work_root=/private/tmp/ch3_prepared \
+  statistics_dir=/private/tmp/ch3_statistics
 uv run pytest
 ```
 
-The default destination is `../dphil-thesis`. All 23 chapter 3 figure files and
-`statistics/ch3.tex`, `ch3_claims.json`, `ch3_checks.json` are declared outputs.
+Figures go to `../dphil-thesis/figures/ch3/` by default. Statistics are generated
+in this repository's `statistics/`: `ch3.tex`, `ch3_claims.json`, `ch3_checks.json`.
+The config owns all 23 figure filenames; input paths are explicit in the rules.
+Plot defaults reproduce the finished figures. Only shared renderers' differing
+arguments appear in config, and the extension example is fixed in code.
 Preparation reads retained inputs; generation never starts upstream inference
 or benchmarks. Install `rsvg-convert` (librsvg) for the tree PDF. See
 [chapter 3 workflow and provenance](notebooks/ch3/README.md#maintained-thesis-workflow)
@@ -61,3 +65,10 @@ machine-specific sibling URL. No sibling checkout is needed for installation.
 The maintained test suite contains six synthetic correctness cases for final
 chapter 3 calculations and retained chapter 4 methods. It needs no research
 data or HPC access. Exploratory helpers, notebooks and chapter 5 have no tests.
+
+To reconcile notebook pairs after editing either representation, preserve the
+saved outputs with Jupytext's sync command:
+
+```sh
+uv run jupytext --sync notebooks/ch5/stitching__scratch.ipynb
+```

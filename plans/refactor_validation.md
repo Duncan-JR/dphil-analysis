@@ -199,3 +199,45 @@ provenance hashes, final layout and working documentation commands were checked.
 `refactor_final_audit.json` records the acceptance results. There is no required
 CH3 build blocker. Historical producer-invocation gaps and unavailable native
 rerun environments remain documented limitations, not unfinished migration.
+
+## Follow-up simplification, 13 November 2026
+
+Read the tsinfer-match-eval and tsinfer-anc-eval workflows before simplifying
+the maintained rules. The thesis config is now 77 lines, down from 1,024. It
+contains directories, scientific settings, figure filenames and only three
+non-default argument blocks for shared renderers. The fixed eight-site
+extension example, its trees, unit conversions and numerical formatting are
+code. Plot defaults reproduce the finished outputs. The Snakefile has only
+three directory variables before its rules; raw paths and source dependencies
+are declared in rule inputs, and the configured figure names expand to
+individual output files without a second figure list.
+
+The full workflow passed first in an isolated temporary destination, then at
+the default destinations. Statistics are now `statistics/ch3.tex`,
+`statistics/ch3_claims.json` and `statistics/ch3_checks.json` in dphil-analysis.
+The sibling thesis has only a mechanical change to its generated-TeX input
+path; no prose was changed. All 22 PNGs match the earlier finished exports
+byte-for-byte. Rendering the old and new tree PDFs produces identical pixels.
+All 60 macro names, values, displayed text and units match the previous build;
+every diagnostic numerical table matches, as do all nine retained reference
+tables at 1e-9 tolerance. All 60 macros compile in a standalone TeX check.
+
+A dry run with a renamed filename in a copied config declares the renamed
+figure output without a code change. A copied rule pointing at a missing
+aggregate fails with MissingInputException naming the precise missing path.
+The maintained six tests pass in 0.78 seconds; compilation and undefined-name
+checks pass. The histogram fixture now supplies bp input values directly
+instead of overriding a conversion factor. No new tests were added.
+
+All nineteen notebook pairs were inspected and protected externally before
+the explicitly authorised Jupytext sync. Only three paired text files needed
+round-trip whitespace reconciliation. Every original output, attachment and
+execution-count hash is unchanged. Jupytext reports no differences for any
+pair, and its actual contents manager opens all nineteen output-bearing
+notebooks successfully. Notebooks were not rerun. The reappeared experiments
+README duplicated chapter 5's scientific documentation and obsolete commands;
+its original bytes are protected externally, its useful content is already in
+`notebooks/ch5/README.md`, and the experiments tree is absent.
+
+All follow-up source, documentation, notebook and generated-statistics changes
+are left uncommitted, as requested.

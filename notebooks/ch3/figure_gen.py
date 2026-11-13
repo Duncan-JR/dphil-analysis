@@ -49,6 +49,7 @@ import tskit
 from ch3 import nb_plot, nb_utils
 
 repository_dir = pathlib.Path.cwd()
+
 # %% [markdown]
 # ## Ancestor extension: toy example
 #
@@ -123,7 +124,6 @@ nb_plot.plot_ancestor_extension(
     site_spacing=1.4,
     version_colors=("#1a80bb", "#ea801c"),
 )
-
 
 # %% [markdown]
 # ## Genealogical justification for ancestor extension
@@ -501,7 +501,6 @@ nb_plot.plot_ancestor_span_curves(
     version_colors=("#1a80bb", "#ea801c"),
 )
 
-
 # %%
 nb_plot.plot_ancestor_span_curves(
     ancestor_span_curve_summary,
@@ -520,6 +519,7 @@ nb_plot.plot_ancestor_span_curves(
     span_curve_true_color="#8b0000",
     version_colors=("#1a80bb", "#ea801c"),
 )
+
 
 # %%
 # Show every focal-site side with smaller markers; other boxplots retain their sampling settings.
@@ -553,7 +553,6 @@ nb_plot.plot_ancestor_overshoot(
     true_color="#b8b8b8",
     version_colors=("#1a80bb", "#ea801c"),
 )
-
 
 # %% [markdown]
 # ### Pooled overlap mismatch fraction
@@ -607,7 +606,6 @@ nb_plot.plot_ancestor_overlap_errors(
     overshoot_diff_panel_label_position=(0.02, 0.96),
     version_colors=("#1a80bb", "#ea801c"),
 )
-
 
 # %% [markdown]
 # ### Comparison across demographic models
@@ -698,7 +696,6 @@ nb_plot.plot_demography_overshoot_quantiles(
     version_colors=("#1a80bb", "#ea801c"),
     zero_color="#555555",
 )
-
 
 # %% [markdown]
 # #### Verification: IQRs and tail quantiles used in the text
@@ -980,7 +977,6 @@ nb_plot.plot_ancestor_overlap_errors(
     overshoot_diff_panel_label_position=(0.02, 0.96),
     version_colors=("#1a80bb", "#ea801c"),
 )
-
 
 # %% [markdown]
 # #### Verification: error-containing comparisons and pooled mismatch fraction
@@ -1265,7 +1261,6 @@ nb_plot.plot_genotype_error_scaling(
     genotype_scaling_reference_color="gray",
 )
 
-
 # %% [markdown]
 # ### Published genotype error benchmarks: working for the thesis requests
 #
@@ -1519,7 +1514,6 @@ nb_plot.plot_genotype_error_transitions(
     transition_size=(7, 3.5),
 )
 
-
 # %% [markdown]
 # Confirmation histogram layout: tsinfer 0.4 above, 0.5 below, mirrored
 # logarithmic counts and common physical overshoot bins. Negative overshoot
@@ -1578,7 +1572,6 @@ nb_plot.plot_overshoot_summary(
     version_colors=("#1a80bb", "#ea801c"),
     zero_color="#555555",
 )
-
 
 # %%
 nb_plot.plot_genotype_overshoot_hist(
@@ -1753,7 +1746,6 @@ nb_plot.plot_mispolarisation_daf(
     simulation_daf_legend_label="Simulation (n=12,000)",
     tgp_color="red",
 )
-
 
 # %% [markdown]
 # ### TGP: first 20 Mbp of chromosome 20
@@ -2104,7 +2096,6 @@ nb_plot.plot_mispolarisation_overshoot_diff(
     zero_color="#555555",
 )
 
-
 # %%
 nb_plot.plot_mispolarisation_overshoot_scatter(
     data,
@@ -2228,7 +2219,6 @@ nb_plot.plot_mispolarised_focal_overshoot_hist(
     zero_color="#555555",
 )
 
-
 # %% [markdown]
 # True singleton and doubleton counts among all mispolarised focal sites at
 # each rate, using the same tsinfer 0.5 cohort as panel C. Each focal is counted
@@ -2298,7 +2288,6 @@ nb_plot.plot_mispolarisation_overlap_errors(
     overshoot_diff_panel_label_position=(0.02, 0.96),
     version_colors=("#1a80bb", "#ea801c"),
 )
-
 
 # %%
 nb_plot.plot_mispolarisation_low_count_overshoot_diff(
@@ -2441,7 +2430,6 @@ nb_plot.plot_phase_switch_illustration(
     phase_size=(8.5, 4.5),
 )
 
-
 # %%
 phase_summary_spacings = (
     0,
@@ -2480,7 +2468,6 @@ nb_plot.plot_overshoot_summary(
     zero_color="#555555",
 )
 
-
 # %%
 nb_plot.plot_phasing_overshoot_diff(
     data,
@@ -2506,7 +2493,6 @@ nb_plot.plot_phasing_overshoot_diff(
     phase_ser_decimals=2,
     zero_color="#555555",
 )
-
 
 # %% [markdown]
 # ### Additional phase plots (not exported to the thesis)
@@ -2746,7 +2732,6 @@ nb_plot.plot_combined_errors(
     zero_color="#555555",
 )
 
-
 # %% [markdown]
 # ## Inference performance: tsinfer 0.4 versus 0.5
 #
@@ -2805,7 +2790,6 @@ nb_plot.save_notebook_figure(
 )
 nb_plot.show_figure()
 
-
 # %%
 perf_elapsed_figure = nb_plot.plot_elapsed(
     perf_comparison_data,
@@ -2831,7 +2815,6 @@ nb_plot.save_notebook_figure(
     facecolor="white",
 )
 nb_plot.show_figure()
-
 
 # %% [markdown]
 # ### Memory usage
@@ -2916,7 +2899,6 @@ nb_plot.save_notebook_figure(
     facecolor="white",
 )
 nb_plot.show_figure()
-
 
 # %% [markdown]
 # ### Verification: performance numbers used in the text

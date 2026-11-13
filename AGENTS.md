@@ -49,6 +49,8 @@
 - One `logger = logging.getLogger(__name__)` per module at top level.
 - Use underscores with lower case for variable names in CSVs and for files and
   folders except .agents, where you can use the - separation convention.
+- Use lowercase underscore-separated names for variables, including workflow
+  variables and module constants.
 - Prioritise semantic correctness, well-defined invariants, and clear error
   handling over micro-optimizations or clever tricks.
 - Maintain inter-linked docstrings and use comments where they add context and
@@ -109,9 +111,6 @@
 - Keep notebooks and Jupytext pairs in `notebooks/chN/`. Put notebook-specific
   methods, input/output descriptions, run notes and caveats in that folder's
   `README.md`. Read it before changing the chapter's notebooks.
-- There is no `experiments/` directory. Put notebook work, data, documentation
-  and standalone drivers in their owners above. Do not recreate an experiments
-  collection under another name.
 - Put standalone entry points in a flat `scripts/` directory, with descriptive
   names and no chapter prefixes or chapter subdirectories. Use
   `extract_zarr_validation_data.py` and `extract_phase_data.py` for the existing
@@ -150,7 +149,14 @@
 
 - Use the root `Snakefile` and `thesis_config.yaml` for thesis generation. Provide
   chapter plot targets and a statistics target producing `statistics/chN.tex`
-  under the configured thesis root. Declare final figure files individually.
+  in this analysis repository. Configure figure filenames in `thesis_config.yaml`
+  and declare each final file as a rule output using those configured names.
+- Keep Snakefile front matter minimal. Use lowercase directory variables where
+  useful, and put input/output paths directly in rules unless they are very long.
+- Plotting defaults should reproduce the finished figures. Put plotting
+  arguments in thesis configuration only when a shared renderer needs different,
+  non-default arguments for another figure. Keep fixed illustrations in code;
+  do not configure their example data, unit conversions or number spelling.
 - Put polished final plotting in `src/chN/thesis_plot.py` and final preparation,
   analysis and statistics in `src/chN/thesis_utils.py`. Use `src/chN/steps.py`
   only when orchestration is too elaborate for a concise rule call.

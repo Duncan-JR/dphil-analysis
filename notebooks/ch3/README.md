@@ -41,8 +41,11 @@ alternative-branch analyses retain their previous outputs.
 the final chapter. They do not import the exploratory modules. `steps.py`
 distributes independent figure jobs through multiprocessing queues, using the
 CPU allocation supplied by Snakemake. The workflow consumes retained inputs,
-produces explicit Parquet tables, then produces 23 individually named figures
-and `statistics/ch3.tex` beneath the configured thesis root. The manually drawn
+produces explicit Parquet tables, then produces 23 individually declared figures
+beneath the configured thesis root. Statistics go to `statistics/ch3.tex`,
+`statistics/ch3_claims.json` and `statistics/ch3_checks.json` in **dphil-analysis**.
+The thesis chapter reads the generated TeX from this analysis repository.
+The manually drawn
 `anc_eval_pipe.png` is a declared retained asset, copied unchanged.
 
 From the analysis root:
@@ -53,7 +56,8 @@ uv run snakemake --cores all --dry-run
 uv run snakemake ch3_plots ch3_statistics --cores all
 # Isolated validation destination; scientific inputs remain the same:
 uv run snakemake --cores all \
-  --config thesis_root=/private/tmp/ch3_thesis work_root=/private/tmp/ch3_prepared
+  --config thesis_root=/private/tmp/ch3_thesis work_root=/private/tmp/ch3_prepared \
+  statistics_dir=/private/tmp/ch3_statistics
 ```
 
 `rsvg-convert` from librsvg is required for the PDF illustration. For a
@@ -61,6 +65,15 @@ restricted shell, the validation used `UV_CACHE_DIR=/private/tmp/dphil_uv_cache`
 `XDG_CACHE_HOME=/private/tmp/dphil_tool_cache` and
 `MPLCONFIGDIR=/private/tmp/dphil_mpl`; these are cache locations, not scientific
 settings. Ordinary installations can use their normal user caches.
+
+The Snakefile has only directory variables before its rules. Raw input paths
+are written in the relevant rules, including the consumed empirical Zarr arrays.
+`thesis_config.yaml` specifies directories, scientific selections and output
+filenames. Plot defaults are the finished figure settings; its three plot
+override blocks distinguish demographic overlap, empirical span and phasing
+summary calls from other uses of the same renderers. The eight-site extension
+example and its genealogies are fixed in code and require no arguments.
+Unit conversions and TeX number formatting are ordinary code, not configuration.
 
 The [input manifest](../../plans/thesis_inputs.json) gives SHA-256/size
 identities for every retained CSV/manual asset and every consumed empirical
@@ -125,3 +138,8 @@ input, so changing a retained dependency invalidates generated outputs.
 Older ignored autosave checkpoints were preserved byte-for-byte in
 `data/ch3/provenance/notebook_checkpoints.zip`. They are historical recovery
 records; the current output-bearing paired notebook remains tracked directly.
+
+On 13 November 2026, all chapter notebook pairs were synchronised with Jupytext
+at the user's request. The saved outputs, attachments and execution counts are
+unchanged; this reconciles round-trip whitespace and fixes Jupyter's paired-file
+load check without rerunning the notebooks.

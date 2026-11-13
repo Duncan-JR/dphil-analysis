@@ -181,5 +181,20 @@
     "tests": "All six maintained tests passed in the isolated installation (7.38 seconds) and root environment (0.78 seconds).",
     "offline": "Root locked offline sync passed with the retained archive.",
     "dependencies": "Project metadata, lockfile and relative tsls archive explicitly declared as rule inputs."
+  },
+  "follow_up_2026_11_13": {
+    "config_lines_before": 1024,
+    "config_lines_after": 77,
+    "snakefile_front_matter": "Only three lowercase directory variables; input paths and source dependencies explicit in rules; all final filenames expanded from config.",
+    "statistics_directory": "statistics/ in dphil-analysis",
+    "plot_defaults": "Finished settings; fixed no-argument extension illustration; only shared-renderer non-default arguments in config.",
+    "temporary_and_default_builds": "Passed; all 23 figures and 60 named TeX values generated.",
+    "comparison": "All 22 PNGs byte-identical; tree PDF rendering identical. All 60 macro names/values/text/units and every numerical diagnostic table unchanged. Nine independent reference-table comparisons pass at 1e-9.",
+    "filename_override": "Copied config renames extension output; dry-run declares renamed output without changing code.",
+    "missing_input": "MissingInputException names missing aggregate in copied rule.",
+    "tex": "New sibling-thesis input resolves to local statistics/ch3.tex; all 60 macros compile.",
+    "tests": "Six passed in 0.78 seconds; no new tests.",
+    "notebooks": "19 pairs synchronised; original visible hashes unchanged; Jupytext diff empty and contents-manager loads pass for all 19.",
+    "commits": "None, at user request."
   }
 }

@@ -77,7 +77,6 @@ nb_utils.make_focal_regions_buffered(intervals_chain)
 # Still inside outer loop: decide whether to retain this region.
 # Outer loop repeats as long as there are intervals untouched
 
-
 # %%
 
 # %% [markdown]

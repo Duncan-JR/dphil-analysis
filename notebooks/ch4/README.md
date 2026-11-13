@@ -81,3 +81,8 @@ Older ignored autosave checkpoints, including their original outputs and
 unsynchronised source snapshots, are retained unchanged in the committed
 `data/ch4/provenance/notebook_checkpoints.zip` recovery archive. Current work
 uses the directly tracked paired notebook above.
+
+On 13 November 2026, all chapter notebook pairs were synchronised with Jupytext
+at the user's request. Saved outputs, attachments and execution counts are
+unchanged. Jupytext's own comparison and contents-manager load checks pass;
+no notebook was executed during this synchronisation.

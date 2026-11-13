@@ -6,7 +6,7 @@ Scientific selections are implemented in :mod:`ch3.thesis_utils`.
 
 from __future__ import annotations
 import logging
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as et
 import matplotlib.lines as mlines
 import matplotlib.patches as mpatches
 import matplotlib.path as mpath
@@ -18,6 +18,13 @@ import scipy.ndimage as ndi
 from . import thesis_utils
 
 logger = logging.getLogger(__name__)
+
+demography_labels = {
+    "OutOfAfrica_3G09": "Out of Africa\n(3G09)",
+    "AmericanAdmixture_4B18": "American\nadmixture\n(4B18)",
+    "Africa_1T12": "Africa\n(1T12)",
+    "Zigzag_1S14": "Zigzag\n(1S14)",
+}
 
 
 def _ancestor_boxplot(
@@ -75,6 +82,7 @@ def _ancestor_boxplot(
         figsize=figsize,
         sharex=True,
         gridspec_kw={"height_ratios": [4, 1], "hspace": ancestor_panel_spacing},
+        dpi=dpi,
     )
     groups = []
     frame = thesis_utils._no_errors(data.overshoots)
@@ -95,7 +103,7 @@ def _ancestor_boxplot(
         for bin_index in range(num_bins):
             selected = subset.loc[bin_ids == bin_index, column].to_numpy()
             if len(selected) > 0:
-                values.append(selected / config.bp_per_mb)
+                values.append(selected / 1e6)
                 positions.append(bin_index - 0.4 + width * (index + 0.5))
         for selected, position in zip(values, positions):
             _draw_overshoot_group(
@@ -168,8 +176,8 @@ def _ancestor_boxplot(
 def plot_ancestor_overshoot(
     data,
     num_bins=5,
-    cutoffs=None,
-    conf=0.01,
+    cutoffs=(0, 0.001, 0.003, 0.02, 0.5, 1),
+    conf=0.001,
     alpha=None,
     figsize=None,
     y_log=False,
@@ -181,10 +189,10 @@ def plot_ancestor_overshoot(
     box_size=(7, 4.5),
     dpi=300,
     jitter_alpha=0.15,
-    jitter_max_points=1500,
+    jitter_max_points=None,
     jitter_sample_interval_mb=(-1, 1),
     jitter_seed=42,
-    jitter_size=5,
+    jitter_size=3.5,
     jitter_width=0.32,
     overshoot_diff_panel_label_fontsize=12,
     overshoot_diff_panel_label_position=(0.02, 0.96),
@@ -233,7 +241,7 @@ def plot_ancestor_overshoot(
 
 def plot_ancestor_span_curves(
     summary,
-    dataset,
+    dataset="Simulation",
     title=None,
     config=None,
     figsize=None,
@@ -261,12 +269,10 @@ def plot_ancestor_span_curves(
     if figsize is None:
         figsize = span_curve_size
     if title is None:
-        title = dataset
-    filenames = {
-        "Simulation": "ancestor_span_frequency_simulation",
-        "1000 Genomes Project": "ancestor_span_frequency_tgp",
-    }
-    if dataset not in filenames:
+        title = (
+            "Out-of-Africa simulation (20mbp)" if dataset == "Simulation" else dataset
+        )
+    if dataset not in ("Simulation", "1000 Genomes Project"):
         raise ValueError("dataset must be Simulation or 1000 Genomes Project")
     selected = summary.loc[summary.dataset == dataset]
     count_table = selected.pivot(
@@ -282,6 +288,7 @@ def plot_ancestor_span_curves(
         sharex=True,
         layout="constrained",
         gridspec_kw={"height_ratios": span_curve_height_ratios},
+        dpi=dpi,
     )
     versions = list(config.versions)
     colors = list(version_colors)
@@ -328,16 +335,16 @@ def plot_ancestor_overlap_errors(
     group_by="bin",
     group_labels=None,
     show_counts=True,
-    show_mismatch_change=False,
-    panel_labels=(),
+    show_mismatch_change=True,
+    panel_labels=("A", "B", "C"),
     group_xlabel="Demographic model",
     figure=None,
-    split_error_types=True,
+    split_error_types=False,
     ancestor_error_change_decimals=2,
     ancestor_error_count_margin=0.4,
     ancestor_error_hatch="///",
     ancestor_error_height_ratios=(1, 1, 0.6),
-    ancestor_error_label_decimals=3,
+    ancestor_error_label_decimals=4,
     ancestor_error_label_fontsize=8,
     ancestor_error_label_padding=3,
     ancestor_error_legend_fontsize=9,
@@ -364,7 +371,7 @@ def plot_ancestor_overlap_errors(
     with its signed percentage change relative to the first version.
     ``panel_labels`` adds letters in axes coordinates. ``figure`` can supply
     a SubFigure for composition; its parent handles saving and display.
-    Set ``config.ancestor_error_y_log=False`` for a zero-based linear
+    Set ``ancestor_error_y_log=False`` for a zero-based linear
     mismatch-fraction axis, allowing the stacked error directions to be compared by height.
     ``split_error_types=False`` shows total mismatch fraction as solid bars and omits
     the error-direction legend.
@@ -384,7 +391,9 @@ def plot_ancestor_overlap_errors(
     panel_count = 3 if show_counts else 2
     height_ratios = ancestor_error_height_ratios[:panel_count]
     fig = (
-        plt.figure(figsize=figsize, layout="constrained") if figure is None else figure
+        plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
+        if figure is None
+        else figure
     )
     axes = fig.subplots(
         panel_count, 1, sharex=True, gridspec_kw={"height_ratios": height_ratios}
@@ -559,7 +568,7 @@ def plot_genotype_error_scaling(
     base = rates.loc[rates.multiplier == 1, "error_rate"].item()
     if figsize is None:
         figsize = curve_size
-    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained", dpi=dpi)
     colors = plt.get_cmap(genotype_scaling_cmap)(genotype_color_positions)
     ax.plot(rates.multiplier, rates.error_rate, "o-", color=colors[0], label="Observed")
     linear_x = np.geomspace(
@@ -604,7 +613,7 @@ def _profile_label(
         mantissa, exponent = f"{rate:.{phase_ser_decimals}e}".split("e")
         return f"${mantissa}\\times10^{{{int(exponent)}}}$"
     if by == "space_per_switch":
-        return "No errors" if rate == 0 else f"{rate / config.bp_per_mb:g}"
+        return "No errors" if rate == 0 else f"{rate / 1e6:g}"
     return f"{rate:g}×" if by == "geno_multiplier" else f"{rate:g}"
 
 
@@ -657,7 +666,12 @@ def _overshoot_histogram(
     panel_gap = 0 if mirrored else overshoot_diff_panel_gap
     if figure is None:
         fig, axes = plt.subplots(
-            2, 1, figsize=figsize, sharex=True, gridspec_kw={"hspace": panel_gap}
+            2,
+            1,
+            figsize=figsize,
+            sharex=True,
+            gridspec_kw={"hspace": panel_gap},
+            dpi=dpi,
         )
     else:
         fig = figure
@@ -821,7 +835,9 @@ def _overshoot_diff(
     if figsize is None:
         figsize = overshoot_diff_size
     fig = (
-        plt.figure(figsize=figsize, layout="constrained") if figure is None else figure
+        plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
+        if figure is None
+        else figure
     )
     axes = fig.subplots(2, 1, sharex=True)
     palette = _overshoot_colors(rates, overshoot_diff_cmap, overshoot_diff_color_range)
@@ -958,6 +974,7 @@ def plot_combined_overlap_errors(
         config,
         figsize,
         group_by="error_profile",
+        split_error_types=True,
         group_labels=labels,
         group_xlabel="Error profile",
         show_mismatch_change=True,
@@ -1096,7 +1113,7 @@ def plot_combined_errors(
         config = thesis_utils.AnalysisConfig()
     if figsize is None:
         figsize = combined_error_size
-    fig = plt.figure(figsize=figsize, layout="constrained")
+    fig = plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
     left, right = fig.subfigures(1, 2, width_ratios=combined_error_width_ratios)
     summary = thesis_utils.summarise_combined_overlap_errors(comparisons)
     plot_combined_overlap_errors(
@@ -1217,7 +1234,7 @@ def _draw_overshoot_group(
 
 def _symlog_overshoot_axis(ax, config, *, overshoot_linthresh_bp=1000):
     """Use signed decade ticks and a linear region that includes zero."""
-    linthresh = overshoot_linthresh_bp / config.bp_per_mb
+    linthresh = overshoot_linthresh_bp / 1e6
     ax.set_yscale("symlog", linthresh=linthresh)
     ax.yaxis.set_major_formatter(mticker.LogFormatterMathtext())
 
@@ -1282,7 +1299,7 @@ def _overshoot_legends(
 
 def plot_demography_overshoot_quantiles(
     comparisons,
-    model_labels,
+    model_labels=None,
     config=None,
     figsize=None,
     *,
@@ -1312,6 +1329,8 @@ def plot_demography_overshoot_quantiles(
         config = thesis_utils.AnalysisConfig()
     if figsize is None:
         figsize = demography_quantile_size
+    if model_labels is None:
+        model_labels = demography_labels
     fig, axes = plt.subplots(
         len(model_labels),
         2,
@@ -1319,6 +1338,7 @@ def plot_demography_overshoot_quantiles(
         sharex="col",
         squeeze=False,
         layout="constrained",
+        dpi=dpi,
     )
     positions = np.arange(len(config.versions))[::-1]
     for row, (model, label) in enumerate(model_labels.items()):
@@ -1334,14 +1354,14 @@ def plot_demography_overshoot_quantiles(
             )
             outer_low, inner_low, q25, median, q75, inner_high, outer_high = quantiles
             central.plot(
-                np.array([q25, q75]) / config.bp_per_kb,
+                np.array([q25, q75]) / 1e3,
                 [position, position],
                 color=color,
                 linewidth=demography_quantile_interval_width,
                 solid_capstyle="butt",
             )
             central.plot(
-                median / config.bp_per_kb,
+                median / 1e3,
                 position,
                 marker="o",
                 color=color,
@@ -1349,7 +1369,7 @@ def plot_demography_overshoot_quantiles(
                 markersize=demography_quantile_marker_size,
             )
             tails.plot(
-                np.array([outer_low, outer_high]) / config.bp_per_mb,
+                np.array([outer_low, outer_high]) / 1e6,
                 [position, position],
                 color=color,
                 linewidth=quantile_line_width,
@@ -1357,7 +1377,7 @@ def plot_demography_overshoot_quantiles(
                 markersize=demography_quantile_cap_size,
             )
             tails.plot(
-                np.array([inner_low, inner_high]) / config.bp_per_mb,
+                np.array([inner_low, inner_high]) / 1e6,
                 [position, position],
                 color=color,
                 linewidth=demography_quantile_interval_width,
@@ -1442,6 +1462,7 @@ def plot_overshoot_summary(
         sharex="col",
         squeeze=False,
         layout="constrained",
+        dpi=dpi,
     )
     positions = np.arange(len(config.versions))[::-1]
     fraction_max = summary.fraction_below_threshold.max()
@@ -1451,7 +1472,7 @@ def plot_overshoot_summary(
         central, tail = axes[row]
         for version, color, position in zip(config.versions, version_colors, positions):
             values = indexed.loc[rate, version]
-            interval = np.array([values.q25_bp, values.q75_bp]) / config.bp_per_mb
+            interval = np.array([values.q25_bp, values.q75_bp]) / 1e6
             central.plot(
                 interval,
                 [position, position],
@@ -1460,7 +1481,7 @@ def plot_overshoot_summary(
                 solid_capstyle="butt",
             )
             central.plot(
-                values.median_bp / config.bp_per_mb,
+                values.median_bp / 1e6,
                 position,
                 marker="o",
                 color=color,
@@ -1510,7 +1531,7 @@ def plot_overshoot_summary(
             ax.tick_params(axis="x", labelsize=overshoot_summary_label_fontsize)
             ax.spines[["top", "right", "left"]].set_visible(False)
     axes[0, 0].set_title("A: Median and IQR", loc="left")
-    threshold_mb = config.overshoot_summary_threshold_bp / config.bp_per_mb
+    threshold_mb = config.overshoot_summary_threshold_bp / 1e6
     axes[0, 1].set_title(f"B: Overshoot < {threshold_mb:g} Mb", loc="left")
     axes[-1, 0].set_xlabel("Overshoot (Mb)")
     axes[-1, 1].set_xlabel("Fraction of focal-site sides")
@@ -1654,7 +1675,7 @@ def plot_mispolarisation_daf(
     colors = plt.get_cmap("viridis")(np.linspace(0.1, 0.85, len(config.mispol_rates)))
     if figsize is None:
         figsize = daf_size if tgp_variants is None else combined_daf_size
-    fig, ax = plt.subplots(figsize=figsize, layout="constrained")
+    fig, ax = plt.subplots(figsize=figsize, layout="constrained", dpi=dpi)
     _format_daf_axes(ax)
     for rate, color in zip(config.mispol_rates, colors):
         selected = frequencies.loc[frequencies.mispol_rate == rate]
@@ -1756,7 +1777,7 @@ def plot_mispolarisation_overlap_errors(
     for rate in mispolarisation_error_rates:
         labels[f"{rate:g}_correctly_polarised"] = "Non-mispol.\nfocal site"
         labels[f"{rate:g}_mispolarised"] = "Mispol.\nfocal site"
-    fig = plt.figure(figsize=figsize, layout="constrained")
+    fig = plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
     plot_ancestor_overlap_errors(
         summary,
         config=config,
@@ -1827,7 +1848,7 @@ def plot_mispolarisation_overshoot_diff(
     figsize=None,
     legend_fontsize=None,
     num_bins=None,
-    focal_site_mispolarised=None,
+    focal_site_mispolarised=False,
     *,
     combined_error_labels=("No errors", "Combined errors"),
     combined_error_legend_labels=("No errors", "Combined\nerrors"),
@@ -1933,7 +1954,7 @@ def plot_mispolarised_focal_overshoot_hist(
     frame = thesis_utils._mispolarisation_overshoots(data, frequency="all")
     selected = frame.loc[frame.focal_site_mispolarised]
     rates = [rate for rate in config.mispol_rates if rate > 0]
-    fig = plt.figure(figsize=figsize, layout="constrained")
+    fig = plt.figure(figsize=figsize, layout="constrained", dpi=dpi)
     left, right = fig.subfigures(1, 2, width_ratios=mispolarised_focal_width_ratios)
     _overshoot_histogram(
         data,
@@ -2104,12 +2125,12 @@ def plot_phase_switch_illustration(
         .sort_values("plot_row")
     )
     settings = rows.space_per_switch.drop_duplicates().to_list()
-    left = runs.left.min() / config.bp_per_mb
-    right = min(phase_right_mb, runs.right.max() / config.bp_per_mb)
+    left = runs.left.min() / 1e6
+    right = min(phase_right_mb, runs.right.max() / 1e6)
     y_positions = []
     if figsize is None:
         figsize = phase_size
-    fig, overview = plt.subplots(1, 2, figsize=figsize, layout="constrained")
+    fig, overview = plt.subplots(1, 2, figsize=figsize, layout="constrained", dpi=dpi)
     for index, row in enumerate(rows.itertuples(index=False)):
         setting = settings.index(row.space_per_switch)
         y = (len(rows) - index - 1) * phase_row_spacing + (
@@ -2117,8 +2138,8 @@ def plot_phase_switch_illustration(
         ) * phase_group_gap
         y_positions.append(y)
         selected = runs.loc[runs.plot_row == row.plot_row].sort_values("left")
-        starts = selected.left.to_numpy() / config.bp_per_mb
-        widths = (selected.right - selected.left).to_numpy() / config.bp_per_mb
+        starts = selected.left.to_numpy() / 1e6
+        widths = (selected.right - selected.left).to_numpy() / 1e6
         _draw_phase_pair(
             overview[0],
             np.array([left]),
@@ -2146,7 +2167,7 @@ def plot_phase_switch_illustration(
                 combined_error_profiles=combined_error_profiles,
                 phase_ser_decimals=phase_ser_decimals,
             )
-            label = f"SER = {ser_label} ({row.space_per_switch / config.bp_per_mb:g} Mb mean gap)"
+            label = f"SER = {ser_label} ({row.space_per_switch / 1e6:g} Mb mean gap)"
             overview[1].text(
                 0.03,
                 y + 0.65,
@@ -2412,41 +2433,39 @@ def _legend(
         ax.text(x + 0.58, y, label, va="center", color=ink, fontsize=fontsize)
 
 
-def plot_ancestor_extension(
-    config,
-    *,
-    allele_fontsize=10.8,
-    allele_text_offset=0.038,
-    bar_height=0.52,
-    circle_radius=0.205,
-    conflict_color="#ff2626",
-    conflict_line_width=1.8,
-    contained_color="#8167a6",
-    dpi=300,
-    figsize=(9.0, 4.9),
-    first_conflict_dashes=3,
-    focal_color="#cc3838",
-    focal_ring_width=0.065,
-    ink_color="#253642",
-    label_fontsize=11,
-    legend_fontsize=10,
-    legend_width=6.3,
-    neutral_allele_color="#d7dce0",
-    older_allele_color="#ead4a5",
-    outside_color="#d6dfe5",
-    outside_gap=0.22,
-    row_spacing=0.76,
-    sample_color="#748a98",
-    site_spacing=1.4,
-    version_colors=("#1a80bb", "#ea801c"),
-):
-    """Display the toy comparison and optionally export PNG and editable SVG.
+def plot_ancestor_extension():
+    """Display the fixed eight-site ancestor-extension comparison.
 
     Arrows mean that the stopping criterion has not been reached within the
     displayed window. The stop site itself is included in the inferred 0.5
     ancestor. The eight-site example removes b in both versions, then c only
     in 0.5, reaching the halving threshold and leaving 0.4 two sites longer.
     """
+    config = thesis_utils.extension_example()
+    allele_fontsize = 10.8
+    allele_text_offset = 0.038
+    bar_height = 0.52
+    circle_radius = 0.205
+    conflict_color = "#ff2626"
+    conflict_line_width = 1.8
+    contained_color = "#8167a6"
+    dpi = 400
+    figsize = (9.0, 4.9)
+    first_conflict_dashes = 3
+    focal_color = "#cc3838"
+    focal_ring_width = 0.065
+    ink_color = "#253642"
+    label_fontsize = 11
+    legend_fontsize = 10
+    legend_width = 6.3
+    neutral_allele_color = "#d7dce0"
+    older_allele_color = "#ead4a5"
+    outside_color = "#d6dfe5"
+    outside_gap = 0.22
+    row_spacing = 0.76
+    sample_color = "#748a98"
+    site_spacing = 1.4
+    version_colors = ("#1a80bb", "#ea801c")
     genotypes = np.asarray(config.genotypes, dtype=np.int8)
     counts = genotypes.sum(axis=0)
     old = thesis_utils.trace_ancestor(config, config.versions[0])
@@ -2461,7 +2480,7 @@ def plot_ancestor_extension(
             contained.append(site + 1)
         elif carriers & initial:
             shared.append(site + 1)
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
     fig.subplots_adjust(left=0.01, right=0.99, bottom=0.01, top=0.99)
     site_positions = np.arange(1, genotypes.shape[1] + 1) * site_spacing
     left_x = 0.5 * site_spacing
@@ -2747,16 +2766,18 @@ def plot_speedup(
     dpi=300,
     group_width=0.8,
     jitter_seed=42,
-    jitter_width=0.32,
+    jitter_width=0.18,
     repetition_alpha=0.7,
     repetition_marker_size=13,
-    sample_labels={},
+    sample_labels=None,
     speedup_figsize=(7.5, 3.5),
     speedup_top_margin=0.1,
     stage_colors=("#4477aa", "#228833", "#ccbb44"),
     stage_labels=("Generate ancestors", "Match ancestors", "Match samples"),
 ):
     """Mean paired per-run speedups, with one jittered point per repetition."""
+    if sample_labels is None:
+        sample_labels = {6404: "6,404 (1KGP)"}
     elapsed = data.elapsed_time.unstack("version")
     speedup = elapsed[config.versions[0]] / elapsed[config.versions[1]]
     means = speedup.groupby(["num_samples", "command"]).mean()
@@ -2800,13 +2821,13 @@ def plot_elapsed(
     *,
     dpi=300,
     elapsed_bar_width=0.65,
-    figsize=(9.0, 4.9),
+    figsize=(10, 3.8),
     jitter_seed=42,
-    jitter_width=0.32,
+    jitter_width=0.18,
     repetition_alpha=0.7,
     repetition_marker_size=13,
-    sample_labels={},
-    sample_titles={},
+    sample_labels=None,
+    sample_titles=None,
     stage_colors=("#4477aa", "#228833", "#ccbb44"),
     stage_labels=("Generate ancestors", "Match ancestors", "Match samples"),
     version_labels=("tsinfer 0.4", "tsinfer 0.5"),
@@ -2815,6 +2836,10 @@ def plot_elapsed(
 
     Total speedup is the mean of paired per-run total-time ratios.
     """
+    if sample_labels is None:
+        sample_labels = {6404: "6,404 (1KGP)"}
+    if sample_titles is None:
+        sample_titles = {6404: "6,404 haplotypes\n(1KGP)"}
     sizes = data.index.get_level_values("num_samples").unique()
     rng = np.random.default_rng(jitter_seed)
     fig, axes = plt.subplots(
@@ -2896,7 +2921,7 @@ def plot_resources(
     reference_data=None,
     *,
     dpi=300,
-    figsize=(9.0, 4.9),
+    figsize=(10, 3.8),
     jitter_seed=42,
     parallelism_reference_cores=192,
     reference_markers=("^", "^"),
@@ -3047,31 +3072,31 @@ def plot_resources(
     return fig
 
 
-def plot_extension_tree(
-    extension_ts,
-    extension_node_ids,
-    extension_config,
-    *,
-    svg_id="ancestor_extension_trees",
-    ink_color="#253642",
-    muted_color="#66747d",
-    background_color="#f1f4f6",
-    font_size=14.5,
-    sample_font_size=15.8,
-    mutation_font_size=14.8,
-    site_font_size=13.8,
-    node_colors={"F": "#cc3838", "E": "#8167a6", "G": ("#1a80bb", "#ea801c")[1]},
-    label_radius=11,
-    descendant_colors={"F": "#cc3838", "E": "#cc3838", "G": ("#1a80bb", "#ea801c")[1]},
-    older_color="#b59a66",
-    size=(680, 300),
-    axis_gap=14,
-    plot_interval=(0, 100),
-    y_ticks=(0, 2, 4, 6, 8, 10),
-    symbol_size=6,
-    canvas_color="white",
-    site_label_offset=-16,
-):
+def plot_extension_tree():
+    """Render the fixed three-tree example used in the final chapter."""
+    extension_config = thesis_utils.extension_example()
+    trees = thesis_utils.build_extension_trees()
+    extension_ts = trees.tree_sequence
+    extension_node_ids = trees.node_ids
+    svg_id = "ancestor_extension_trees"
+    ink_color = "#253642"
+    muted_color = "#66747d"
+    background_color = "#f1f4f6"
+    font_size = 14.5
+    sample_font_size = 15.8
+    mutation_font_size = 14.8
+    site_font_size = 13.8
+    node_colors = {"F": "#cc3838", "E": "#8167a6", "G": ("#1a80bb", "#ea801c")[1]}
+    label_radius = 11
+    descendant_colors = {"F": "#cc3838", "E": "#cc3838", "G": ("#1a80bb", "#ea801c")[1]}
+    older_color = "#b59a66"
+    size = (680, 300)
+    axis_gap = 14
+    plot_interval = (0, 100)
+    y_ticks = (0, 2, 4, 6, 8, 10)
+    symbol_size = 6
+    canvas_color = "white"
+    site_label_offset = -16
     extension_svg_id = svg_id
     extension_ink = ink_color
     extension_muted = muted_color
@@ -3143,8 +3168,8 @@ def plot_extension_tree(
         style="\n".join(extension_style),
         preamble=f'<rect width="100%" height="100%" fill="{canvas_color}"/>',
     )
-    ET.register_namespace("", "http://www.w3.org/2000/svg")
-    extension_svg_root = ET.fromstring(extension_tree_svg)
+    et.register_namespace("", "http://www.w3.org/2000/svg")
+    extension_svg_root = et.fromstring(extension_tree_svg)
     extension_x_axis = extension_svg_root.find(
         ".//{http://www.w3.org/2000/svg}g[@class='x-axis']"
     )
@@ -3165,11 +3190,11 @@ def plot_extension_tree(
         site_group = extension_svg_root.find(
             f".//{{http://www.w3.org/2000/svg}}g[@class='site s{site.id}']"
         )
-        site_label = ET.SubElement(
+        site_label = et.SubElement(
             site_group,
             "{http://www.w3.org/2000/svg}text",
             {"class": "lab", "x": "0", "y": str(site_label_offset)},
         )
         site_label.text = str(site.id + 1)
-    extension_tree_svg = ET.tostring(extension_svg_root, encoding="unicode")
+    extension_tree_svg = et.tostring(extension_svg_root, encoding="unicode")
     return extension_tree_svg

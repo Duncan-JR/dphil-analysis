@@ -6,7 +6,7 @@ The original prose used 572.2% for the MAF-matched comparison, 4.2×/9.7× for t
 
 | TeX macro | Generated text | Units | Claim / calculation |
 | --- | --- | --- | --- |
-| `ChThreeToyFocalCarriers` | four | samples | Derived-carrier count at the configured focal site |
+| `ChThreeToyFocalCarriers` | four | samples | Derived-carrier count at the fixed illustrated focal site |
 | `ChThreeToyOldRemovalSite` | 4 | one-based site | Algorithm replay 0.4.1: removal of sample b |
 | `ChThreeToyNewRemovalSite` | 6 | one-based site | Algorithm replay 0.5.1: removal of sample c |
 | `ChThreeFocalSites` | 358,285 | count | Error-free 0.5.1; sites separately, ancestor IDs unique within replicate |

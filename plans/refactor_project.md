@@ -757,8 +757,8 @@ target. Do not silently defer code, documentation or consumer cleanup.
 ## Execution record
 
 The complete migration was authorised and implemented. Each row records its
-commit and concrete verification. Phase 8 uses `this commit` for its own hash;
-the exact final hash is reported in the handover. Historical environment and
+commit and concrete verification. Phase 8 was committed as `2634c64`.
+Historical environment and
 producer-provenance limits are documented alongside their analyses, separately
 from the successful maintained thesis build.
 
@@ -771,4 +771,17 @@ from the successful maintained thesis build.
 | 5 | Preserve notebook outputs and document chapter analyses | Complete | 2ec585f | All 19 pairs/visible records preserved and allowed by ignore rules; every notebook has inputs, methods and explicit selected-cell evidence. 19 selected checks passed in isolated temporary destinations, using multiprocessing queues; representative figures inspected. No upstream inference/dating jobs launched. |
 | 6 | Add the CH3 thesis plot and statistics workflow | Complete | 914e8e8 | Independent final subset; six producing preparation jobs, 23 individually declared figures and named TeX/statistics outputs. Temporary and configured-destination builds passed; nine retained numerical tables match, all figures inspected, incremental and missing-input checks passed. Mechanical thesis integration committed as 691af19 in dphil-thesis. See thesis_inputs.json, thesis_claims.md, thesis_validation.json and refactor_validation.md. |
 | 7 | Add minimal tests for finalised chapter code | Complete | c779d5d | Exactly six class-based synthetic checks: four final CH3 pooling/tail/histogram/paired-performance cases and two retained CH4 masked-window/ranking cases. Collection restricted to tests; all six pass without research data, sibling checkouts or HPC. No CH5, notebook, nb_ or presentation tests. |
-| 8 | Complete the repository reorganisation | Complete | this commit | Permanent root policy installed verbatim; final layout/consumer audit passed, all 19 visible notebook records and 18 checkpoint records preserved, 13,895 scientific files and five symlinks verified. Five flat drivers; redundant/unused rough plotting helpers removed and explicit presentation calls exercised. Fresh portable locked installation and all six tests pass. Final 23-figure/60-value thesis build, nine numerical comparisons, deterministic statistics repeat and unchanged dry run pass; final thesis artifacts committed as 4d3b1d5. See refactor_final_audit.json and phase 8 validation. No required thesis build blocker; historical native reruns require their recorded environment. |
+| 8 | Complete the repository reorganisation | Complete | 2634c64 | Permanent root policy installed verbatim; final layout/consumer audit passed, all 19 visible notebook records and 18 checkpoint records preserved, 13,895 scientific files and five symlinks verified. Five flat drivers; redundant/unused rough plotting helpers removed and explicit presentation calls exercised. Fresh portable locked installation and all six tests pass. Final 23-figure/60-value thesis build, nine numerical comparisons, deterministic statistics repeat and unchanged dry run pass; final thesis artifacts committed as 4d3b1d5. See refactor_final_audit.json and phase 8 validation. No required thesis build blocker; historical native reruns require their recorded environment. |
+
+### Follow-up changes, 13 November 2026
+
+At the user's request, the maintained workflow configuration was simplified,
+figure filenames moved entirely into configuration, input paths made explicit
+in rules, and statistics redirected to this repository's `statistics/` folder.
+Plot defaults retain the finished figures; the extension example is fixed in
+code. All notebook pairs were explicitly synchronised, preserving outputs,
+and a reappeared duplicate experiments README was removed after confirming
+its scientific content was already owned by the chapter README. These changes
+are uncommitted at the user's request. The updated root guidance supersedes
+the original plan's statistics-destination/configuration details. See the
+follow-up section of [the validation record](refactor_validation.md).

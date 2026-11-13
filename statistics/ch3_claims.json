@@ -1,0 +1,658 @@
+[
+  {
+    "macro": "ChThreeToyFocalCarriers",
+    "value": 4.0,
+    "tex": "four",
+    "units": "samples",
+    "calculation": "Derived-carrier count at the fixed illustrated focal site",
+    "inputs": [
+      "src/ch3/thesis_utils.py"
+    ]
+  },
+  {
+    "macro": "ChThreeToyOldRemovalSite",
+    "value": 4.0,
+    "tex": "4",
+    "units": "one-based site",
+    "calculation": "Algorithm replay 0.4.1: removal of sample b",
+    "inputs": [
+      "src/ch3/thesis_utils.py"
+    ]
+  },
+  {
+    "macro": "ChThreeToyNewRemovalSite",
+    "value": 6.0,
+    "tex": "6",
+    "units": "one-based site",
+    "calculation": "Algorithm replay 0.5.1: removal of sample c",
+    "inputs": [
+      "src/ch3/thesis_utils.py"
+    ]
+  },
+  {
+    "macro": "ChThreeFocalSites",
+    "value": 358285.0,
+    "tex": "358,285",
+    "units": "count",
+    "calculation": "Error-free 0.5.1; sites separately, ancestor IDs unique within replicate",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeTrueAncestors",
+    "value": 137123.0,
+    "tex": "137,123",
+    "units": "count",
+    "calculation": "Error-free 0.5.1; sites separately, ancestor IDs unique within replicate",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeInferredAncestors",
+    "value": 228445.0,
+    "tex": "228,445",
+    "units": "count",
+    "calculation": "Error-free 0.5.1; sites separately, ancestor IDs unique within replicate",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeRecentErrorFreePercent",
+    "value": 62.18465400742462,
+    "tex": "62",
+    "units": "percent of focal-site overlaps",
+    "calculation": "0.5.1, observed DAF < 0.001; zero-error count / all focal sites",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeOldestErrorFreePercent",
+    "value": 22.150926344328965,
+    "tex": "22",
+    "units": "percent of focal-site overlaps",
+    "calculation": "0.5.1, observed DAF >= 0.5; zero-error count / all focal sites",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeFrequencyMismatchIncreasePercent",
+    "value": 0.221561134691739,
+    "tex": "0.23",
+    "units": "relative percent",
+    "calculation": "Maximum across configured frequency bins of 100*(new pooled mismatch / old - 1); pooled errors / compared inference sites",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeEmpiricalExtentMb",
+    "value": 25.996603,
+    "tex": "26.0",
+    "units": "Mb",
+    "calculation": "Maximum minus minimum empirical inference-site position across both versions",
+    "inputs": [
+      "data/ch3/thesis_prepared/empirical_spans.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyOldMedianMinKb",
+    "value": 13.818,
+    "tex": "13.8",
+    "units": "kb",
+    "calculation": "Minimum across demographic models of pooled focal-side median, 0.4.1",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyOldMedianMaxKb",
+    "value": 32.358,
+    "tex": "32.4",
+    "units": "kb",
+    "calculation": "Maximum across demographic models of pooled focal-side median, 0.4.1",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyNewMedianMinKb",
+    "value": 10.553,
+    "tex": "10.6",
+    "units": "kb",
+    "calculation": "Minimum across demographic models of pooled focal-side median, 0.5.1",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyNewMedianMaxKb",
+    "value": 26.1285,
+    "tex": "26.1",
+    "units": "kb",
+    "calculation": "Maximum across demographic models of pooled focal-side median, 0.5.1",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyApproxErrorPercent",
+    "value": 50.0,
+    "tex": "50",
+    "units": "percent",
+    "calculation": "Mean per-model/version fraction of focal overlaps with errors, rounded to nearest configured percentage step for 'roughly'",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyMismatchIncreasePercent",
+    "value": 0.023499309621466402,
+    "tex": "0.024",
+    "units": "relative percent",
+    "calculation": "Maximum across models of 100*(new pooled mismatch / old - 1)",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeZigzagMinimumIncreasePercent",
+    "value": 86.38811980999645,
+    "tex": "86",
+    "units": "relative percent lower bound",
+    "calculation": "Minimum across other models and both versions of 100*(Zigzag pooled mismatch / other - 1), floored for 'at least'",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet"
+    ]
+  },
+  {
+    "macro": "ChThreeDemographyNonnegativeBoundPercent",
+    "value": 75.0,
+    "tex": "75",
+    "units": "percent of focal-site sides",
+    "calculation": "Complement of the configured lower central quantile; verified that a strict majority of model/version cases meet this bound",
+    "inputs": [
+      "data/ch3/thesis_prepared/AmericanAdmixture_4B18.parquet",
+      "data/ch3/thesis_prepared/Africa_1T12.parquet",
+      "data/ch3/thesis_prepared/Zigzag_1S14.parquet",
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeCommonErrorPercent",
+    "value": 0.2151637019694922,
+    "tex": "0.215",
+    "units": "percent of diploid genotypes",
+    "calculation": "Sum changed / sum total, true MAF strictly above configured threshold, lambda=1",
+    "inputs": [
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypePublishedRelativePercent",
+    "value": 572.386568654663,
+    "tex": "572.4",
+    "units": "relative percent",
+    "calculation": "100*(MAF-matched simulated diploid error rate / cited published rate - 1); published reference is configuration, not a derived result",
+    "inputs": [
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeAllErrorPercent",
+    "value": 0.07826502934960622,
+    "tex": "0.078",
+    "units": "percent of diploid genotypes",
+    "calculation": "Lambda=1; sum changed / sum total; no frequency filter",
+    "inputs": [
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeOldMedianKb",
+    "value": 17.126,
+    "tex": "17.13",
+    "units": "kb",
+    "calculation": "Lambda=1, 0.4.1; median over both focal-site sides",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeNewMedianKb",
+    "value": 14.796,
+    "tex": "14.80",
+    "units": "kb",
+    "calculation": "Lambda=1, 0.5.1; median over both focal-site sides",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeModerateSeverePercent",
+    "value": 3.2632287801593116,
+    "tex": "3.3",
+    "units": "percent of focal-site sides",
+    "calculation": "Lambda=1, 0.5.1; overshoot strictly below -1e+07 bp / all sides",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeExtremeSeverePercent",
+    "value": 11.858544521100342,
+    "tex": "11.9",
+    "units": "percent of focal-site sides",
+    "calculation": "Lambda=10, 0.5.1; overshoot strictly below threshold / all sides",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeExtremeNonpositivePercent",
+    "value": 75.32236954287585,
+    "tex": "75",
+    "units": "percent of focal-site sides",
+    "calculation": "Lambda=10, 0.5.1; overshoot <= 0 / all sides",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeUndershootBinIncreasePercent",
+    "value": 1.2715712988192551,
+    "tex": "1.3",
+    "units": "relative percent of bin count",
+    "calculation": "Maximum 100*(new-old)/old over bins with midpoint below the severe threshold and lambda=0,1,2,5,10; common physical edges over all selected sides; zero-old bins undefined",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeGenotypeNegativeMedianMultiplier",
+    "value": 5.0,
+    "tex": "5",
+    "units": "genotype multiplier",
+    "calculation": "Smallest tested lambda with a negative median in both versions",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreePhaseModerateSER",
+    "value": 0.0007650591664244,
+    "tex": "7.65 \\times 10^{-4}",
+    "units": "switches / adjacent heterozygous-site pairs",
+    "calculation": "Aggregate phase-only profile spacing 2e+06 bp; verified against the declared phase-run export",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_phase_runs.csv"
+    ]
+  },
+  {
+    "macro": "ChThreePhaseExtremeSER",
+    "value": 0.0076505916642442,
+    "tex": "7.65 \\times 10^{-3}",
+    "units": "switches / adjacent heterozygous-site pairs",
+    "calculation": "Aggregate phase-only profile spacing 200000 bp; verified against the declared phase-run export",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_phase_runs.csv"
+    ]
+  },
+  {
+    "macro": "ChThreePhaseOldMedianKb",
+    "value": 7.655,
+    "tex": "7.66",
+    "units": "kb",
+    "calculation": "Spacing 2e+06 bp, 0.4.1; pooled focal-side median",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreePhaseNewMedianKb",
+    "value": 5.786,
+    "tex": "5.79",
+    "units": "kb",
+    "calculation": "Spacing 2e+06 bp, 0.5.1; pooled focal-side median",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreePhaseExtremeSeverePercent",
+    "value": 1.6266380116387793,
+    "tex": "1.63",
+    "units": "percent of focal-site sides",
+    "calculation": "Spacing 200000 bp, 0.5.1; sides strictly below severe threshold / all sides",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreePhaseBinIncreasePercent",
+    "value": 6.538917285430821,
+    "tex": "7",
+    "units": "relative percent of bin count",
+    "calculation": "Maximum across all common physical bins and phase-only SERs of 100*(new-old)/old; zero-old bins undefined",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeCombinedErrorFreeDropPoints",
+    "value": 29.789680791487772,
+    "tex": "30",
+    "units": "percentage points",
+    "calculation": "0.5.1, correctly polarised focal sites; zero-error fraction none minus all",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeCombinedBaselineMismatchPercent",
+    "value": 0.04619283609933453,
+    "tex": "0.046",
+    "units": "percent of compared inference sites",
+    "calculation": "0.5.1, correctly polarised Baseline profile; sum errors / sum overlap inference sites",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeCombinedErrorMismatchPercent",
+    "value": 0.13957395306144302,
+    "tex": "0.140",
+    "units": "percent of compared inference sites",
+    "calculation": "0.5.1, correctly polarised Error profile; sum errors / sum overlap inference sites",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeCombinedMismatchFold",
+    "value": 3.0215497650176495,
+    "tex": "three",
+    "units": "fold",
+    "calculation": "Combined / none pooled mismatch fraction in updated version, correctly polarised focal sites",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeCombinedMaximumOvershootMb",
+    "value": 7.63344,
+    "tex": "7.63",
+    "units": "Mb",
+    "calculation": "Maximum signed focal-side overshoot, correctly polarised combined profile, updated version",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeMaximumRegimeMismatchIncreasePercent",
+    "value": 0.07285106666903296,
+    "tex": "0.073",
+    "units": "relative percent",
+    "calculation": "Maximum over quoted pure/combined regimes (lambda <=10), correctly polarised sites; whole-overlap pooled mismatch new/old - 1",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeMaximumSevereFocalIncreasePercent",
+    "value": 0.09934714731762995,
+    "tex": "0.10",
+    "units": "relative percent of focal-site count",
+    "calculation": "Maximum across quoted regimes, correctly polarised sites; focal site severe if at least one side is strictly below threshold; 100*(new count / old - 1)",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeAdditionalSevereFocalSites",
+    "value": 42.0,
+    "tex": "42",
+    "units": "focal sites",
+    "calculation": "New minus old counts in the regime attaining the maximum relative severe-focal increase",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeWorstSevereGenotypeMultiplier",
+    "value": 2.0,
+    "tex": "2",
+    "units": "genotype multiplier",
+    "calculation": "Genotype multiplier of regime attaining maximum relative severe-focal count increase",
+    "inputs": [
+      "data/ch3/thesis_prepared/comparisons.parquet",
+      "data/ch3/OutOfAfrica_3G09-chr20-L0-R2e7-n6000-s1_zarr_data.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeLargestAncestorSpeedup",
+    "value": 4.262465588668892,
+    "tex": "4.3",
+    "units": "fold",
+    "calculation": "Haplotypes=100000, match_ancestors; mean of paired per-repetition old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeLargestSampleSpeedup",
+    "value": 9.769579438211716,
+    "tex": "9.8",
+    "units": "fold",
+    "calculation": "Haplotypes=100000, match_samples; mean of paired per-repetition old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeEmpiricalSampleSpeedup",
+    "value": 4.743271187258532,
+    "tex": "4.7",
+    "units": "fold",
+    "calculation": "Haplotypes=6404, match_samples; mean of paired per-repetition old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeTenThousandSampleSpeedup",
+    "value": 3.2710474927613125,
+    "tex": "3.3",
+    "units": "fold",
+    "calculation": "Haplotypes=10000, match_samples; mean of paired per-repetition old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeEmpiricalTotalSpeedup",
+    "value": 1.521389730690123,
+    "tex": "1.5",
+    "units": "fold",
+    "calculation": "Haplotypes=6404; sum three stages within each run, then mean paired old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeTenThousandTotalSpeedup",
+    "value": 2.2298748147484817,
+    "tex": "2.2",
+    "units": "fold",
+    "calculation": "Haplotypes=10000; sum three stages within each run, then mean paired old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeLargestTotalSpeedup",
+    "value": 6.371393594557741,
+    "tex": "6.4",
+    "units": "fold",
+    "calculation": "Haplotypes=100000; sum three stages within each run, then mean paired old/new wall-time ratios",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeLargestOldHours",
+    "value": 68.76598235531114,
+    "tex": "69",
+    "units": "hours",
+    "calculation": "Haplotypes=100000, version=0.4; mean run total wall seconds / 3600",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeLargestNewHours",
+    "value": 10.792926435128578,
+    "tex": "11",
+    "units": "hours",
+    "calculation": "Haplotypes=100000, version=0.5; mean run total wall seconds / 3600",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeApproxLargestSampleSpeedup",
+    "value": 9.769579438211716,
+    "tex": "10",
+    "units": "fold",
+    "calculation": "Largest simulated sample-matching speedup rounded for 'almost' in conclusion",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeEmpiricalRetainedSites",
+    "value": 504149.0,
+    "tex": "504,149",
+    "units": "inference sites",
+    "calculation": "Empirical benchmark num_sites, verified identical across stages, repetitions and versions",
+    "inputs": [
+      "data/ch3/performance/perf_combined.csv"
+    ]
+  },
+  {
+    "macro": "ChThreeSimulationMb",
+    "value": 20.0,
+    "tex": "20",
+    "units": "Mb",
+    "calculation": "Fixed experimental setting from thesis configuration",
+    "inputs": [
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeSimulationIndividuals",
+    "value": 6000.0,
+    "tex": "6,000",
+    "units": "diploid individuals",
+    "calculation": "Fixed experimental setting from thesis configuration",
+    "inputs": [
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeSimulationHaplotypes",
+    "value": 12000.0,
+    "tex": "12,000",
+    "units": "haplotypes",
+    "calculation": "Fixed experimental setting from thesis configuration",
+    "inputs": [
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeEmpiricalIndividuals",
+    "value": 3202.0,
+    "tex": "3,202",
+    "units": "diploid individuals",
+    "calculation": "Fixed experimental setting from thesis configuration",
+    "inputs": [
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeEmpiricalHaplotypes",
+    "value": 6404.0,
+    "tex": "6,404",
+    "units": "haplotypes",
+    "calculation": "Fixed experimental setting from thesis configuration",
+    "inputs": [
+      "thesis_config.yaml"
+    ]
+  },
+  {
+    "macro": "ChThreeSevereThresholdMb",
+    "value": 10.0,
+    "tex": "10",
+    "units": "Mb",
+    "calculation": "Fixed experimental setting from thesis configuration",
+    "inputs": [
+      "thesis_config.yaml"
+    ]
+  }
+]

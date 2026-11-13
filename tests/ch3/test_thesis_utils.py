@@ -64,12 +64,12 @@ class TestThesisCalculations:
             {
                 "version": ["0.4.1"] * 4 + ["0.5.1"] * 4,
                 "geno_multiplier": [1] * 8,
-                "overshoot": [-2, 1, 2, 2, -2, -2, -1, 2],
+                "overshoot": np.array([-2, 1, 2, 2, -2, -2, -1, 2]) * 1_000_000,
             }
         )
 
     def test_histogram_changes_are_relative_counts(self, histogram_sides):
-        config = thesis_utils.AnalysisConfig(bp_per_mb=1)
+        config = thesis_utils.AnalysisConfig()
         changes = thesis_utils.histogram_count_changes(
             histogram_sides, "geno_multiplier", [1], config, bins=4
         )
