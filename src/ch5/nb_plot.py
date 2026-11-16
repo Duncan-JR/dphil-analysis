@@ -996,6 +996,12 @@ def plot_age_density(
     cases = [("greedy", cutoff) for cutoff in data.panel_cutoffs]
     if reference == "truth":
         cases.insert(0, ("full_hmm", None))
+    extra_methods = []
+    if method_colors is not None:
+        extra_methods = [
+            method for method in method_colors if method not in {"full_hmm", "greedy"}
+        ]
+    cases.extend((method, None) for method in extra_methods)
     reference_label = "True" if reference == "truth" else "Full HMM"
     figure, axes = _cohort_panels(
         data,
@@ -1016,6 +1022,7 @@ def plot_age_density(
             reference,
             "full_hmm",
             *[f"af_{run['af_cutoff']}" for run in dataset["runs"]],
+            *extra_methods,
         ]
         quantiles = table[columns].quantile(age_maximum_quantile)
         maximum = max(maximum, quantiles.max())
@@ -1030,7 +1037,7 @@ def plot_age_density(
     for row, (method, panel_cutoff) in enumerate(cases):
         for col, dataset in enumerate(datasets):
             cutoff = _cohort_dataset_cutoff(data, dataset, panel_cutoff)
-            key = "full_hmm" if method == "full_hmm" else f"af_{cutoff}"
+            key = f"af_{cutoff}" if method == "greedy" else method
             ax = axes[row, col]
             table = tables[col]
             selected = table[reference].ge(minimum) & table[key].ge(minimum)
@@ -1064,6 +1071,8 @@ def plot_age_density(
             )
             if method_colors is not None and method == "greedy":
                 label = f"{method_labels[method]} · {label}"
+            if method in extra_methods:
+                label = method_labels[method]
             ax.set(
                 title=f"{_cohort_dataset_label(data, dataset, cohort_labels=cohort_labels)} · {label}",
                 xlim=(minimum, maximum),
@@ -1294,19 +1303,10 @@ def plot_recurrence(
         ("full_hmm", None, "Full HMM", full_color),
     ]
     if method_colors is not None:
-        cases.append(
-            (
-                "greedy",
-                None,
-                _cohort_method_label(
-                    data,
-                    "greedy",
-                    method_colors=method_colors,
-                    method_labels=method_labels,
-                ),
-                method_colors["greedy"],
-            )
-        )
+        for method, color in method_colors.items():
+            if method == "full_hmm":
+                continue
+            cases.append((method, None, method_labels[method], color))
     else:
         for cutoff in data.cutoffs:
             label = (
@@ -8034,3 +8034,493 @@ def save_notebook_figure(
 def resize_figure(figure, *, figsize):
     """Set a displayed figure's physical dimensions explicitly."""
     figure.set_size_inches(*figsize)
+
+
+def plot_conditioning_review_paths(
+    paired,
+    summary,
+    *,
+    cohort_labels,
+    figsize=(14, 9),
+    dpi=120,
+    full_color="#555555",
+    method_colors,
+    method_labels,
+    bins=60,
+    region_colors={"focal": "#009E73", "gap": "#E69F00", "seam": "#CC79A7"},
+):
+    """Show each greedy arm against its verified common Full HMM baseline."""
+    figure, axes = plt.subplots(2, 2, figsize=figsize, dpi=dpi, layout="constrained")
+    datasets = list(cohort_labels)
+    x = np.arange(len(datasets))
+    methods = list(method_colors)
+    width = 0.8 / (len(methods) + 1)
+    full = (
+        summary.loc[summary.conditioning.eq(methods[0])]
+        .set_index("dataset")
+        .loc[datasets]
+    )
+    axes[0, 0].bar(
+        x - width,
+        full.sample_mutations_full,
+        width=width,
+        color=full_color,
+        label="Full HMM",
+    )
+    for index, method in enumerate(methods):
+        values = (
+            summary.loc[summary.conditioning.eq(method)]
+            .set_index("dataset")
+            .loc[datasets]
+        )
+        color = method_colors[method]
+        label = method_labels[method]
+        style = "-" if index == 0 else "--"
+        axes[0, 0].bar(
+            x + index * width,
+            values.sample_mutations_greedy,
+            width=width,
+            color=color,
+            label=label,
+        )
+        position = x + (index - (len(methods) - 1) / 2) * 0.36
+        positive = np.zeros(len(datasets))
+        negative = np.zeros(len(datasets))
+        for region, region_color in region_colors.items():
+            difference = (
+                values[f"stitched_{region}_switches"] - values[f"full_{region}_switches"]
+            )
+            bottom = np.where(difference >= 0, positive, negative)
+            axes[0, 1].bar(
+                position,
+                difference,
+                bottom=bottom,
+                width=0.34,
+                color=region_color,
+                hatch="" if index == 0 else "//",
+                label=f"{label} · {region}",
+            )
+            positive += np.maximum(difference, 0)
+            negative += np.minimum(difference, 0)
+        for metric, marker, component in [
+            ("delta_switch_log_odds", "o", "Transition"),
+            ("delta_mismatch_log_odds", "s", "Emission"),
+        ]:
+            axes[1, 0].plot(
+                x,
+                -values[metric],
+                marker=marker,
+                linestyle=style,
+                color=color,
+                label=f"{label} · {component}",
+            )
+        for cohort_index, dataset in enumerate(datasets):
+            selected = paired.loc[
+                paired.dataset.eq(dataset) & paired.conditioning.eq(method)
+            ]
+            axes[1, 1].hist(
+                -selected.delta_log_path_odds,
+                bins=bins,
+                density=True,
+                histtype="step",
+                linestyle=style,
+                color=f"C{cohort_index}",
+                label=f"{cohort_labels[dataset]} · {label}",
+            )
+    axes[0, 0].set(
+        ylabel="Mean terminal mutations / haplotype", title="Sample mismatch events"
+    )
+    axes[0, 1].set(
+        ylabel="Mean extra parent switches / haplotype", title="Greedy minus Full HMM"
+    )
+    axes[1, 0].set(
+        ylabel="Mean extra negative log path weight",
+        title="Cost of the saved greedy paths",
+    )
+    axes[1, 1].set(
+        xlabel="Full HMM − greedy log path weight",
+        ylabel="Haplotype density",
+        title="Paired path-weight losses",
+    )
+    for ax in axes.flat:
+        ax.legend(fontsize="x-small")
+    for ax in axes.flat[:3]:
+        ax.set_xticks(x, [cohort_labels[name] for name in datasets])
+        ax.tick_params(axis="x", labelsize="small")
+        ax.axhline(0, color="0.8", linewidth=0.6)
+    return figure
+
+
+def plot_conditioning_review_performance(
+    runs,
+    *,
+    cohort_labels,
+    figsize=(12, 7),
+    dpi=120,
+    full_color="#555555",
+    greedy_color="#0072B2",
+):
+    """Keep latest end-to-end and resident timers separate in categorical panels."""
+    figure, axes = plt.subplots(2, 2, figsize=figsize, dpi=dpi, layout="constrained")
+    datasets = list(cohort_labels)
+    x = np.arange(len(datasets))
+    for row, mode in enumerate(["from_reference", "resident_match"]):
+        selected = runs.loc[runs["mode"].eq(mode)]
+        for method, label, color in [
+            ("full_hmm", "Full HMM", full_color),
+            ("greedy", "Conditioned greedy", greedy_color),
+        ]:
+            values = (
+                selected.loc[selected.method.eq(method)]
+                .set_index("dataset")
+                .loc[datasets]
+            )
+            axes[row, 0].plot(x, values.wall_s, "o-", color=color, label=label)
+        axes[row, 0].set_yscale("log")
+        axes[row, 0].set(ylabel="Wall time (s)", title=mode.replace("_", " ").title())
+        axes[row, 0].legend(fontsize="small")
+        greedy = (
+            selected.loc[selected.method.eq("greedy")]
+            .set_index("dataset")
+            .loc[datasets]
+        )
+        axes[row, 1].bar(x, greedy.speedup, color=greedy_color)
+        axes[row, 1].axhline(1, color=full_color, linestyle="--", linewidth=1)
+        axes[row, 1].set(
+            ylabel="Full HMM / greedy wall time", title="Speedup (>1 favours greedy)"
+        )
+        for ax in axes[row]:
+            ax.set_xticks(x, [cohort_labels[name] for name in datasets])
+            ax.tick_params(axis="x", labelsize="small")
+    return figure
+
+
+def plot_conditioning_failure_overview(
+    data,
+    *,
+    figsize=(16, 10),
+    dpi=120,
+    map_limits_mb=(26.1, 30.4),
+    analysis_end_bp,
+    full_color="#222222",
+    floor_color="#0072B2",
+    impossible_color="#B2182B",
+    focal_color="#B8DED4",
+    gap_color="#FFE3A3",
+):
+    """Locate the true map plateau, saved paths and contradictory hard endpoints."""
+    figure, axes = plt.subplots(
+        3,
+        1,
+        figsize=figsize,
+        dpi=dpi,
+        layout="constrained",
+        gridspec_kw={"height_ratios": [1, 1.5, 1.3]},
+    )
+    start, end = data.request["start"], data.request["end"]
+    initial, final = data.request["initial_state"], data.request["final_state"]
+    positions = data.positions
+    first, last = positions[start], positions[end - 1]
+    facts = data.facts
+    ax = axes[0]
+    ax.plot(
+        data.map_table.position_bp / 1e6,
+        data.map_table.map_cm,
+        color=full_color,
+        linewidth=1.5,
+    )
+    ax.axvspan(
+        facts["map_plateau_start_bp"] / 1e6,
+        facts["map_plateau_end_bp"] / 1e6,
+        color=gap_color,
+        alpha=0.6,
+        label="Source-map rate = 0",
+    )
+    ax.axvspan(
+        first / 1e6,
+        last / 1e6,
+        color=impossible_color,
+        alpha=0.4,
+        label="Captured failing window",
+    )
+    ax.axvline(
+        analysis_end_bp / 1e6,
+        color="0.4",
+        linestyle="--",
+        label="Analysis ends at 28.1 Mb",
+    )
+    selected = data.map_table.position_bp.between(
+        map_limits_mb[0] * 1e6, map_limits_mb[1] * 1e6
+    )
+    values = data.map_table.loc[selected, "map_cm"]
+    margin = max(float(values.max() - values.min()) * 0.15, 0.015)
+    ax.set(
+        xlim=map_limits_mb,
+        ylim=(values.min() - margin, values.max() + margin),
+        xlabel="Chromosome 20 position (Mb)",
+        ylabel="Cumulative map (cM)",
+        title="The supplied map has an exact 3.86 Mb plateau; this is not exponential-rounding underflow",
+    )
+    ax.legend(loc="upper left", fontsize="small", ncol=3)
+    nodes = sorted(data.parent_labels)
+    rows = {node: index for index, node in enumerate(nodes)}
+    a, b = data.context_start, data.context_end
+    edges = np.r_[positions[a:b], positions[b]] / 1e6
+    ax = axes[1]
+    ax.axvspan(edges[0], positions[start + 1] / 1e6, color=focal_color, alpha=0.6)
+    ax.axvspan(positions[start + 1] / 1e6, last / 1e6, color=gap_color, alpha=0.6)
+    ax.axvspan(last / 1e6, edges[-1], color=focal_color, alpha=0.6)
+    for name, color, style, label in [
+        ("full_zero", full_color, "--", "Saved Full HMM · original zero map"),
+        ("greedy_floor", floor_color, "-", "Saved conditioned greedy · r floor 1e−20"),
+    ]:
+        path = np.array([rows[node] for node in data.parents[name][a:b]])
+        ax.stairs(
+            path,
+            edges,
+            baseline=None,
+            color=color,
+            linestyle=style,
+            linewidth=2,
+            label=label,
+        )
+        ax.scatter(positions[a:b] / 1e6, path, s=9, color=color, zorder=3)
+    ax.scatter(
+        [first / 1e6, last / 1e6],
+        [rows[initial], rows[final]],
+        s=100,
+        facecolors="none",
+        edgecolors=impossible_color,
+        linewidths=2,
+        label="Hard endpoint pins",
+        zorder=5,
+    )
+    for x in [first, last]:
+        ax.axvline(x / 1e6, color=impossible_color, linestyle=":", linewidth=1)
+    ax.set(
+        yticks=range(len(nodes)),
+        yticklabels=[data.parent_labels[node] for node in nodes],
+        xlim=(edges[0], edges[-1]),
+        ylim=(-0.5, len(nodes) - 0.5),
+        xlabel="Chromosome 20 position (Mb); each dot is an inference site",
+        title="Same actual haplotype: tsk_0 / haplotype 0 · fixed focal runs (green), residual gap (yellow)",
+    )
+    ax.grid(axis="y", alpha=0.2)
+    ax = axes[2]
+    left_mm = int(
+        data.replay_summary.set_index("case").loc["left_only_zero", "mismatches"]
+    )
+    right_mm = int(
+        data.replay_summary.set_index("case").loc["right_only_zero", "mismatches"]
+    )
+    ax.plot([0, 1], [1, 1], color=full_color, linewidth=2)
+    ax.plot([0, 1], [0, 0], color="0.7", linewidth=2)
+    ax.scatter([0], [1], color=floor_color, s=110, zorder=3)
+    ax.scatter(
+        [1], [0], marker="x", s=180, color=impossible_color, linewidths=3, zorder=3
+    )
+    ax.annotate(
+        "",
+        xy=(0.67, 0),
+        xytext=(0.36, 1),
+        arrowprops={
+            "arrowstyle": "->",
+            "color": impossible_color,
+            "linestyle": "--",
+            "linewidth": 2,
+        },
+    )
+    ax.text(
+        0.5,
+        0.5,
+        "Forbidden parent change: T(L,R) = r/n = 0",
+        color=impossible_color,
+        ha="center",
+        va="center",
+        bbox={"facecolor": "white", "edgecolor": "none"},
+    )
+    ax.text(
+        0.05,
+        1.12,
+        f"Stay on L: {left_mm} mismatches are allowed, but final state is L",
+        va="bottom",
+    )
+    ax.text(
+        0.05,
+        -0.16,
+        f"Stay on R: {right_mm} mismatches are allowed, but initial state is R",
+        va="top",
+    )
+    ax.text(1.01, 0, "Required R\nis unreachable", color=impossible_color, va="center")
+    ax.set(
+        xlim=(-0.03, 1.25),
+        ylim=(-0.4, 1.55),
+        yticks=[0, 1],
+        yticklabels=[f"R = {final}", f"L = {initial}"],
+        xticks=[0, 1],
+        xticklabels=[f"Pinned start\nsite {start:,}", f"Pinned end\nsite {end - 1:,}"],
+        title="Impossible zero-map constraint: positive mismatch probability cannot create a parent transition",
+    )
+    ax.spines[["top", "right", "bottom"]].set_visible(False)
+    handles, labels = axes[1].get_legend_handles_labels()
+    figure.legend(handles, labels, loc="outside lower center", ncol=3, fontsize="small")
+    return figure
+
+
+def plot_conditioning_failure_alleles(
+    data,
+    *,
+    start,
+    end,
+    columns=43,
+    figsize=(17, 10),
+    dpi=120,
+    full_color="#222222",
+    floor_color="#0072B2",
+    impossible_color="#B2182B",
+    allele_colors=("#F6F6F6", "#F2CE72", "#D9D9D9"),
+    mismatch_edge_color="#D73027",
+    allele_fontsize=9,
+    coordinate_fontsize=7,
+):
+    """Wrap every real allele into readable blocks aligned with categorical paths.
+
+    Binary 0/1 are the simulation's literal allele labels. Red frames mark
+    disagreement with the captured sample. No alleles or path are invented
+    for the impossible two-pin run: the dotted red line is a one-pin replay.
+    """
+    blocks = list(range(start, end, columns))
+    figure, axes = plt.subplots(
+        2 * len(blocks),
+        1,
+        figsize=figsize,
+        dpi=dpi,
+        layout="constrained",
+        gridspec_kw={"height_ratios": [1.1, 2.5] * len(blocks)},
+    )
+    nodes = sorted(data.parent_labels)
+    rows = {node: index for index, node in enumerate(nodes)}
+    cmap = mcolors.ListedColormap(allele_colors)
+    initial = data.request["initial_state"]
+    final = data.request["final_state"]
+    for block, left in enumerate(blocks):
+        right = min(left + columns, end)
+        sites = np.arange(left, right)
+        x = np.arange(len(sites))
+        edges = np.arange(len(sites) + 1) - 0.5
+        path_ax, allele_ax = axes[2 * block : 2 * block + 2]
+        for name, color, style, label in [
+            ("full_zero", full_color, "--", "Full HMM · zero map"),
+            ("greedy_floor", floor_color, "-", "Conditioned · floor 1e−20"),
+            (
+                "left_only_zero",
+                impossible_color,
+                ":",
+                "Zero map · left pin only (right pin violated)",
+            ),
+        ]:
+            values = np.array([rows[node] for node in data.parents[name][left:right]])
+            offset = (
+                0.1
+                if name == "greedy_floor"
+                else -0.1
+                if name == "left_only_zero"
+                else 0
+            )
+            path_ax.stairs(
+                values + offset,
+                edges,
+                baseline=None,
+                color=color,
+                linestyle=style,
+                linewidth=1.8,
+                label=label,
+            )
+        for site, node in [
+            (data.request["start"], initial),
+            (data.request["end"] - 1, final),
+        ]:
+            if left <= site < right:
+                path_ax.scatter(
+                    site - left,
+                    rows[node],
+                    facecolors="none",
+                    edgecolors=impossible_color,
+                    linewidths=2,
+                    s=95,
+                    zorder=5,
+                )
+        path_ax.set(
+            yticks=range(len(nodes)),
+            yticklabels=[str(node) for node in nodes],
+            ylim=(len(nodes) - 0.5, -0.5),
+            xlim=(-0.5, len(sites) - 0.5),
+            xticks=[],
+            ylabel="Parent node",
+            title=f"Inference sites {left:,}–{right - 1:,}; all alleles below use equal-width site columns",
+        )
+        path_ax.grid(axis="y", alpha=0.2)
+        labels = ["Actual sample tsk_0 / hap 0"]
+        values = [data.target[left:right]]
+        for node in nodes:
+            labels.append(data.parent_labels[node])
+            values.append(data.reference_alleles[node][left:right])
+        for name, label in [
+            ("full_zero", "Full HMM copied alleles"),
+            ("greedy_floor", "Floored greedy copied alleles"),
+        ]:
+            labels.append(label)
+            values.append(data.copied[name][left:right])
+        table = np.array(values)
+        plotted = np.where(table < 0, 2, table)
+        allele_ax.imshow(
+            plotted, aspect="auto", interpolation="none", cmap=cmap, vmin=0, vmax=2
+        )
+        for row in range(len(labels)):
+            for col, site in enumerate(sites):
+                state = table[row, col]
+                allele_ax.text(
+                    col,
+                    row,
+                    "·" if state < 0 else str(int(state)),
+                    ha="center",
+                    va="center",
+                    fontsize=allele_fontsize,
+                )
+                if row > 0 and state >= 0 and state != data.target[site]:
+                    rectangle = mpatches.Rectangle(
+                        (col - 0.46, row - 0.46),
+                        0.92,
+                        0.92,
+                        fill=False,
+                        edgecolor=mismatch_edge_color,
+                        linewidth=1.3,
+                    )
+                    allele_ax.add_patch(rectangle)
+        for site in [data.request["start"], data.request["end"] - 1]:
+            if left <= site < right:
+                allele_ax.axvspan(
+                    site - left - 0.5, site - left + 0.5, color=floor_color, alpha=0.12
+                )
+        ticks = np.arange(0, len(sites), 3)
+        coordinates = [f"{sites[i]:,}\n{int(data.positions[sites[i]]):,}" for i in ticks]
+        allele_ax.set(
+            yticks=range(len(labels)),
+            yticklabels=labels,
+            xticks=ticks,
+            xticklabels=coordinates,
+            xlabel="Inference-site index / physical position (bp)",
+        )
+        allele_ax.tick_params(axis="x", labelsize=coordinate_fontsize, rotation=90)
+        allele_ax.tick_params(axis="y", labelsize="small")
+        allele_ax.set_xticks(np.arange(-0.5, len(sites), 1), minor=True)
+        allele_ax.set_yticks(np.arange(-0.5, len(labels), 1), minor=True)
+        allele_ax.grid(which="minor", color="0.8", linewidth=0.4)
+        allele_ax.tick_params(which="minor", bottom=False, left=False)
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(handles, labels, loc="outside lower center", ncol=3, fontsize="small")
+    figure.suptitle(
+        "Actual binary haplotypes: 0 / 1 are allele states; red frames are sample mismatches\n"
+        "Blue-tinted columns and open circles mark hard endpoint pins; no feasible two-pin zero-map path exists"
+    )
+    return figure

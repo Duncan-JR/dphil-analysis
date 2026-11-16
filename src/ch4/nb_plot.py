@@ -897,3 +897,164 @@ def plot_real_tier_3_epsilon_against_simulation_estimates(
 def close_figure(figure):
     """Release an already-displayed notebook figure."""
     plt.close(figure)
+
+
+def plot_epsilon_classifier(
+    frame,
+    *,
+    scope="inference_sites",
+    figsize=(13, 9),
+    dpi=130,
+    annotate=True,
+    annotate_epsilons=None,
+    colors=("tab:blue", "tab:orange"),
+):
+    """ROC/PR operating points and tuning metrics; epsilon is not a score threshold."""
+    selected = frame[frame.scope == scope]
+    fig, axes = plt.subplots(2, 2, figsize=figsize, dpi=dpi, constrained_layout=True)
+    for index, (dataset, group) in enumerate(selected.groupby("dataset", sort=False)):
+        group = group.sort_values("epsilon")
+        label = f"{int(group.individuals.iloc[0]):,} individuals"
+        color = colors[index]
+        axes[0, 0].plot(
+            group.false_positive_rate, group.recall, "o-", color=color, label=label
+        )
+        axes[0, 1].plot(group.recall, group.precision, "o-", color=color, label=label)
+        axes[1, 0].plot(
+            group.epsilon, group.f1, "o-", color=color, label=f"{label}: F1"
+        )
+        axes[1, 0].plot(
+            group.epsilon, group.mcc, "s--", color=color, label=f"{label}: MCC"
+        )
+        axes[1, 1].plot(
+            group.epsilon,
+            group.precision,
+            "o-",
+            color=color,
+            label=f"{label}: precision",
+        )
+        axes[1, 1].plot(
+            group.epsilon, group.recall, "s--", color=color, label=f"{label}: recall"
+        )
+        axes[0, 1].axhline(
+            group.truth_prevalence.iloc[0], color=color, linestyle=":", alpha=0.6
+        )
+        if annotate:
+            for row in group.itertuples():
+                if (
+                    annotate_epsilons is not None
+                    and row.epsilon not in annotate_epsilons
+                ):
+                    continue
+                axes[0, 0].annotate(
+                    f"{row.epsilon:.0e}",
+                    (row.false_positive_rate, row.recall),
+                    xytext=(4, 4),
+                    textcoords="offset points",
+                    fontsize=7,
+                )
+                axes[0, 1].annotate(
+                    f"{row.epsilon:.0e}",
+                    (row.recall, row.precision),
+                    xytext=(4, 4),
+                    textcoords="offset points",
+                    fontsize=7,
+                )
+    axes[0, 0].plot([0, 1], [0, 1], color="0.7", linestyle=":", linewidth=1)
+    axes[0, 0].set(
+        xlabel="False-positive rate",
+        ylabel="Recall / true-positive rate",
+        title="ROC: error or biological recurrence",
+    )
+    axes[0, 1].set(
+        xlabel="Recall",
+        ylabel="Precision",
+        title="Precision–recall (dotted: prevalence)",
+    )
+    axes[1, 0].set(
+        xlabel="Epsilon (errors per haplotype-bp)",
+        ylabel="Score",
+        title="F1 and Matthews correlation",
+        xscale="log",
+    )
+    axes[1, 1].set(
+        xlabel="Epsilon (errors per haplotype-bp)",
+        ylabel="Fraction",
+        title="Precision / recall tradeoff",
+        xscale="log",
+    )
+    for ax in axes.flat:
+        ax.legend(fontsize=8)
+        ax.grid(alpha=0.2)
+    fig.suptitle(f"Recurrence classifier: {scope.replace('_', ' ')}")
+    return fig
+
+
+def plot_epsilon_recurrence(
+    frame, *, scope="inference_sites", figsize=(12, 8), dpi=130
+):
+    """The pt12 recurrence summaries plus event counts and runtime."""
+    selected = frame[frame.scope == scope]
+    specs = [
+        (
+            "recurrent_site_percentage",
+            "Recurrent sites (%)",
+            "true_recurrent_site_percentage",
+        ),
+        (
+            "mean_mutations_per_recurrent_site",
+            "Mean mutation records per recurrent site",
+            "true_mean_mutations_per_recurrent_site",
+        ),
+        ("additional_mutations", "Mutation records beyond the first per site", None),
+        ("match_seconds", "Matching + postprocessing wall time (s)", None),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=figsize, dpi=dpi, constrained_layout=True)
+    for ax, (metric, ylabel, reference) in zip(axes.flat, specs):
+        for dataset, group in selected.groupby("dataset", sort=False):
+            group = group.sort_values("epsilon")
+            label = f"{int(group.individuals.iloc[0]):,} individuals"
+            line = ax.plot(group.epsilon, group[metric], "o-", label=label)[0]
+            if reference is not None:
+                ax.axhline(
+                    group[reference].iloc[0],
+                    color=line.get_color(),
+                    linestyle=":",
+                    label=f"{label}: simulated biology",
+                )
+        ax.set(xscale="log", xlabel="Epsilon (errors per haplotype-bp)", ylabel=ylabel)
+        ax.grid(alpha=0.2)
+        ax.legend(fontsize=8)
+    fig.suptitle(f"Recurrence and runtime: {scope.replace('_', ' ')}")
+    return fig
+
+
+def plot_epsilon_truth_components(
+    frame, *, scope="inference_sites", figsize=(13, 4), dpi=130
+):
+    """Separate error/biology recall, false-positive rates and confusion counts."""
+    selected = frame[frame.scope == scope]
+    fig, axes = plt.subplots(1, 3, figsize=figsize, dpi=dpi, constrained_layout=True)
+    for dataset, group in selected.groupby("dataset", sort=False):
+        group = group.sort_values("epsilon")
+        label = f"{int(group.individuals.iloc[0]):,} individuals"
+        axes[0].plot(
+            group.epsilon, group.error_only_recall, "o-", label=f"{label}: error only"
+        )
+        axes[0].plot(
+            group.epsilon,
+            group.biological_only_recall,
+            "s--",
+            label=f"{label}: biology only",
+        )
+        axes[1].plot(group.epsilon, group.false_positive_rate, "o-", label=label)
+        axes[2].plot(group.epsilon, group.fp, "o-", label=f"{label}: false positives")
+        axes[2].plot(group.epsilon, group.fn, "s--", label=f"{label}: false negatives")
+    for ax in axes:
+        ax.set(xscale="log", xlabel="Epsilon (errors per haplotype-bp)")
+        ax.grid(alpha=0.2)
+        ax.legend(fontsize=7)
+    axes[0].set(ylabel="Recall", title="Disjoint positive-label components")
+    axes[1].set(ylabel="False-positive rate", title="Clean, non-recurrent sites")
+    axes[2].set(ylabel="Site count", title="Missed positives and false calls")
+    return fig

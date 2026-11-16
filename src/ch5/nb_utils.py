@@ -37,6 +37,7 @@ import tsdate
 import tsinfer
 import tsinfer.matching
 import tskit
+import tsls
 import tszip
 import yaml
 import zarr
@@ -799,7 +800,7 @@ def age_comparison(config: dict, dataset: dict, dated: pd.DataFrame) -> pd.DataF
         values = mutation_ages(
             tree, posterior=True, include_frequency=row.method == "full_hmm"
         )
-        key = row.method if row.method == "full_hmm" else f"af_{row.af_cutoff}"
+        key = f"af_{row.af_cutoff}" if row.method == "greedy" else row.method
         ages[key] = values
         candidates.append(
             {
@@ -831,7 +832,7 @@ def age_comparison(config: dict, dataset: dict, dated: pd.DataFrame) -> pd.DataF
     for reference in references:
         methods = rows if reference == "truth" else rows.loc[rows.method.ne("full_hmm")]
         for row in methods.itertuples():
-            key = row.method if row.method == "full_hmm" else f"af_{row.af_cutoff}"
+            key = f"af_{row.af_cutoff}" if row.method == "greedy" else row.method
             groups = [("all", pairs)]
             groups.extend(
                 (
@@ -7264,4 +7265,661 @@ def tie_toy_case(case, mode):
         mismatches=int(np.sum(np.asarray(haplotype) != copied)),
         path=json.dumps(path),
         module_file=str(_tsinfer.__file__),
+    )
+
+
+@dataclasses.dataclass
+class ConditioningReviewJob:
+    """One saved greedy arm and cohort; no matching is launched by this analysis."""
+
+    root: pathlib.Path
+    cache: pathlib.Path
+    dataset: dict
+
+
+def conditioning_review_path_scores(job: ConditioningReviewJob) -> pd.DataFrame:
+    """Score saved paths with cohort-scaled transitions and biallelic emissions.
+
+    Scores are log odds relative to common all-stay/all-match factors. Missing
+    emissions and the common starting factor therefore cancel in paired deltas.
+    Terminal sample mutations encode mismatches, including reversions. This is
+    a Viterbi path weight, not a forward likelihood or a genealogy probability.
+    """
+    dataset = job.dataset
+    cases = {"full_hmm": dataset["full_hmm"], "greedy": dataset["runs"][0]["stitched"]}
+    paths = [job.root / path for path in cases.values()]
+    native_path = job.root / dataset["native_config"]
+    settings = tomllib.loads(native_path.read_text())["match"]["sources"]["samples"]
+    map_path = job.root / dataset["recombination_map"]
+    stamp = signature(
+        [*paths, native_path, map_path], settings, conditioning_review_path_scores
+    )
+    output = job.cache / "path_scores" / f"{dataset['name']}.csv"
+    cached = read_cached(output, stamp)
+    if cached is not None:
+        return cached
+    reference = tszip.decompress(job.root / dataset["reference"])
+    positions = reference.sites_position
+    recombination = tsinfer.matching.recombination_probabilities(map_path, positions)
+    recombination[1:] = np.maximum(recombination[1:], settings["recombination_floor"])
+    n = settings["sample_size"]
+    assert n == len(dataset["cohort"])
+    stay = 1 - recombination + recombination / n
+    switch_odds = recombination[1:] / n / stay[1:]
+    assert np.all(switch_odds > 0)
+    log_switch_odds = np.zeros(len(positions))
+    log_switch_odds[1:] = np.log(switch_odds)
+    mu = settings["mismatch"]
+    mismatch_log_odds = np.log(mu / (1 - mu))
+    rows = []
+    for method, relative in cases.items():
+        ts = tszip.decompress(job.root / relative)
+        np.testing.assert_array_equal(ts.sites_position, positions)
+        samples = ts.samples()
+        sample_mask = np.zeros(ts.num_nodes, dtype=bool)
+        sample_mask[samples] = True
+        sample_mutations = sample_mask[ts.mutations_node]
+        terminal_nodes = ts.mutations_node[sample_mutations]
+        terminal_sites = ts.mutations_site[sample_mutations]
+        mutation_keys = terminal_nodes.astype(np.int64) * ts.num_sites + terminal_sites
+        assert len(np.unique(mutation_keys)) == len(mutation_keys)
+        mutations = np.bincount(terminal_nodes, minlength=ts.num_nodes)
+        sample_edges = np.flatnonzero(sample_mask[ts.edges_child])
+        order = np.lexsort((ts.edges_left[sample_edges], ts.edges_child[sample_edges]))
+        sample_edges = sample_edges[order]
+        children = ts.edges_child[sample_edges]
+        boundaries = np.flatnonzero(np.r_[True, children[1:] != children[:-1], True])
+        assert len(boundaries) == len(samples) + 1
+        for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True):
+            edges = sample_edges[start:stop]
+            node = int(children[start])
+            left = np.searchsorted(positions, ts.edges_left[edges])
+            right = np.searchsorted(positions, ts.edges_right[edges])
+            observed = left < right
+            edges = edges[observed]
+            left = left[observed]
+            right = right[observed]
+            parents = ts.edges_parent[edges]
+            assert left[0] == 0 and right[-1] == len(positions)
+            np.testing.assert_array_equal(left[1:], right[:-1])
+            changed = parents[1:] != parents[:-1]
+            switch_sites = left[1:][changed]
+            metadata = ts.node(node).metadata
+            switch_term = float(log_switch_odds[switch_sites].sum())
+            mismatch_term = int(mutations[node]) * mismatch_log_odds
+            rows.append(
+                {
+                    "dataset": dataset["name"],
+                    "method": method,
+                    "sample_id": metadata["sample_id"],
+                    "ploidy_index": metadata["ploidy_index"],
+                    "switches": len(switch_sites),
+                    "sample_mutations": int(mutations[node]),
+                    "switch_log_odds": switch_term,
+                    "mismatch_log_odds": mismatch_term,
+                    "log_path_odds": switch_term + mismatch_term,
+                    "mismatch_probability": float(mu),
+                    "haploid_sample_size": n,
+                }
+            )
+    table = pd.DataFrame(rows)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    save_cached(table, output, stamp)
+    return table
+
+
+def conditioning_review_paths(config: dict) -> pd.DataFrame:
+    """Join both saved paths to the same haplotype and focal/gap partition."""
+    jobs = [
+        ConditioningReviewJob(config["data_dir"], config["cache_dir"], dataset)
+        for dataset in config["manifest"]["datasets"]
+    ]
+    workers = config["workers"]
+    if workers is None:
+        workers = min(multiprocessing.cpu_count(), len(jobs))
+    context = multiprocessing.get_context("spawn")
+    frames = []
+    with cf.ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+        for table in pool.map(conditioning_review_path_scores, jobs):
+            frames.append(table)
+    scores = pd.concat(frames, ignore_index=True)
+    keys = ["dataset", "sample_id", "ploidy_index"]
+    full = scores.loc[scores.method.eq("full_hmm")].drop(columns="method")
+    greedy = scores.loc[scores.method.eq("greedy")].drop(columns="method")
+    paired = full.merge(
+        greedy, on=keys, suffixes=("_full", "_greedy"), validate="one_to_one"
+    )
+    paired["delta_log_path_odds"] = (
+        paired.log_path_odds_greedy - paired.log_path_odds_full
+    )
+    paired["delta_switch_log_odds"] = (
+        paired.switch_log_odds_greedy - paired.switch_log_odds_full
+    )
+    paired["delta_mismatch_log_odds"] = (
+        paired.mismatch_log_odds_greedy - paired.mismatch_log_odds_full
+    )
+    paired["extra_sample_mutations"] = (
+        paired.sample_mutations_greedy - paired.sample_mutations_full
+    )
+    diagnostics_path = (
+        config["data_dir"] / config["manifest"]["tables"]["haplotype_results"]
+    )
+    diagnostics = pd.read_csv(diagnostics_path)
+    paired = paired.merge(diagnostics, on=keys, validate="one_to_one")
+    assert len(paired) == sum(
+        len(dataset["cohort"]) for dataset in config["manifest"]["datasets"]
+    )
+    np.testing.assert_array_equal(paired.switches_full, paired.full_switches)
+    np.testing.assert_array_equal(paired.switches_greedy, paired.stitched_switches)
+    assert np.isfinite(paired.delta_log_path_odds).all()
+    assert paired.delta_log_path_odds.le(1e-6).all()
+    paired.to_csv(config["cache_dir"] / "paired_path_diagnostics.csv", index=False)
+    return paired
+
+
+def conditioning_review_performance(
+    directory: pathlib.Path, cache: pathlib.Path
+) -> pd.DataFrame:
+    """Read only the final optimisation trials, preserving their two timer scopes."""
+    runs = pd.read_csv(directory / "runs.csv")
+    quality = pd.DataFrame(json.loads((directory / "quality.json").read_text()))
+    validation = json.loads((directory / "final_validation.json").read_text())
+    assert runs.status.eq("ok").all()
+    assert quality.status.eq("ok").all()
+    assert quality.called_allele_errors.eq(0).all()
+    assert set(quality.run_id) == set(runs.run_id)
+    assert validation["scientific_settings_equal_to_baseline"]
+    assert validation["exact_greedy_path_and_mutation_comparisons"] == 8
+    assert not runs.duplicated(["dataset", "mode", "method"]).any()
+    baseline = runs.loc[runs.method.eq("full_hmm"), ["dataset", "mode", "wall_s"]]
+    baseline = baseline.rename(columns={"wall_s": "full_wall_s"})
+    runs = runs.merge(baseline, on=["dataset", "mode"], validate="many_to_one")
+    runs["speedup"] = runs.full_wall_s / runs.wall_s
+    runs["effective_cores"] = (runs.user_s + runs.system_s) / runs.wall_s
+    runs["window_peak_private_gib"] = runs.window_peak_private_bytes / 1024**3
+    runs["wall_ms_per_haplotype"] = 1000 * runs.wall_s / runs.matched_haplotypes
+    runs.to_csv(cache / "latest_performance.csv", index=False)
+    return runs
+
+
+def conditioning_review_summary(paired: pd.DataFrame) -> pd.DataFrame:
+    """Report paired means and the fraction of haplotypes with extra events."""
+    columns = [
+        "delta_log_path_odds",
+        "delta_switch_log_odds",
+        "delta_mismatch_log_odds",
+        "full_switches",
+        "stitched_switches",
+        "num_extra_switches",
+        "full_focal_switches",
+        "stitched_focal_switches",
+        "full_gap_switches",
+        "stitched_gap_switches",
+        "full_seam_switches",
+        "stitched_seam_switches",
+        "sample_mutations_full",
+        "sample_mutations_greedy",
+        "extra_sample_mutations",
+        "focal_coverage_percentage",
+        "parent_agreement_percentage",
+    ]
+    table = paired.groupby("dataset", sort=False)[columns].mean()
+    table["haplotypes"] = paired.groupby("dataset", sort=False).size()
+    table["fraction_extra_mutations"] = paired.groupby(
+        "dataset", sort=False
+    ).extra_sample_mutations.agg(lambda x: (x > 0).mean())
+    table["fraction_extra_switches"] = paired.groupby(
+        "dataset", sort=False
+    ).num_extra_switches.agg(lambda x: (x > 0).mean())
+    return table.reset_index()
+
+
+def conditioning_review_settings(config: dict) -> pd.DataFrame:
+    """Read actual sample parameters and distinguish the three numerical settings."""
+    rows = []
+    experiment = config["experiment"]
+    assert experiment["hmm"]["mismatch_epsilon"] == 1e-9
+    for dataset in config["manifest"]["datasets"]:
+        native_path = config["data_dir"] / dataset["native_config"]
+        native = tomllib.loads(native_path.read_text())
+        settings = native["match"]["sources"]["samples"]
+        with np.load(config["data_dir"] / dataset["sites"]) as sites:
+            positions = sites["positions"]
+        original = tsinfer.matching.recombination_probabilities(
+            config["data_dir"] / dataset["recombination_map"], positions
+        )
+        resolved = np.maximum(original[1:], settings["recombination_floor"])
+        stay = 1 - resolved + resolved / settings["sample_size"]
+        switch_cost = -np.log(resolved / settings["sample_size"] / stay)
+        p = settings["mismatch"]
+        mismatch_cost = -np.log(p / (1 - p))
+        assert settings["recombination_floor"] == 1e-20
+        assert settings["likelihood_threshold"] == 0
+        assert settings["prune_threshold"] == 0
+        assert settings["relative_prune_threshold"] == 0
+        rows.append(
+            {
+                "dataset": dataset["name"],
+                "haploid_sample_size": settings["sample_size"],
+                "condition_gaps": experiment["condition_gaps"],
+                "epsilon_per_haplotype_bp": experiment["hmm"]["mismatch_epsilon"],
+                "calibration_span_bp": experiment["hmm"]["mismatch_span_bp"],
+                "mismatch_probability": p,
+                "recombination_floor": settings["recombination_floor"],
+                "floored_transitions": int(np.count_nonzero(resolved != original[1:])),
+                "mismatch_cost": mismatch_cost,
+                "median_switch_cost": float(np.median(switch_cost)),
+                "maximum_switch_cost": float(switch_cost.max()),
+            }
+        )
+    result = pd.DataFrame(rows)
+    result.to_csv(config["cache_dir"] / "scientific_settings.csv", index=False)
+    return result
+
+
+def conditioning_review_quality(config: dict) -> pd.DataFrame:
+    """Require the completed corrected suite and zero archived called-allele errors."""
+    experiment = config["experiment"]["performance"]["experiment_id"]
+    root = config["data_dir"] / "performance" / experiment
+    complete = json.loads((root / "complete.json").read_text())
+    table = pd.DataFrame(json.loads((root / "quality.json").read_text()))
+    assert len(table) == complete["runs"] == 16
+    assert table.status.eq("ok").all()
+    assert table.called_allele_errors.eq(0).all()
+    return table[["run_id", "status", "called_allele_errors", "haplotypes"]]
+
+
+def conditioning_review_age_retention(config: dict) -> pd.DataFrame:
+    """Expose the mutation intersection removed from recurrent-site age analysis."""
+    tables = []
+    for dataset in config["manifest"]["datasets"]:
+        path = config["cache_dir"] / "age_pairs" / f"{dataset['name']}_retention.csv"
+        tables.append(pd.read_csv(path))
+    return pd.concat(tables, ignore_index=True)
+
+
+def conditioning_review_control_inputs(config: dict, control: dict) -> pd.DataFrame:
+    """Require identical scientific inputs and Full HMM paths across both arms."""
+    assert config["experiment"]["condition_gaps"] is True
+    assert control["experiment"]["condition_gaps"] is False
+    for key in ["hmm", "datasets", "focal_choice"]:
+        assert config["experiment"][key] == control["experiment"][key], key
+    rows = []
+    for baseline, other in zip(
+        config["manifest"]["datasets"], control["manifest"]["datasets"], strict=True
+    ):
+        assert baseline["name"] == other["name"]
+        assert baseline["cohort"] == other["cohort"]
+        for field in ["native_config", "recombination_map"]:
+            left = config["data_dir"] / baseline[field]
+            right = control["data_dir"] / other[field]
+            assert left.read_bytes() == right.read_bytes(), (baseline["name"], field)
+        for field in ["reference", "full_hmm"]:
+            left_tree = tszip.decompress(config["data_dir"] / baseline[field])
+            left = perf_scaling_path_fingerprint(left_tree)
+            del left_tree
+            right_tree = tszip.decompress(control["data_dir"] / other[field])
+            right = perf_scaling_path_fingerprint(right_tree)
+            del right_tree
+            assert left == right, (baseline["name"], field)
+        rows.append({"dataset": baseline["name"], "same_inputs_and_full_paths": True})
+    result = pd.DataFrame(rows)
+    result.to_csv(control["cache_dir"] / "control_input_checks.csv", index=False)
+    return result
+
+
+def conditioning_review_date_control(config: dict) -> pd.DataFrame:
+    """Date the control's saved greedy trees without requiring benchmark products."""
+    settings = {key: config[key] for key in ["mutation_rate", "dating"]}
+    jobs = []
+    for dataset in config["manifest"]["datasets"]:
+        run = dataset["runs"][0]
+        raw_path = config["data_dir"] / run["stitched"]
+        jobs.append(
+            DatingJob(
+                config["data_dir"], config["cache_dir"], dataset, run, raw_path, settings
+            )
+        )
+    workers = config["workers"]
+    if workers is None:
+        workers = min(multiprocessing.cpu_count(), len(jobs))
+    context = multiprocessing.get_context("spawn")
+    with cf.ProcessPoolExecutor(
+        max_workers=workers,
+        mp_context=context,
+        initializer=numcodecs.blosc.set_nthreads,
+        initargs=(config["helper_threads"],),
+    ) as pool:
+        rows = list(pool.map(perf_scaling_date_tree, jobs))
+    table = pd.DataFrame(rows)
+    table["method"] = "unconditioned"
+    # This run has no timed counterpart; the dater compares each raw input to itself.
+    table = table.drop(columns="benchmark_paths_identical")
+    table = table.merge(
+        cohort_table(config)[["dataset", "num_samples"]],
+        on="dataset",
+        validate="many_to_one",
+    )
+    table.to_csv(config["cache_dir"] / "dating_summary.csv", index=False)
+    return table
+
+
+@dataclasses.dataclass
+class ConditioningFailureTreePath:
+    """A biological sample's saved parent path and literal binary allele states."""
+
+    parents: np.ndarray
+    alleles: np.ndarray
+
+
+def conditioning_failure_tree_path(ts, job, positions):
+    """Read raw sample edges and alleles without confusing parent IDs with states."""
+    matches = [
+        node.id
+        for node in ts.nodes()
+        if node.is_sample()
+        and node.metadata.get("sample_id") == job["sample_id"]
+        and node.metadata.get("ploidy_index") == job["ploidy_index"]
+    ]
+    assert len(matches) == 1
+    node = matches[0]
+    selected = ts.edges_child == node
+    parents = chunk_site_parents(
+        ts.edges_left[selected],
+        ts.edges_right[selected],
+        ts.edges_parent[selected],
+        positions,
+        0,
+        len(positions),
+    )
+    calls = np.fromiter(
+        (
+            variant.genotypes[0]
+            for variant in ts.variants(
+                samples=[node], alleles=("0", "1"), isolated_as_missing=False
+            )
+        ),
+        dtype=np.int8,
+        count=ts.num_sites,
+    )
+    return ConditioningFailureTreePath(parents, calls)
+
+
+@dataclasses.dataclass
+class ConditioningFailureData:
+    """Captured failure, small native replays and allele-resolved saved comparisons."""
+
+    request: dict
+    facts: dict
+    positions: np.ndarray
+    target: np.ndarray
+    parents: dict[str, np.ndarray]
+    copied: dict[str, np.ndarray]
+    reference_alleles: dict[int, np.ndarray]
+    parent_labels: dict[int, str]
+    replay_summary: pd.DataFrame
+    map_table: pd.DataFrame
+    context_start: int
+    context_end: int
+
+
+def conditioning_failure_analysis(
+    config,
+    *,
+    evidence_dir,
+    output_dir,
+    recombination_floor,
+    context_sites,
+    diagnostic_mismatch,
+):
+    """Reconstruct the logged n50 window and distinguish emissions from reachability.
+
+    The captured simulation uses literal alleles "0" and "1". Replays retain
+    the captured full reference, sample_size, mismatch probabilities and maps;
+    only the named endpoint/rate/emission controls change. This runs a handful
+    of 258-site Viterbi calls, never a cohort benchmark or ancestor inference.
+    """
+    evidence_dir = pathlib.Path(evidence_dir)
+    output_dir = pathlib.Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    request = json.loads((evidence_dir / "failed_request.json").read_text())
+    with np.load(evidence_dir / "failed_query.npz") as saved:
+        target = saved["haplotype"].copy()
+        positions = saved["positions"].copy()
+        original_r = saved["recombination"].copy()
+        mismatch = saved["mismatch"].copy()
+    dataset = next(
+        item
+        for item in config["manifest"]["datasets"]
+        if item["name"] == "out_of_africa_n50_28_1mbp_error"
+    )
+    root = config["data_dir"]
+    reference = tszip.decompress(root / dataset["reference"])
+    np.testing.assert_array_equal(reference.sites_position, positions)
+    assert set(reference.tables.sites.ancestral_state.tobytes()) == {ord("0")}
+    native = tomllib.loads((root / dataset["native_config"]).read_text())
+    parameters = native["match"]["sources"]["samples"]
+    assert np.all(mismatch == parameters["mismatch"])
+    start, end = request["start"], request["end"]
+    initial, final = request["initial_state"], request["final_state"]
+    assert initial != final
+    window = slice(start, end)
+    assert np.all(original_r[start + 1 : end] == 0)
+    context_start = max(0, start - context_sites)
+    context_end = min(len(positions), end + context_sites)
+    parents = {}
+    for name, tree_path in {
+        "full_zero": evidence_dir / "full_hmm_zero_map.trees",
+        "full_floor": root / dataset["full_hmm"],
+        "greedy_floor": root / dataset["runs"][0]["stitched"],
+    }.items():
+        tree = (
+            tszip.decompress(tree_path)
+            if tree_path.suffix == ".tsz"
+            else tskit.load(tree_path)
+        )
+        np.testing.assert_array_equal(tree.sites_position, positions)
+        saved_path = conditioning_failure_tree_path(tree, request["job"], positions)
+        np.testing.assert_array_equal(saved_path.alleles, target)
+        parents[name] = saved_path.parents
+    assert parents["greedy_floor"][start] == initial
+    assert parents["greedy_floor"][end - 1] == final
+    np.testing.assert_array_equal(
+        parents["full_zero"][window], parents["full_floor"][window]
+    )
+    panel = tsls.TreeSequence(reference, alleles=("0", "1"))
+    cases = [
+        ("both_zero", 0.0, initial, final, mismatch),
+        ("left_only_zero", 0.0, initial, None, mismatch),
+        ("right_only_zero", 0.0, None, final, mismatch),
+        ("unpinned_zero", 0.0, None, None, mismatch),
+        ("both_floor", recombination_floor, initial, final, mismatch),
+        (
+            "both_zero_more_mismatches",
+            0.0,
+            initial,
+            final,
+            np.full_like(mismatch, diagnostic_mismatch),
+        ),
+    ]
+    replay_rows = []
+    copied = {}
+    for name, floor, left, right, emissions in cases:
+        rates = original_r.copy()
+        rates[1:] = np.maximum(rates[1:], floor)
+        hmm = tsls.Hmm(
+            panel,
+            rates,
+            emissions,
+            sample_size=parameters["sample_size"],
+            likelihood_threshold=0.0,
+            prune_threshold=0.0,
+            relative_prune_threshold=0.0,
+        )
+        out = np.full(len(positions), -1, dtype=np.int8)
+        row = {
+            "case": name,
+            "recombination_floor": floor,
+            "initial_state": left,
+            "final_state": right,
+            "mismatch_probability": float(emissions[start]),
+        }
+        try:
+            path_left, path_right, path_parent = hmm.find_path(
+                target,
+                start,
+                end,
+                out,
+                initial_state=left,
+                final_state=right,
+            )
+        except tsls.MatchImpossible as error:
+            row.update(
+                status="MatchImpossible",
+                switches=np.nan,
+                mismatches=np.nan,
+                parent_sequence="No feasible path",
+                error=str(error),
+            )
+        else:
+            path = chunk_site_parents(
+                path_left, path_right, path_parent, positions, start, end
+            )
+            vector = np.full(len(positions), -1, dtype=np.int32)
+            vector[window] = path
+            parents[name] = vector
+            copied[name] = out.copy()
+            switches = np.flatnonzero(path[1:] != path[:-1]) + 1
+            sequence = np.r_[path[0], path[switches]]
+            row.update(
+                status="ok",
+                switches=len(switches),
+                mismatches=int(np.count_nonzero(out[window] != target[window])),
+                parent_sequence=" → ".join(str(int(node)) for node in sequence),
+                error="",
+            )
+        replay_rows.append(row)
+    replay_summary = pd.DataFrame(replay_rows)
+    status = replay_summary.set_index("case").status
+    assert (
+        status["both_zero"] == status["both_zero_more_mismatches"] == "MatchImpossible"
+    )
+    assert (
+        status.loc[["left_only_zero", "right_only_zero", "unpinned_zero", "both_floor"]]
+        .eq("ok")
+        .all()
+    )
+    np.testing.assert_array_equal(
+        parents["both_floor"][window], parents["greedy_floor"][window]
+    )
+    needed = {initial, final}
+    for name in ["full_zero", "greedy_floor"]:
+        needed.update(parents[name][context_start:context_end])
+    needed = sorted(needed)
+    allele_rows = [[] for _ in needed]
+    for variant in reference.variants(samples=needed, alleles=("0", "1")):
+        if context_start <= variant.site.id < context_end:
+            for row, value in zip(allele_rows, variant.genotypes, strict=True):
+                row.append(int(value))
+        if variant.site.id >= context_end:
+            break
+    reference_alleles = {}
+    parent_labels = {}
+    for node, values in zip(needed, allele_rows, strict=True):
+        state = np.full(len(positions), -1, dtype=np.int8)
+        state[context_start:context_end] = values
+        reference_alleles[node] = state
+        identity = reference.node(int(node)).metadata.get("sample_id", "root")
+        parent_labels[node] = f"{identity} · node {node}"
+    for name in ["full_zero", "full_floor", "greedy_floor"]:
+        states = np.full(len(positions), -1, dtype=np.int8)
+        for site in range(context_start, context_end):
+            states[site] = reference_alleles[parents[name][site]][site]
+        assert np.all(states[context_start:context_end] >= 0)
+        copied[name] = states
+    map_values = np.loadtxt(
+        root / dataset["recombination_map"], skiprows=1, usecols=(1, 2, 3)
+    )
+    map_table = pd.DataFrame(map_values, columns=["position_bp", "rate_cm_mb", "map_cm"])
+    map_cm = np.interp(positions, map_values[:, 0], map_values[:, 2])
+    genetic = map_cm / 100
+    distance = np.diff(genetic[start:end])
+    assert np.all(distance == 0)
+    assert np.all(-np.expm1(-2 * distance) / 2 == 0)
+    plateau = map_values[map_values[:, 2] == map_cm[start]]
+    assert len(plateau) >= 2
+    assert plateau[0, 1] == 0
+    source = np.loadtxt(evidence_dir / "source_hapmap.txt", skiprows=1, usecols=(1, 2))
+    np.testing.assert_array_equal(source[:, 0], map_values[:, 0])
+    np.testing.assert_array_equal(source[:, 1], map_values[:, 1])
+    # Integrating the original three-column source reproduces the archived map.
+    integrated = np.r_[0, np.cumsum(np.diff(source[:, 0]) * source[:-1, 1] / 1e6)]
+    np.testing.assert_allclose(integrated, map_values[:, 2], rtol=0, atol=1e-12)
+    facts = {
+        "dataset": dataset["name"],
+        "sample_id": request["job"]["sample_id"],
+        "ploidy_index": request["job"]["ploidy_index"],
+        "window_start_site": start,
+        "window_end_site_exclusive": end,
+        "window_sites_including_pins": end - start,
+        "interior_gap_sites": end - start - 2,
+        "left_anchor_bp": int(positions[start]),
+        "right_anchor_bp": int(positions[end - 1]),
+        "left_parent": initial,
+        "right_parent": final,
+        "zero_transitions_in_window": end - start - 1,
+        "haploid_sample_size": parameters["sample_size"],
+        "original_mismatch_probability": float(mismatch[start]),
+        "map_plateau_start_bp": int(plateau[0, 0]),
+        "map_plateau_end_bp": int(plateau[-1, 0]),
+        "map_plateau_cm": float(
+            map_values[np.searchsorted(map_values[:, 0], positions[start]) - 1, 2]
+        ),
+        "exact_zero_genetic_distances": True,
+        "stable_expm1_conversion_also_zero": True,
+        "full_zero_equals_floored_full_in_window": True,
+        "replayed_floor_equals_saved_greedy_in_window": True,
+        "all_saved_sample_alleles_equal_captured_query": True,
+        "tsls_module": str(pathlib.Path(tsls.__file__).resolve()),
+    }
+    replay_summary.to_csv(output_dir / "replay_summary.csv", index=False)
+    (output_dir / "failure_facts.json").write_text(json.dumps(facts, indent=2))
+    rows = []
+    for site in range(start, end):
+        row = {
+            "site_index": site,
+            "position_bp": positions[site],
+            "sample_allele": target[site],
+            "endpoint": "left"
+            if site == start
+            else "right"
+            if site == end - 1
+            else "gap",
+        }
+        for node, states in reference_alleles.items():
+            row[f"parent_{node}_allele"] = states[site]
+        for name in [
+            "full_zero",
+            "greedy_floor",
+            "left_only_zero",
+            "right_only_zero",
+            "unpinned_zero",
+        ]:
+            row[f"{name}_parent"] = parents[name][site]
+            row[f"{name}_copied_allele"] = copied[name][site]
+        rows.append(row)
+    pd.DataFrame(rows).to_csv(output_dir / "actual_haplotypes.csv", index=False)
+    return ConditioningFailureData(
+        request,
+        facts,
+        positions,
+        target,
+        parents,
+        copied,
+        reference_alleles,
+        parent_labels,
+        replay_summary,
+        map_table,
+        context_start,
+        context_end,
     )

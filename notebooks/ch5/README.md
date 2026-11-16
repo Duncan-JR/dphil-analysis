@@ -3,9 +3,11 @@
 Run notebooks and paired sources from the repository root. Shared preparation,
 workers and exploratory algorithms live in `ch5.nb_utils`; every figure and
 axis change lives in `ch5.nb_plot`. Settings are initialised in cells and
-presentation choices are explicit call arguments. Saved outputs retain their
-previous execution; a selected perf5 loading/performance/stage check was run
-separately into a temporary destination and visually inspected.
+presentation choices are explicit call arguments. Historical saved outputs
+retain their previous execution, except pt12, which was explicitly replaced
+and rerun on 16 November 2026 as described below. A selected perf5
+loading/performance/stage check was run separately into a temporary destination
+and visually inspected.
 
 The notes below preserve the original notebook-specific methods and caveats.
 All former analysis YAML settings are now in notebook cells. Upstream archive
@@ -202,6 +204,131 @@ uv run jupyter nbconvert --to notebook --execute --inplace \
   --ExecutePreprocessor.timeout=-1 notebooks/ch5/stitching_pt11_gapfill.ipynb
 ```
 
+## Corrected conditioned-gap and low-epsilon analysis (pt12, 16 November 2026)
+
+`stitching_pt12_conditioning.py` and `.ipynb` replace the old 500 kb pilot with
+completed allele-corrected runs for OOA n50/n500/n5000 and 1KGP n3202. The
+pipeline fixed back-mutation allele handling in commit `6be4459`; the previous
+notebook had never been replaced. The later optimisation report explicitly
+recorded that it modified no notebook. The unsynchronised changes were checked:
+the previous pair's cell sources agreed, and its notebook-only change was
+metadata. Both original files, including visible outputs, are backed up in
+`data/ch5/provenance/pt12_before_20261116/` on BMRC.
+
+Scientific inputs are extracted from
+`/well/kelleher/users/uuc395/tsinfer-match-eval/data/conditioning_test_rfloor_1e20/diagnostics/conditioning_test_rfloor_1e20_diagnostics.tar.gz`
+into `data/ch5/stitching_pt12_conditioning/corrected_run/`. The archive includes
+its native configurations, recombination maps, raw matched/reference trees,
+simulated truth, cohort identities, masks and quality records. All 16 original
+called-allele checks pass. Scientific settings are read from this immutable run
+provenance and checked against the notebook's stated experiment; the main comparison reads saved trees. The later Deep dive section explicitly
+replays the captured 258-site failure, without rerunning cohorts or ancestors.
+
+Samples use epsilon 1e-9 per haplotype-bp, calibrated over 28.1 Mb of source
+sites to constant per-site mismatch probabilities. The map-based sample
+recombination floor is 1e-20; likelihood flooring and both pruning thresholds
+are zero. Ancestor matching retains stock native probabilities without the
+sample map/epsilon. AF cutoffs are 0.1/0.05/0.05/0.05 and mean-density minimum
+focal sizes are 25/50/100/150 kb. Simulations contain 1% genotype error and no
+phase error. The exact-zero map controls and the floor's scientific consequence
+are explained in the notebook. The completed unconditioned control now isolates gap conditioning at fixed epsilon;
+there is no epsilon sweep.
+
+Paired haplotype diagnostics score saved paths with cohort-scaled switch odds
+and mismatch odds, reporting transition/emission contributions, terminal sample
+mutations and switches in focal interiors, gaps and seams. Path scores are
+Viterbi weights, not forward or genealogy probabilities. Recurrent sites use
+raw trees on the same inference-site axis, with truth for simulations only.
+Allele ages use tsdate posterior mutation means after the existing pt13
+post-processing/preprocessing. Comparisons hold one position/allele intersection
+fixed across methods and optional truth, exclude recurrent sites, report
+retention and use Full HMM frequencies for DAF bins. Pearson/Spearman, signed
+bias and absolute error accompany paired density figures.
+
+Only the performance section reads the final optimisation suite from
+`../tsinfer-match-eval/data/performance/conditioning_greedy_optimized_20261114/`.
+It includes 1KGP, uses one trial at 96 workers for each dataset/method/mode,
+and displays no superseded timings. From-reference and resident-match timer
+scopes are separate. The final validation records 16 successful called-allele
+checks and eight exact greedy path/mutation comparisons against the corrected
+baseline. Native/pipeline sources were dirty; `source_snapshot/`,
+`final_validation.json` and archived logs preserve their identities. Existing
+logs report 688 TSLS checks and 55 pipeline checks passing; these suites were
+reviewed, not rerun or added to dphil-analysis.
+
+The replacement is executed on cloudcomp113 through the existing Python 3.12
+analysis environment under `tmp/epsilon_testing_20261113/env`, after `loadpy`.
+An in-process IPython batch captures tables/figures into the notebook without
+starting a Jupyter server or kernel. This saved-tree runtime is independent of
+the final benchmark's native environment; package versions are recorded in the
+batch validation record. Run logs and the executor are under
+`/well/kelleher/users/uuc395/tmp/pt12_review_20261116/`.
+Tables, dated trees, mutation pairs and PNG/PDF figures are under
+`data/ch5/stitching_pt12_conditioning/corrected_run/analysis_20261116/`.
+All eight notebook code cells executed successfully, with six saved figures
+and six PNG/PDF export pairs across 17,504 paired haplotypes. Paired n50 path
+score differences reproduce the independent archived 100-haplotype control;
+reference-continuity checks pass for all four cohorts and both methods. All
+six plots were visually inspected; overlapping age-panel titles were adjusted
+and those two figures refreshed from cached age pairs. Final numerical/source
+validation is recorded in `tmp/pt12_review_20261116/validation.json`.
+No chapter 5 tests are introduced. Older notebooks and unrelated chapter 4
+working changes are preserved.
+
+
+The matched unconditioned control (16 November 2026) is extracted from
+`../tsinfer-match-eval/data/conditioning_test_control/diagnostics/conditioning_test_control_diagnostics.tar.gz`
+into `data/ch5/stitching_pt12_conditioning/unconditioned_run/`. Every scientific
+figure includes unconditioned greedy; performance retains its original output.
+Runtime checks require identical native settings/maps, cohort identities,
+reference paths and Full HMM paths across both archives. Control greedy trees
+are dated directly without benchmark inputs. Age comparisons use a newly
+computed common nonrecurrent mutation intersection across Full HMM, conditioned
+greedy, unconditioned greedy and optional truth; the earlier two-method caches
+are preserved. Combined tables and scientific figures are in
+`data/ch5/stitching_pt12_conditioning/comparison_20261116/`. Pre-update notebook
+outputs and helpers are backed up under
+`/well/kelleher/users/uuc395/tmp/pt12_control_20261116/`. Execution and validation
+logs are kept there too. Shared plot defaults retain older notebooks' behavior.
+
+
+Part 12 control validation: seven code cells reran successfully from saved trees;
+five scientific PNG/PDF pairs were regenerated, and the sixth performance figure
+and its saved cell outputs were preserved exactly. All five updated scientific
+figures were visually inspected. All 17,504 matched haplotypes
+have conditioned path weight at least the unconditioned weight within 1e-6 log
+weight. Both arms share exact Full HMM/reference fingerprints; all age methods
+use equal common-intersection counts within each cohort. Pair sources agree; notebook
+cell IDs and attachments are preserved. No matching, benchmarks or tests ran.
+
+
+Part 12 now ends with a **Deep dive** into the captured n50 `tsk_0`/haplotype-0
+failure at sites `[90955, 91213)`. Evidence from
+`tmp/conditioning_numerics_20261114/`, the original zero-map Full HMM tree and its
+trial/quality records, and the original source map are preserved with hashes in
+`data/ch5/stitching_pt12_conditioning/failure_deep_dive_20261116/evidence/`.
+It replays only the small captured window with the existing conditioning-capable
+TSLS analysis runtime. Controls remove each endpoint, retain no endpoints, add
+the configured floor, or increase mismatch probability. The map/path/impossibility
+diagram and three allele-resolved figures cover all 258 sites, using the actual
+binary simulation alleles. Tables include every parent and copied allele.
+The source map assigns exactly zero rate over 26,328,619–30,187,708 bp; the
+failure is an incompatible pair of hard parent pins inside that plateau, not
+floating-point cancellation. The section explains why a no-floor policy needs
+to reconsider incompatible focal choices across zero-transition blocks.
+Pre-addition notebook outputs/helpers and execution records are under
+`/well/kelleher/users/uuc395/tmp/pt12_failure_20261116/`. Earlier scientific and
+performance outputs are preserved. All three new code cells executed successfully;
+all four new PNG/PDF figure pairs were visually inspected. The original 15 cells,
+including their outputs, IDs and attachments, and notebook metadata are preserved
+exactly. All 258 exported allele rows agree with the captured sample and the saved
+paths; the floored window replay exactly matches the saved conditioned path.
+Both the analysis and installed pipeline TSLS runtimes agree on all six controls.
+Increasing mismatch probability to 0.01 still cannot connect the two hard pins
+with zero-rate transitions. The archived floor sensitivity table is also shown.
+Jupytext source equality and source syntax checks pass; no tests or large jobs
+ran. No pipeline/native implementation is changed.
+
 ## Simulations and 1KGP supervisor update (pt13)
 
 `notebooks/ch5/stitching_pt13_jerome_update.py`, paired with `.ipynb`, uses
@@ -272,9 +399,11 @@ filenames, because the mutable sibling config now describes a different run.
 The original full pt6 pipeline YAML is unavailable; no newly invented run
 configuration is presented as original provenance.
 
-`stitching_pt12_conditioning` preserves its called-allele limitation and
-provisional interpretation. `tie_breaking` retains its archived reproduction
-source as evidence beside the inputs; ordinary execution reads saved outputs
+The original pt12 called-allele limitation and provisional interpretation
+are preserved with its output-bearing pair in
+`data/ch5/provenance/pt12_before_20261116/`. The active pt12 pair now contains
+the corrected conditioning analysis described above. `tie_breaking` retains
+its archived reproduction source as evidence beside the inputs; ordinary execution reads saved outputs
 and leaves its explicit expensive-reproduction flag false.
 
 The optional native tie-breaking command now uses the flat
