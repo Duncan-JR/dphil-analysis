@@ -244,6 +244,8 @@ def plot_scaling(
         "out_of_africa_n5000_28_1mbp_error": "left",
     },
     sample_tick_rotation=0,
+    datasets=None,
+    y_limits=None,
 ):
     figure, axes = _cohort_panels(
         data,
@@ -272,6 +274,7 @@ def plot_scaling(
         _cohort_sample_axis(
             data,
             ax,
+            datasets=datasets,
             cohort_labels=cohort_labels,
             sample_tick_alignments=sample_tick_alignments,
             sample_tick_rotation=sample_tick_rotation,
@@ -283,6 +286,8 @@ def plot_scaling(
             ax.margins(y=range_margin)
         elif not zoom:
             ax.set_ylim(bottom=0)
+        if y_limits is not None:
+            ax.set_ylim(y_limits)
         if reference is not None:
             ax.axhline(reference, color="gray", linestyle="--", linewidth=1)
     handles, labels = axes[0, 0].get_legend_handles_labels()
@@ -1354,8 +1359,11 @@ def plot_root_totals(
     *,
     cohort_labels={},
     grouped_bar_width=0.32,
+    log_y=False,
+    stacked=True,
     method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
     method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+    method_hatches={"full_hmm": "//", "greedy": None},
     panel_height=3.6,
     panel_width=4.4,
     root_edge_categories={
@@ -1382,11 +1390,22 @@ def plot_root_totals(
         panel_width=panel_width,
     )
     x = np.arange(len(data.sample_sizes))
-    methods = ["full_hmm", "greedy"]
+    methods = list(method_hatches if stacked else method_colors)
     width = grouped_bar_width
     for ax, (metric, ylabel) in zip(axes.flat, metrics.items(), strict=True):
         for index, method in enumerate(methods):
             positions = x + (index - (len(methods) - 1) / 2) * width
+            if not stacked:
+                selected = summary.loc[summary.method.eq(method)]
+                totals = selected.groupby("num_samples")[metric].sum()
+                ax.bar(
+                    positions,
+                    totals.loc[data.sample_sizes],
+                    color=method_colors[method],
+                    width=width,
+                    label=method_labels[method],
+                )
+                continue
             bottom = np.zeros(len(x))
             for category, style in root_edge_categories.items():
                 mask = summary.method.eq(method) & summary.category.eq(category)
@@ -1400,7 +1419,7 @@ def plot_root_totals(
                     width=width,
                     label=style["label"] if index == 0 else None,
                     edgecolor="white",
-                    hatch="//" if index == 0 else None,
+                    hatch=method_hatches[method],
                 )
                 bottom += heights
         ax.set(
@@ -1408,11 +1427,15 @@ def plot_root_totals(
             xticklabels=sample_labels,
             ylabel=ylabel,
             xlabel="Samples (diploid individuals)",
-            ylim=(0, None),
         )
+        if log_y:
+            ax.set_yscale("log")
+            ax.autoscale(axis="y")
+        else:
+            ax.set_ylim(bottom=0)
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    for method in methods:
-        hatch = "//" if method == "full_hmm" else None
+    for method in method_hatches if stacked else ():
+        hatch = method_hatches[method]
         handles.append(patches.Patch(facecolor="white", edgecolor="gray", hatch=hatch))
         labels.append(
             _cohort_method_label(
@@ -2002,6 +2025,7 @@ def plot_root_edge_differences(
     marker_size=5,
     method_colors={"full_hmm": "#555555", "greedy": "#0072B2"},
     method_labels={"full_hmm": "Full HMM", "greedy": "Greedy HMM"},
+    comparison_methods=("greedy", "full_hmm"),
     panel_height=3.6,
     panel_width=4.4,
     root_edge_categories={
@@ -2019,7 +2043,14 @@ def plot_root_edge_differences(
         "edge_count_per_haplotype": "Additional root edges per haplotype",
         "span_kb_per_haplotype": "Additional root-copying span\n(kb per haplotype)",
     }
-    title = f"{_cohort_method_label(data, 'greedy', method_colors=method_colors, method_labels=method_labels)} − Full HMM · signed root-copying differences"
+    method, baseline = comparison_methods
+    labels = [
+        _cohort_method_label(
+            data, key, method_colors=method_colors, method_labels=method_labels
+        )
+        for key in comparison_methods
+    ]
+    title = f"{labels[0]} − {labels[1]} · signed root-copying differences"
     figure, axes = _cohort_panels(
         data,
         rows=len(data.panel_cutoffs),
@@ -2046,7 +2077,7 @@ def plot_root_edge_differences(
                     index="num_samples", columns="method", values=metric
                 )
                 heights = (
-                    (pivot.greedy - pivot.full_hmm).loc[data.sample_sizes].to_numpy()
+                    (pivot[method] - pivot[baseline]).loc[data.sample_sizes].to_numpy()
                 )
                 bottom = np.where(heights >= 0, positive, negative)
                 ax.bar(
@@ -2101,6 +2132,7 @@ def plot_root_edge_spans(
         "gap_interior": {"label": "Gap interior", "color": "#E69F00"},
         "focal": {"label": "Focal only", "color": "#009E73"},
     },
+    additional_method_cache_dirs=None,
     root_edge_histogram_alpha=0.65,
     root_edge_histogram_bins=55,
 ):
@@ -2109,6 +2141,13 @@ def plot_root_edge_spans(
     for dataset in data.datasets:
         path = data.config["cache_dir"] / "root_edges" / f"{dataset['name']}.csv"
         frames.append(pd.read_csv(path))
+        if additional_method_cache_dirs is not None:
+            for method, cache_dir in additional_method_cache_dirs.items():
+                path = cache_dir / "root_edges" / f"{dataset['name']}.csv"
+                extra = pd.read_csv(path)
+                extra = extra.loc[extra.method.eq("greedy")].copy()
+                extra["method"] = method
+                frames.append(extra)
     edges = pd.concat(frames, ignore_index=True)
     minimum = edges.span_bp.min()
     maximum = edges.span_bp.max()
@@ -2169,6 +2208,18 @@ def plot_root_edge_spans(
                 linewidth=line_width,
                 label="Full HMM total",
             )
+            if additional_method_cache_dirs is not None:
+                for method in additional_method_cache_dirs:
+                    spans = selected.loc[selected.method.eq(method), "span_bp"]
+                    ax.hist(
+                        spans,
+                        bins=bins,
+                        weights=np.full(len(spans), 1 / samples),
+                        histtype="step",
+                        color=method_colors[method],
+                        linewidth=line_width,
+                        label=f"{method_labels[method]} total",
+                    )
             ax.set(
                 xscale="log",
                 yscale="log",
@@ -8037,117 +8088,66 @@ def resize_figure(figure, *, figsize):
 
 
 def plot_conditioning_review_paths(
-    paired,
+    data,
     summary,
     *,
     cohort_labels,
-    figsize=(14, 9),
+    figsize=(13, 8),
     dpi=120,
-    full_color="#555555",
     method_colors,
     method_labels,
-    bins=60,
-    region_colors={"focal": "#009E73", "gap": "#E69F00", "seam": "#CC79A7"},
+    line_width=1.7,
+    marker_size=5,
+    sample_tick_rotation=0,
+    show_total_switches=False,
 ):
-    """Show each greedy arm against its verified common Full HMM baseline."""
+    """Compare the three complete paths and split greedy costs by component."""
     figure, axes = plt.subplots(2, 2, figsize=figsize, dpi=dpi, layout="constrained")
-    datasets = list(cohort_labels)
-    x = np.arange(len(datasets))
-    methods = list(method_colors)
-    width = 0.8 / (len(methods) + 1)
-    full = (
-        summary.loc[summary.conditioning.eq(methods[0])]
-        .set_index("dataset")
-        .loc[datasets]
-    )
-    axes[0, 0].bar(
-        x - width,
-        full.sample_mutations_full,
-        width=width,
-        color=full_color,
-        label="Full HMM",
-    )
-    for index, method in enumerate(methods):
-        values = (
-            summary.loc[summary.conditioning.eq(method)]
-            .set_index("dataset")
-            .loc[datasets]
+    switch_panel = ("extra_switches", "Mean extra switches per haplotype", "Greedy minus Full HMM")
+    if show_total_switches:
+        switch_panel = ("switches", "Mean total switches per haplotype", "Copying switches")
+    panels = [
+        ("sample_mutations", "Mean terminal mutations per haplotype", "Sample mismatch events"),
+        switch_panel,
+        ("log_path_weight", "Mean log path weight", "Total saved-path log weight"),
+    ]
+    for ax, (metric, ylabel, title) in zip(
+        [axes[0, 0], axes[0, 1], axes[1, 1]], panels, strict=True
+    ):
+        _cohort_comparison_curves(
+            data, ax, summary, metric, include_full=True,
+            method_colors=method_colors, method_labels=method_labels,
+            line_width=line_width, marker_size=marker_size,
         )
-        color = method_colors[method]
-        label = method_labels[method]
-        style = "-" if index == 0 else "--"
-        axes[0, 0].bar(
-            x + index * width,
-            values.sample_mutations_greedy,
-            width=width,
-            color=color,
-            label=label,
-        )
-        position = x + (index - (len(methods) - 1) / 2) * 0.36
-        positive = np.zeros(len(datasets))
-        negative = np.zeros(len(datasets))
-        for region, region_color in region_colors.items():
-            difference = (
-                values[f"stitched_{region}_switches"] - values[f"full_{region}_switches"]
-            )
-            bottom = np.where(difference >= 0, positive, negative)
-            axes[0, 1].bar(
-                position,
-                difference,
-                bottom=bottom,
-                width=0.34,
-                color=region_color,
-                hatch="" if index == 0 else "//",
-                label=f"{label} · {region}",
-            )
-            positive += np.maximum(difference, 0)
-            negative += np.minimum(difference, 0)
-        for metric, marker, component in [
-            ("delta_switch_log_odds", "o", "Transition"),
-            ("delta_mismatch_log_odds", "s", "Emission"),
+        ax.set(title=title, ylabel=ylabel)
+    cost_axis = axes[1, 0]
+    for method, color in method_colors.items():
+        if method == "full_hmm":
+            continue
+        values = summary.loc[summary.method.eq(method)].sort_values("num_samples")
+        for metric, marker, style, component in [
+            ("delta_switch_log_odds", "o", "-", "Transition"),
+            ("delta_mismatch_log_odds", "s", "--", "Emission"),
         ]:
-            axes[1, 0].plot(
-                x,
-                -values[metric],
-                marker=marker,
-                linestyle=style,
-                color=color,
-                label=f"{label} · {component}",
+            cost_axis.plot(
+                values.num_samples, -values[metric], marker=marker, linestyle=style,
+                color=color, linewidth=line_width, markersize=marker_size,
+                label=f"{method_labels[method]} · {component}",
             )
-        for cohort_index, dataset in enumerate(datasets):
-            selected = paired.loc[
-                paired.dataset.eq(dataset) & paired.conditioning.eq(method)
-            ]
-            axes[1, 1].hist(
-                -selected.delta_log_path_odds,
-                bins=bins,
-                density=True,
-                histtype="step",
-                linestyle=style,
-                color=f"C{cohort_index}",
-                label=f"{cohort_labels[dataset]} · {label}",
-            )
-    axes[0, 0].set(
-        ylabel="Mean terminal mutations / haplotype", title="Sample mismatch events"
-    )
-    axes[0, 1].set(
-        ylabel="Mean extra parent switches / haplotype", title="Greedy minus Full HMM"
-    )
-    axes[1, 0].set(
+    cost_axis.axhline(0, color="0.8", linewidth=0.6)
+    cost_axis.set(
         ylabel="Mean extra negative log path weight",
         title="Cost of the saved greedy paths",
     )
-    axes[1, 1].set(
-        xlabel="Full HMM − greedy log path weight",
-        ylabel="Haplotype density",
-        title="Paired path-weight losses",
-    )
+    cost_axis.legend(fontsize="small")
     for ax in axes.flat:
-        ax.legend(fontsize="x-small")
-    for ax in axes.flat[:3]:
-        ax.set_xticks(x, [cohort_labels[name] for name in datasets])
-        ax.tick_params(axis="x", labelsize="small")
-        ax.axhline(0, color="0.8", linewidth=0.6)
+        _cohort_sample_axis(
+            data, ax, cohort_labels=cohort_labels, sample_tick_rotation=sample_tick_rotation,
+        )
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    figure.legend(
+        handles, labels, loc="outside lower center", ncol=len(labels), fontsize="small"
+    )
     return figure
 
 
@@ -8523,4 +8523,66 @@ def plot_conditioning_failure_alleles(
         "Actual binary haplotypes: 0 / 1 are allele states; red frames are sample mismatches\n"
         "Blue-tinted columns and open circles mark hard endpoint pins; no feasible two-pin zero-map path exists"
     )
+    return figure
+
+
+def plot_conditioning_wall_breakdown(
+    bottlenecks,
+    *,
+    cohort_labels,
+    stage_colors,
+    figsize,
+    dpi,
+):
+    """Partition end-to-end wall time into packing, drain and remaining work."""
+    rows = bottlenecks.loc[bottlenecks["mode"].eq("from_reference")].copy()
+    figure, axes = plt.subplots(
+        1, len(cohort_labels), figsize=figsize, dpi=dpi, layout="constrained"
+    )
+    for (dataset, label), ax in zip(cohort_labels.items(), axes, strict=True):
+        values = rows.loc[rows.dataset.eq(dataset)].set_index("method")
+        values = values.loc[["full_hmm", "greedy"]]
+        parts = {
+            "Reference packing": values.packing_s,
+            "Matching / drain": values.drain_s,
+            "Other": values.wall_s - values.packing_s - values.drain_s,
+        }
+        bottom = np.zeros(len(values))
+        for stage, seconds in parts.items():
+            ax.bar(
+                ["Full HMM", "Conditioned greedy"], seconds, bottom=bottom,
+                color=stage_colors[stage], label=stage,
+            )
+            bottom += seconds.to_numpy()
+        ax.set(title=label, ylabel="From-reference wall time (s)")
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(handles, labels, loc="outside lower center", ncol=len(labels))
+    return figure
+
+
+def plot_conditioning_haplotype_cpu(
+    timings,
+    *,
+    cohort_labels,
+    color,
+    figsize,
+    dpi,
+    point_size,
+    alpha,
+):
+    """Show how greedy worker CPU varies with the number of gap sites."""
+    resident = timings.loc[timings["mode"].eq("resident_match")]
+    figure, axes = plt.subplots(
+        1, len(cohort_labels), figsize=figsize, dpi=dpi, layout="constrained"
+    )
+    for (dataset, label), ax in zip(cohort_labels.items(), axes, strict=True):
+        frame = resident.loc[resident.dataset.eq(dataset)]
+        ax.scatter(
+            frame.gap_sites, frame.match_thread_cpu_s,
+            s=point_size, alpha=alpha, color=color, rasterized=True,
+        )
+        ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
+        ax.xaxis.set_major_formatter(mticker.EngFormatter(sep=""))
+        ax.set(title=label, xlabel="Gap inference sites per haplotype",
+               ylabel="Worker CPU time (s)")
     return figure

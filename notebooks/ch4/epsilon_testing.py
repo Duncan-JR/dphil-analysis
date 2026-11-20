@@ -124,7 +124,27 @@ ipython_display.display(primary[columns])
 # The grid was extended downward because the preliminary 500-individual F1/MCC optima were at 1e-6, the initial lower edge. Each point is a separately inferred ARG. Epsilon is a model parameter, not a threshold applied to one fixed ranking; the connected ROC/PR points need not form a monotone curve. No extrapolated endpoints or AUC are used. F1 and MCC are more informative than accuracy when positives are uncommon. All tuning is on one simulation seed per sample size; differences cannot be attributed to sample size alone.
 
 # %%
-fig = nb_plot.plot_epsilon_classifier(metrics, scope="inference_sites", figsize=(13, 9), dpi=130, annotate=True, annotate_epsilons=(1e-4, 1e-6, 1e-8, 1e-9, 1e-10), colors=("tab:blue", "tab:orange"))
+fig = nb_plot.plot_epsilon_classifier(
+    metrics,
+    scope="inference_sites",
+    figsize=(13, 9),
+    dpi=130,
+    annotate=True,
+    annotate_epsilons=(0.0001, 1e-06, 1e-08, 1e-09, 1e-10),
+    colors=("tab:blue", "tab:orange"),
+    roc_label_offsets={
+        ("n50", 1e-10): (-5, 5),
+        ("n50", 1e-09): (-5, 5),
+        ("n50", 1e-08): (-5, 5),
+        ("n50", 1e-06): (-5, 5),
+        ("n50", 1e-04): (5, -5),
+        ("n500", 1e-10): (5, -5),
+        ("n500", 1e-09): (5, -5),
+        ("n500", 1e-08): (-5, 8),
+        ("n500", 1e-06): (5, 11),
+        ("n500", 1e-04): (5, -5),
+    },
+)
 fig.savefig(figure_dir / "classifier_inference_sites.png", bbox_inches="tight")
 plt.show()
 
@@ -150,7 +170,27 @@ ipython_display.display(primary[["dataset", "epsilon", "recurrent_sites", "recur
 # This view includes post-matching augmentation over covered flanks and should not be used alone to judge the emission parameter. The omitted-site counts are included in the metrics table.
 
 # %%
-fig = nb_plot.plot_epsilon_classifier(metrics, scope="covered_source_sites", figsize=(13, 9), dpi=130, annotate=True, annotate_epsilons=(1e-4, 1e-6, 1e-8, 1e-9, 1e-10), colors=("tab:blue", "tab:orange"))
+fig = nb_plot.plot_epsilon_classifier(
+    metrics,
+    scope="covered_source_sites",
+    figsize=(13, 9),
+    dpi=130,
+    annotate=True,
+    annotate_epsilons=(0.0001, 1e-06, 1e-08, 1e-09, 1e-10),
+    colors=("tab:blue", "tab:orange"),
+    roc_label_offsets={
+        ("n50", 1e-10): (5, -5),
+        ("n50", 1e-09): (-5, 5),
+        ("n50", 1e-08): (-5, 5),
+        ("n50", 1e-06): (-5, 5),
+        ("n50", 1e-04): (-5, 5),
+        ("n500", 1e-10): (5, -5),
+        ("n500", 1e-09): (5, -5),
+        ("n500", 1e-08): (5, 22),
+        ("n500", 1e-06): (5, -5),
+        ("n500", 1e-04): (5, -5),
+    },
+)
 fig.savefig(figure_dir / "classifier_covered_source_sites.png", bbox_inches="tight")
 plt.show()
 fig = nb_plot.plot_epsilon_recurrence(metrics, scope="covered_source_sites", figsize=(12, 8), dpi=130)

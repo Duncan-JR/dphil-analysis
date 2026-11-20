@@ -302,6 +302,29 @@ use equal common-intersection counts within each cohort. Pair sources agree; not
 cell IDs and attachments are preserved. No matching, benchmarks or tests ran.
 
 
+Part 12 compares direct ultimate-root edge counts and observed spans per
+haplotype across the saved Full HMM and both greedy runs. It uses the archived
+focal masks and observed intervals, including signed conditioned-minus-
+unconditioned differences and common-bin span histograms. The precision and
+recall plots evaluate inferred recurrence at the shared simulation inference
+sites. The truth set is the union of sites with simulated recurrence and sites
+with at least one injected error, joined by position using the original
+simulation Zarr stores. Sites with both labels count once. 1KGP has no truth
+scores. The new exports are in
+`data/ch5/stitching_pt12_conditioning/comparison_20261116/root_edges_and_recurrence/`.
+
+
+The pt12 path panel shows mean sample mismatch counts, extra switches, and
+total saved-path log weights by method. The total includes all-stay transition
+weights and all-match emission weights over called inference sites, and is
+conditional on the initial parent. Called-site counts come from the native
+sample Zarr stores identified in the archived configurations. The extra-switch
+percentage averages per-haplotype ratios with positive Full HMM denominators.
+Physical focal coverage uses the shared mask and pt13 population groups.
+Root-edge totals use grouped log-scale bars. The updated path and coverage
+exports are in the comparison directory above.
+
+
 Part 12 now ends with a **Deep dive** into the captured n50 `tsk_0`/haplotype-0
 failure at sites `[90955, 91213)`. Evidence from
 `tmp/conditioning_numerics_20261114/`, the original zero-map Full HMM tree and its
@@ -429,3 +452,48 @@ On 13 November 2026, all chapter notebook pairs were synchronised with Jupytext
 at the user's request. Saved outputs, attachments and execution counts are
 unchanged. Jupytext's own comparison and contents-manager load checks pass;
 no notebook was executed during this synchronisation.
+
+## Revised gap conditioning (pt14)
+
+`stitching_pt14_condition_update.py` and its paired notebook use the saved
+`conditioning_test_revised` and `conditioning_test_revised_control` diagnostics
+from sibling `tsinfer-match-eval/data/`. Run from the analysis repository root
+on BMRC. The notebook covers 500 and 5,000 diploid simulated individuals and
+3,202 diploid 1KGP individuals across chr20p. It reads the recorded sample
+parameters and checks the shared Full HMM paths and ancestor references. It
+retains pt12's main path, root-edge, recurrence and allele-age analyses. The
+path-weight formulas score the complete parent sequence and explicitly handle
+switches at map boundaries with zero recombination probability.
+
+The instrumented benchmark in `data/performance/conditioning_test_revised/`
+of the matching repository contains one 186-worker trial per cohort, timing
+scope and method for Full HMM and conditioned greedy. Pt14 compares packing
+and matching wall time, native HMM thread CPU, private memory and per-haplotype
+workload. The unconditioned control supplies scientific diagnostics. Tables,
+dated trees and PNG/PDF figures go under
+`data/ch5/stitching_pt14_condition_update/` in this analysis repository.
+Running the notebook reads completed matching products and dates the saved
+trees.
+
+The saved notebook was executed on `cloudcomp113` with the existing analysis
+environment in `../tmp/epsilon_testing_20261113/env`. All 12 code cells ran,
+the paired sources agree and all 14 figures were inspected. The nine dated
+trees yield common mutation sets of 85,960 (500 OOA), 92,167 (5,000 OOA)
+and 306,996 (1KGP). The batch logs are in `../tmp/pt14_xyCrg6/`.
+
+The path panel shows mean total copying switches per haplotype for all three
+methods. The performance discussion compares saved perf5 and pt14 stage
+timings and uses archived same-input controls to qualify the TSLS comparison.
+
+The tree-count plot uses raw tree sequences and reports percentage change
+relative to Full HMM for both greedy arms. ARF and TPR follow pt6's comparison
+direction and metadata-based sample alignment, using each pt14 cohort's
+observed extent and retaining unary ancestors. Both greedy arms are compared
+with Full HMM across all cohorts, and all three methods are compared with
+simulation truth for the two simulated cohorts. The metrics use tscompare's
+node-span calculations with the chapter's exact bitset clade iterator.
+The source tables are `tree_counts.csv` and `arg_metrics.csv` under the pt14
+output directory.
+The three new cells ran on `cloudcomp113`. All nine counts matched the
+earlier raw-tree counts, all 12 ARF/TPR comparisons completed, and the three
+new figures were inspected. The batch log is in `../tmp/pt14_arg_r19xnK/`.

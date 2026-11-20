@@ -35,6 +35,16 @@
 # across all eight dataset/mode comparisons. Raw outputs and source snapshots
 # remain intact. The replaced notebook and its saved outputs are backed up under
 # `data/ch5/provenance/pt12_before_20261116/`.
+#
+# > **History note (16 November 2026).** The experimental TSInfer commit
+# > `d7670d59` ("Support a minimum recombination probability after map conversion")
+# > has been dropped from the local `tsls` branch rather than reverted. The branch
+# > now ends at `63837fd4`, retaining fixed haploid sample-size support. Production
+# > matching no longer offers a recombination floor; zero-rate stretches are
+# > assigned to HMM gaps by excluding touching focal regions. Saved trees, plots
+# > and the comparisons below still describe the earlier floored experiment.
+# > This notebook preserves that research record; reproducing the deleted floor
+# > implementation is not a requirement.
 
 # %%
 import logging
@@ -149,26 +159,29 @@ if __name__ == "__main__":
 
 
 # %% [markdown]
-# ## Paired path weights, mismatches and additional switches
+# ## Saved path weights, mismatches and additional switches
 #
-# At fixed haploid cohort size n, staying has weight **1 − rᵢ + rᵢ/n** and
-# switching to a particular parent has weight **rᵢ/n**. A biallelic match has
-# emission 1 − p and a mismatch p; missing observations have neutral emission.
-# Each saved path is scored using log switch odds and log mismatch odds,
-# relative to common all-stay/all-match factors. The common initial factor and
-# missing-call factors cancel between methods for the same haplotype.
-# These are **Viterbi path weights**, not forward marginal likelihoods or
-# posterior probabilities of genealogies. Compare paired differences within
-# each cohort, rather than raw scores across datasets.
+# At each inference-site boundary, staying on the same parent has weight
+# `Sᵢ = 1 − rᵢ + rᵢ/n` and switching to a particular parent has weight
+# `rᵢ/n`, using the archived map and floor and the haploid cohort size `n`.
+# At each observed site, copying the called allele has weight `1 − p` and a
+# mismatch has weight `p`. Missing calls contribute zero log emission weight.
 #
-# Terminal sample mutations measure mismatches to the copied reference,
-# including back mutations. All raw copying paths share the inference-site
-# axis; no new matching or genotype simulation is launched. Additional parent
-# changes are partitioned into focal interiors, gap interiors and focal/gap
-# seams using the same saved focal mask for both methods. The fixed greedy
-# cover need not maximise whole-span weight, even when each HMM gap is
-# optimised conditional on its endpoints. Low p makes residual mismatches
-# costly, but extra switches also incur map- and n-dependent costs.
+# The split in **Cost of the saved greedy paths** uses Full HMM minus greedy
+# for each haplotype. For the transition part, sum `log[(rᵢ/n)/Sᵢ]` over the
+# boundaries where each saved path changes parent, then subtract the greedy
+# sum from the Full HMM sum. For the emission part, multiply each path's
+# terminal sample mutation count (including reversions) by `log[p/(1 − p)]`
+# and take the same difference. Average both differences across haplotypes.
+# Positive values increase the greedy cost. The two contributions add to the
+# total extra negative log weight relative to Full HMM.
+#
+# The total log-weight panel adds back the shared all-stay sum and the
+# all-match log weight over called inference sites. It scores the saved
+# path conditional on its initial parent. The extra-switch percentage is
+# calculated for each haplotype with a nonzero Full HMM switch count and then
+# averaged, following pt13. Focal coverage uses the shared masks and the
+# same population groups as pt13. Error bars show one haplotype SEM.
 
 # %%
 if __name__ == "__main__":
@@ -188,22 +201,148 @@ if __name__ == "__main__":
     )
     path_summary.to_csv(comparison["cache_dir"] / "path_summary.csv", index=False)
     ipython_display.display(path_summary.round(4))
+    path_plot_summary = nb_utils.conditioning_path_plot_summary(
+        dict(config, cache_dir=comparison["cache_dir"]), paired_paths
+    )
+    path_plot_summary.to_csv(
+        comparison["cache_dir"] / "path_plot_summary.csv", index=False
+    )
     nb_plot.save_cohort_figure(
         plot_data,
         nb_plot.plot_conditioning_review_paths(
-            paired_paths,
-            path_summary,
+            plot_data,
+            path_plot_summary,
             cohort_labels=cohort_labels,
-            figsize=(15, 10),
+            figsize=(13, 8),
             dpi=120,
-            bins=60,
-            full_color="#555555",
-            method_colors={
-                key: color for key, color in method_colors.items() if key != "full_hmm"
-            },
+            method_colors=method_colors,
             method_labels=method_labels,
+            sample_tick_rotation=15,
         ),
         "conditioned_path_costs",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_scaling(
+            plot_data,
+            path_plot_summary,
+            metrics={"switch_increase_percentage": "Extra switches vs Full HMM (%)"},
+            title="Extra switches versus Full HMM",
+            cohort_labels=cohort_labels,
+            method_colors=method_colors,
+            method_labels=method_labels,
+            panel_width=6,
+            panel_height=4,
+        ),
+        "extra_switches_scaling",
+        export_dpi=180,
+    )
+    coverage_config = dict(
+        config,
+        cache_dir=comparison["cache_dir"],
+        population_groups={
+            "African": ["YRI", "AFR"],
+            "Non-African": ["CEU", "CHB", "EUR", "EAS", "SAS", "AMR"],
+        },
+    )
+    population_coverage = nb_utils.population_coverage(coverage_config)
+    nb_plot.save_cohort_figure(
+        plot_data,
+        nb_plot.plot_coverage(
+            plot_data,
+            population_coverage,
+            cohort_labels=cohort_labels,
+            population_colors={"African": "#009E73", "Non-African": "#CC79A7"},
+            panel_width=6,
+            panel_height=4,
+        ),
+        "focal_population_coverage",
+        export_dpi=180,
+    )
+
+# %% [markdown]
+# ## Direct ultimate-root to sample edges
+#
+# Count raw edges from the ultimate ancestor (the child of the vestigial root)
+# to sample haplotypes over each cohort's common observed extent. Each edge
+# counts once. Its span is clipped to the analysis interval. Counts and summed
+# spans are divided by the number of haplotypes. The log-scale bars show totals.
+#
+# Using the shared focal masks, an edge is classified as a focal/gap seam if it
+# overlaps a gap and touches an internal boundary. The other categories are gap
+# interior and focal only. The signed panels subtract unconditioned from
+# conditioned greedy; diamonds show the net difference across categories.
+# The histograms use common log-spaced bins and show edges per haplotype per bin.
+
+# %%
+if __name__ == "__main__":
+    diagnostic_dir = comparison["cache_dir"] / "root_edges_and_recurrence"
+    diagnostic_dir.mkdir(exist_ok=True)
+    root_config = dict(config, cache_dir=diagnostic_dir / "conditioned")
+    root_control = dict(control, cache_dir=diagnostic_dir / "unconditioned")
+    diagnostic_config = dict(comparison, cache_dir=diagnostic_dir)
+    diagnostic_plots = nb_utils.prepare_scaling_data(diagnostic_config)
+    root_plot_data = nb_utils.prepare_scaling_data(root_config)
+
+    root_edges = nb_utils.root_edge_summary(root_config)
+    control_edges = nb_utils.root_edge_summary(root_control)
+    control_edges = control_edges.loc[control_edges.method.eq("greedy")].copy()
+    control_edges["method"] = "unconditioned"
+    root_edges = pd.concat([root_edges, control_edges], ignore_index=True)
+    root_edges.to_csv(diagnostic_dir / "root_edge_summary.csv", index=False)
+    root_edge_categories = {
+        "seam": {"label": "Touches a focal/gap seam", "color": "#7B61A8"},
+        "gap_interior": {"label": "Gap interior", "color": "#E69F00"},
+        "focal": {"label": "Focal only", "color": "#009E73"},
+    }
+    nb_plot.save_cohort_figure(
+        diagnostic_plots,
+        nb_plot.plot_root_totals(
+            root_plot_data,
+            root_edges,
+            cohort_labels=cohort_labels,
+            method_colors=method_colors,
+            method_labels=method_labels,
+            stacked=False,
+            grouped_bar_width=0.24,
+            log_y=True,
+            panel_width=5.5,
+            panel_height=4.0,
+        ),
+        "root_edges_counts_spans",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        diagnostic_plots,
+        nb_plot.plot_root_edge_differences(
+            root_plot_data,
+            root_edges,
+            comparison_methods=("greedy", "unconditioned"),
+            cohort_labels=cohort_labels,
+            method_colors=method_colors,
+            method_labels=method_labels,
+            root_edge_categories=root_edge_categories,
+            panel_width=5.5,
+            panel_height=4.0,
+        ),
+        "root_edges_conditioning_difference",
+        export_dpi=180,
+    )
+    nb_plot.save_cohort_figure(
+        diagnostic_plots,
+        nb_plot.plot_root_edge_spans(
+            root_plot_data,
+            cohort_labels=cohort_labels,
+            method_colors=method_colors,
+            method_labels=method_labels,
+            root_edge_categories=root_edge_categories,
+            additional_method_cache_dirs={"unconditioned": root_control["cache_dir"]},
+            root_edge_histogram_bins=55,
+            panel_width=4.4,
+            panel_height=4.0,
+        ),
+        "root_edges_span_histograms",
         export_dpi=180,
     )
 
@@ -244,6 +383,52 @@ if __name__ == "__main__":
             stage_label_margin=0.3,
         ),
         "conditioned_recurrent_sites",
+        export_dpi=180,
+    )
+
+# %% [markdown]
+# ## Precision and recall of inferred recurrent sites
+#
+# Following [Chapter 4's epsilon analysis](../ch4/epsilon_testing.ipynb), we
+# evaluate the same inference sites for all three methods. At each simulated
+# site, we first pool the two sources of truth by taking their **union**. A
+# site is truth-positive if it has at least two mutation records in the
+# simulated tree sequence or at least one injected genotype error, using the
+# source store's per-site error count. A site with both counts once.
+#
+# A prediction is positive if the raw inferred tree sequence has at least
+# two mutation records at that site, including back mutations. We match by
+# position regardless of which samples carry the mutations or errors. An
+# inferred site with multiple affected samples still contributes one site.
+# Precision is
+# the fraction of predicted positives in the pooled truth set. Recall is the
+# fraction of the pooled truth set flagged by inferred recurrence. These are
+# site-level scores for the three simulations. 1KGP has no truth labels.
+
+# %%
+if __name__ == "__main__":
+    recurrence_scores = nb_utils.conditioning_recurrence_scores(config, control)
+    recurrence_scores.to_csv(
+        diagnostic_dir / "recurrent_site_precision_recall.csv", index=False
+    )
+    nb_plot.save_cohort_figure(
+        diagnostic_plots,
+        nb_plot.plot_scaling(
+            diagnostic_plots,
+            recurrence_scores,
+            metrics={"precision": "Precision", "recall": "Recall"},
+            title="Inferred recurrence against true recurrence or injected error",
+            include_full=True,
+            datasets=recurrence_scores.dataset.unique(),
+            y_limits=(0, 1),
+            cohort_labels=cohort_labels,
+            method_colors=method_colors,
+            method_labels=method_labels,
+            sample_tick_alignments={},
+            panel_width=5.5,
+            panel_height=4.0,
+        ),
+        "recurrent_site_precision_recall",
         export_dpi=180,
     )
 

@@ -907,6 +907,7 @@ def plot_epsilon_classifier(
     dpi=130,
     annotate=True,
     annotate_epsilons=None,
+    roc_label_offsets=None,
     colors=("tab:blue", "tab:orange"),
 ):
     """ROC/PR operating points and tuning metrics; epsilon is not a score threshold."""
@@ -946,10 +947,16 @@ def plot_epsilon_classifier(
                     and row.epsilon not in annotate_epsilons
                 ):
                     continue
+                offset = (4, 4)
+                if roc_label_offsets is not None:
+                    offset = roc_label_offsets.get((dataset, row.epsilon), offset)
                 axes[0, 0].annotate(
                     f"{row.epsilon:.0e}",
                     (row.false_positive_rate, row.recall),
-                    xytext=(4, 4),
+                    xytext=offset,
+                    ha="left" if offset[0] >= 0 else "right",
+                    va="bottom" if offset[1] >= 0 else "top",
+                    color=color,
                     textcoords="offset points",
                     fontsize=7,
                 )

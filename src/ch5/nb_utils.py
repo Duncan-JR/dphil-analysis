@@ -50,7 +50,8 @@ def paramsearch_load_config(path: dict) -> dict:
     config = path.copy()
     root = resolve_path(config["data_dir"], config["base_dir"])
     config["data_dir"] = root
-    config["cache_dir"] = root / config["cache_subdir"]
+    if "cache_dir" not in config:
+        config["cache_dir"] = root / config["cache_subdir"]
     config["cache_dir"].mkdir(parents=True, exist_ok=True)
     config["manifest"] = json.loads((root / "manifest.json").read_text())
     config["experiment"] = yaml.safe_load((root / "config.yaml").read_text())
@@ -677,9 +678,9 @@ def perf_scaling_date_tree(job: DatingJob) -> dict:
     cached = read_cached(output, stamp)
     if cached is not None and tree_path.exists():
         return cached.iloc[0].to_dict()
-    raw = tszip.decompress(job.raw_path)
+    raw = tszip.load(job.raw_path)
     fingerprint = perf_scaling_path_fingerprint(raw)
-    timed = tszip.decompress(job.benchmark_tree)
+    timed = tszip.load(job.benchmark_tree)
     assert fingerprint == perf_scaling_path_fingerprint(timed), job.key
     del timed
     counts = {
@@ -712,7 +713,9 @@ def perf_scaling_date_tree(job: DatingJob) -> dict:
 def perf_scaling_date_all(config: dict) -> pd.DataFrame:
     """Distribute independent saved tree sequences across CPU worker processes."""
     experiment = config["experiment"]["performance"]["experiment_id"]
-    performance_root = config["data_dir"] / "performance" / experiment
+    performance_root = config.get(
+        "performance_dir", config["data_dir"] / "performance" / experiment
+    )
     runs = pd.read_csv(performance_root / "runs.csv")
     jobs = []
     settings = {key: config[key] for key in ["mutation_rate", "dating"]}
@@ -726,7 +729,10 @@ def perf_scaling_date_all(config: dict) -> pd.DataFrame:
                     run["af_cutoff"]
                 )
             trial = runs.loc[selected].iloc[0]
-            benchmark_tree = performance_root / trial.run_id / "samples_raw.trees.tsz"
+            trial_dir = performance_root / trial.run_id
+            benchmark_tree = trial_dir / "samples_raw.trees.tsz"
+            if not benchmark_tree.exists():
+                benchmark_tree = trial_dir / "samples_raw.trees"
             jobs.append(
                 DatingJob(
                     config["data_dir"],
@@ -816,7 +822,7 @@ def age_comparison(config: dict, dataset: dict, dated: pd.DataFrame) -> pd.DataF
             else common.intersection(values.index, sort=False)
         )
     if dataset["truth"] is not None:
-        truth = tszip.decompress(config["data_dir"] / dataset["truth"])
+        truth = tszip.load(config["data_dir"] / dataset["truth"])
         truth = window_tree_sequence(truth, dataset["analysis_extent_bp"])
         values = mutation_ages(truth, posterior=False)
         ages["truth"] = values
@@ -1040,11 +1046,11 @@ def recurrent_dataset(job: RecurrenceJob) -> pd.DataFrame:
     cached = read_cached(output, stamp)
     if cached is not None:
         return cached
-    full = tszip.decompress(paths[0])
+    full = tszip.load(paths[0])
     positions = full.sites_position
     rows = []
     for case, path in zip(cases, paths, strict=True):
-        ts = full if case["method"] == "full_hmm" else tszip.decompress(path)
+        ts = full if case["method"] == "full_hmm" else tszip.load(path)
         if case["method"] != "truth":
             np.testing.assert_array_equal(ts.sites_position, positions)
         counts = recurrent_site_counts(ts, positions)
@@ -1088,6 +1094,71 @@ def recurrent_sites(config: dict) -> pd.DataFrame:
     table = table.sort_values(["num_samples", "method", "af_cutoff"])
     table.to_csv(config["cache_dir"] / "recurrent_site_summary.csv", index=False)
     return table
+
+
+def conditioning_recurrence_scores(config: dict, control: dict) -> pd.DataFrame:
+    """Score raw inferred recurrence against pooled site truth in simulations."""
+    source_paths = {
+        dataset["name"]: config["base_dir"] / dataset["zarr_path"]
+        for dataset in config["experiment"]["datasets"]
+    }
+    rows = []
+    for dataset, other in zip(
+        config["manifest"]["datasets"], control["manifest"]["datasets"], strict=True
+    ):
+        name = dataset["name"]
+        assert name == other["name"]
+        if dataset["truth"] is None:
+            continue
+        root = config["data_dir"]
+        full = tszip.load(root / dataset["full_hmm"])
+        positions = full.sites_position
+        source = zarr.open_group(source_paths[name], mode="r")
+        source_positions = source["variant_position"][:]
+        source_rows = np.searchsorted(source_positions, positions)
+        np.testing.assert_array_equal(source_positions[source_rows], positions)
+        error = source["variant_genotype_error_count"][:][source_rows] > 0
+
+        truth = tszip.load(root / dataset["truth"])
+        truth_rows = np.searchsorted(truth.sites_position, positions)
+        np.testing.assert_array_equal(truth.sites_position[truth_rows], positions)
+        truth_counts = np.bincount(truth.mutations_site, minlength=truth.num_sites)
+        biological = truth_counts[truth_rows] > 1
+        positive = biological | error
+        cases = {
+            "full_hmm": root / dataset["full_hmm"],
+            "greedy": root / dataset["runs"][0]["stitched"],
+            "unconditioned": control["data_dir"] / other["runs"][0]["stitched"],
+        }
+        for method, path in cases.items():
+            ts = full if method == "full_hmm" else tszip.load(path)
+            np.testing.assert_array_equal(ts.sites_position, positions)
+            counts = np.bincount(ts.mutations_site, minlength=ts.num_sites)
+            predicted = counts > 1
+            tp = np.count_nonzero(positive & predicted)
+            actual_count = np.count_nonzero(positive)
+            predicted_count = np.count_nonzero(predicted)
+            rows.append(
+                {
+                    "dataset": name,
+                    "method": method,
+                    "sites": len(positions),
+                    "error_sites": np.count_nonzero(error),
+                    "true_recurrent_sites": np.count_nonzero(biological),
+                    "overlapping_sites": np.count_nonzero(error & biological),
+                    "truth_positive_sites": actual_count,
+                    "predicted_positive_sites": predicted_count,
+                    "true_positive_sites": tp,
+                    "precision": tp / predicted_count if predicted_count else np.nan,
+                    "recall": tp / actual_count if actual_count else np.nan,
+                }
+            )
+    scores = pd.DataFrame(rows)
+    return scores.merge(
+        cohort_table(config)[["dataset", "num_samples"]],
+        on="dataset",
+        validate="many_to_one",
+    )
 
 
 @dataclasses.dataclass
@@ -1205,11 +1276,11 @@ def root_edges_analyse_dataset(job: RootEdgeJob) -> pd.DataFrame:
     cached = read_cached(output, stamp)
     if cached is not None:
         return cached
-    reference = tszip.decompress(paths[0])
+    reference = tszip.load(paths[0])
     stem = reference.edge(-1)
     assert reference.edge(-2).parent != stem.parent
     root = stem.child
-    full = tszip.decompress(paths[1])
+    full = tszip.load(paths[1])
     rows = []
     for run in job.dataset["runs"]:
         with np.load(job.root / run["mask"]) as archive:
@@ -1218,7 +1289,7 @@ def root_edges_analyse_dataset(job: RootEdgeJob) -> pd.DataFrame:
             matched = (
                 full
                 if method == "full_hmm"
-                else tszip.decompress(job.root / run["stitched"])
+                else tszip.load(job.root / run["stitched"])
             )
             assert matched.edge(-1).parent == stem.parent
             assert matched.edge(-1).child == root
@@ -7298,22 +7369,22 @@ def conditioning_review_path_scores(job: ConditioningReviewJob) -> pd.DataFrame:
     cached = read_cached(output, stamp)
     if cached is not None:
         return cached
-    reference = tszip.decompress(job.root / dataset["reference"])
+    reference = tszip.load(job.root / dataset["reference"])
     positions = reference.sites_position
     recombination = tsinfer.matching.recombination_probabilities(map_path, positions)
-    recombination[1:] = np.maximum(recombination[1:], settings["recombination_floor"])
+    recombination[1:] = np.maximum(recombination[1:], settings.get("recombination_floor", 0))
     n = settings["sample_size"]
     assert n == len(dataset["cohort"])
     stay = 1 - recombination + recombination / n
     switch_odds = recombination[1:] / n / stay[1:]
-    assert np.all(switch_odds > 0)
     log_switch_odds = np.zeros(len(positions))
-    log_switch_odds[1:] = np.log(switch_odds)
+    with np.errstate(divide="ignore"):
+        log_switch_odds[1:] = np.log(switch_odds)
     mu = settings["mismatch"]
     mismatch_log_odds = np.log(mu / (1 - mu))
     rows = []
     for method, relative in cases.items():
-        ts = tszip.decompress(job.root / relative)
+        ts = tszip.load(job.root / relative)
         np.testing.assert_array_equal(ts.sites_position, positions)
         samples = ts.samples()
         sample_mask = np.zeros(ts.num_nodes, dtype=bool)
@@ -7411,10 +7482,110 @@ def conditioning_review_paths(config: dict) -> pd.DataFrame:
     )
     np.testing.assert_array_equal(paired.switches_full, paired.full_switches)
     np.testing.assert_array_equal(paired.switches_greedy, paired.stitched_switches)
-    assert np.isfinite(paired.delta_log_path_odds).all()
+    assert np.isfinite(paired.log_path_odds_full).all()
+    paired["zero_weight_greedy"] = np.isneginf(paired.log_path_odds_greedy)
     assert paired.delta_log_path_odds.le(1e-6).all()
     paired.to_csv(config["cache_dir"] / "paired_path_diagnostics.csv", index=False)
     return paired
+
+
+def conditioning_path_baseline(job: ConditioningReviewJob) -> dict:
+    """Calculate the cohort mean all-stay, all-match log weight."""
+    dataset = job.dataset
+    native_path = job.root / dataset["native_config"]
+    native = tomllib.loads(native_path.read_text())
+    settings = native["match"]["sources"]["samples"]
+    source_path = pathlib.Path(native["source"][0]["path"])
+    reference_path = job.root / dataset["reference"]
+    map_path = job.root / dataset["recombination_map"]
+    stamp = signature(
+        [native_path, reference_path, map_path, source_path],
+        settings,
+        conditioning_path_baseline,
+    )
+    output = job.cache / "path_baselines" / f"{dataset['name']}.csv"
+    cached = read_cached(output, stamp)
+    if cached is not None:
+        return cached.iloc[0].to_dict()
+
+    positions = tszip.load(reference_path).sites_position
+    recombination = tsinfer.matching.recombination_probabilities(map_path, positions)
+    recombination = np.maximum(recombination[1:], settings.get("recombination_floor", 0))
+    n = settings["sample_size"]
+    stay = 1 - recombination + recombination / n
+    source = zarr.open_group(source_path, mode="r")
+    source_positions = source["variant_position"][:]
+    rows = np.searchsorted(source_positions, positions)
+    np.testing.assert_array_equal(source_positions[rows], positions)
+    calls = source["call_genotype"]
+    assert np.prod(calls.shape[1:]) == n == len(dataset["cohort"])
+    chunk_size = calls.chunks[0]
+    observed_calls = 0
+    for chunk in np.unique(rows // chunk_size):
+        start = int(chunk * chunk_size)
+        left = np.searchsorted(rows, start)
+        right = np.searchsorted(rows, start + chunk_size)
+        selected = rows[left:right] - start
+        observed_calls += np.count_nonzero(calls[start:start + chunk_size][selected] >= 0)
+    match_log_weight = observed_calls / n * np.log1p(-settings["mismatch"])
+    baseline = {
+        "dataset": dataset["name"],
+        "mean_missing_sites": len(positions) - observed_calls / n,
+        "baseline_log_weight": float(np.log(stay).sum() + match_log_weight),
+    }
+    save_cached(pd.DataFrame([baseline]), output, stamp)
+    return baseline
+
+
+def conditioning_path_plot_summary(config, paired):
+    """Summarise each method against the common Full HMM paths."""
+    jobs = [
+        ConditioningReviewJob(config["data_dir"], config["cache_dir"], dataset)
+        for dataset in config["manifest"]["datasets"]
+    ]
+    workers = config["workers"]
+    if workers is None:
+        workers = min(multiprocessing.cpu_count(), len(jobs))
+    with cf.ProcessPoolExecutor(
+        max_workers=workers, mp_context=multiprocessing.get_context("spawn")
+    ) as pool:
+        baselines = pd.DataFrame(pool.map(conditioning_path_baseline, jobs))
+
+    keys = ["dataset", "sample_id", "ploidy_index"]
+    full_columns = ["sample_mutations_full", "log_path_odds_full", "switches_full"]
+    full = paired.loc[paired.conditioning.eq("greedy"), keys + full_columns]
+    control = paired.loc[paired.conditioning.eq("unconditioned"), keys + full_columns]
+    pd.testing.assert_frame_equal(
+        full.set_index(keys).sort_index(), control.set_index(keys).sort_index()
+    )
+    baseline = full.rename(columns=dict(zip(
+        full_columns, ["sample_mutations", "log_path_odds", "switches"], strict=True
+    )))
+    baseline = baseline.assign(method="full_hmm", extra_switches=0)
+    greedy = paired.rename(columns={
+        "conditioning": "method",
+        "sample_mutations_greedy": "sample_mutations",
+        "log_path_odds_greedy": "log_path_odds",
+        "switches_greedy": "switches",
+        "num_extra_switches": "extra_switches",
+    })
+    columns = [
+        "sample_mutations", "log_path_odds", "switches", "extra_switches",
+        "switch_increase_percentage", "delta_switch_log_odds", "delta_mismatch_log_odds",
+    ]
+    values = pd.concat([baseline, greedy], ignore_index=True)
+    group = values.groupby(["dataset", "method"], sort=False)
+    summary = group[columns].mean()
+    zero_weights = group["log_path_odds"].agg(lambda x: np.isneginf(x).sum())
+    summary["zero_weight_paths"] = zero_weights
+    # A cohort mean with any zero-weight paths is -inf. Leave that point off
+    # the finite plotting scale and retain the count in the output table.
+    summary.loc[zero_weights.gt(0), ["log_path_odds", "delta_switch_log_odds"]] = np.nan
+    sizes = cohort_table(config)[["dataset", "num_samples"]]
+    summary = summary.reset_index().merge(sizes, on="dataset", validate="many_to_one")
+    summary = summary.merge(baselines, on="dataset", validate="many_to_one")
+    summary["log_path_weight"] = summary.log_path_odds + summary.baseline_log_weight
+    return summary
 
 
 def conditioning_review_performance(
@@ -7478,7 +7649,6 @@ def conditioning_review_settings(config: dict) -> pd.DataFrame:
     """Read actual sample parameters and distinguish the three numerical settings."""
     rows = []
     experiment = config["experiment"]
-    assert experiment["hmm"]["mismatch_epsilon"] == 1e-9
     for dataset in config["manifest"]["datasets"]:
         native_path = config["data_dir"] / dataset["native_config"]
         native = tomllib.loads(native_path.read_text())
@@ -7488,12 +7658,13 @@ def conditioning_review_settings(config: dict) -> pd.DataFrame:
         original = tsinfer.matching.recombination_probabilities(
             config["data_dir"] / dataset["recombination_map"], positions
         )
-        resolved = np.maximum(original[1:], settings["recombination_floor"])
+        floor = settings.get("recombination_floor", 0)
+        resolved = np.maximum(original[1:], floor)
         stay = 1 - resolved + resolved / settings["sample_size"]
-        switch_cost = -np.log(resolved / settings["sample_size"] / stay)
+        positive = resolved > 0
+        switch_cost = -np.log(resolved[positive] / settings["sample_size"] / stay[positive])
         p = settings["mismatch"]
         mismatch_cost = -np.log(p / (1 - p))
-        assert settings["recombination_floor"] == 1e-20
         assert settings["likelihood_threshold"] == 0
         assert settings["prune_threshold"] == 0
         assert settings["relative_prune_threshold"] == 0
@@ -7501,15 +7672,17 @@ def conditioning_review_settings(config: dict) -> pd.DataFrame:
             {
                 "dataset": dataset["name"],
                 "haploid_sample_size": settings["sample_size"],
+                "af_cutoff": dataset["runs"][0]["af_cutoff"],
                 "condition_gaps": experiment["condition_gaps"],
                 "epsilon_per_haplotype_bp": experiment["hmm"]["mismatch_epsilon"],
                 "calibration_span_bp": experiment["hmm"]["mismatch_span_bp"],
                 "mismatch_probability": p,
-                "recombination_floor": settings["recombination_floor"],
+                "recombination_floor": floor,
+                "zero_rate_transitions": int(np.count_nonzero(~positive)),
                 "floored_transitions": int(np.count_nonzero(resolved != original[1:])),
                 "mismatch_cost": mismatch_cost,
-                "median_switch_cost": float(np.median(switch_cost)),
-                "maximum_switch_cost": float(switch_cost.max()),
+                "median_positive_rate_switch_cost": float(np.median(switch_cost)),
+                "maximum_positive_rate_switch_cost": float(switch_cost.max()),
             }
         )
     result = pd.DataFrame(rows)
@@ -7550,15 +7723,25 @@ def conditioning_review_control_inputs(config: dict, control: dict) -> pd.DataFr
     ):
         assert baseline["name"] == other["name"]
         assert baseline["cohort"] == other["cohort"]
-        for field in ["native_config", "recombination_map"]:
-            left = config["data_dir"] / baseline[field]
-            right = control["data_dir"] / other[field]
-            assert left.read_bytes() == right.read_bytes(), (baseline["name"], field)
+        left_map = config["data_dir"] / baseline["recombination_map"]
+        right_map = control["data_dir"] / other["recombination_map"]
+        assert left_map.read_bytes() == right_map.read_bytes(), baseline["name"]
+        native_configs = []
+        for arm, dataset in [(config, baseline), (control, other)]:
+            path = arm["data_dir"] / dataset["native_config"]
+            native = tomllib.loads(path.read_text())
+            parameters = native["match"]["sources"]["samples"]
+            if "recombination_rate" in parameters:
+                parameters["recombination_rate"] = pathlib.Path(
+                    parameters["recombination_rate"]
+                ).name
+            native_configs.append(native)
+        assert native_configs[0] == native_configs[1], baseline["name"]
         for field in ["reference", "full_hmm"]:
-            left_tree = tszip.decompress(config["data_dir"] / baseline[field])
+            left_tree = tszip.load(config["data_dir"] / baseline[field])
             left = perf_scaling_path_fingerprint(left_tree)
             del left_tree
-            right_tree = tszip.decompress(control["data_dir"] / other[field])
+            right_tree = tszip.load(control["data_dir"] / other[field])
             right = perf_scaling_path_fingerprint(right_tree)
             del right_tree
             assert left == right, (baseline["name"], field)
@@ -7923,3 +8106,224 @@ def conditioning_failure_analysis(
         context_start,
         context_end,
     )
+
+
+def conditioning_benchmark(directory: pathlib.Path, cache: pathlib.Path):
+    """Summarise the revised timed trials and their instrumented stages."""
+    runs = pd.read_csv(directory / "runs.csv")
+    quality = pd.DataFrame(json.loads((directory / "quality.json").read_text()))
+    complete = json.loads((directory / "complete.json").read_text())
+    assert len(runs) == len(quality) == complete["runs"]
+    assert runs.status.eq("ok").all() and quality.status.eq("ok").all()
+    assert quality.called_allele_errors.eq(0).all()
+    assert set(quality.run_id) == set(runs.run_id)
+    baseline = runs.loc[runs.method.eq("full_hmm"), ["dataset", "mode", "wall_s"]]
+    baseline = baseline.rename(columns={"wall_s": "full_wall_s"})
+    runs = runs.merge(baseline, on=["dataset", "mode"], validate="many_to_one")
+    runs["speedup"] = runs.full_wall_s / runs.wall_s
+    runs["effective_cores"] = (runs.user_s + runs.system_s) / runs.wall_s
+    runs["window_peak_private_gib"] = runs.window_peak_private_bytes / 1024**3
+    runs["haplotypes_per_s"] = runs.matched_haplotypes / runs.wall_s
+    stages = pd.read_csv(directory / "stages.csv")
+    stages = stages.merge(
+        runs[["run_id", "dataset", "mode", "method", "wall_s"]].rename(
+            columns={"wall_s": "trial_wall_s"}
+        ),
+        on="run_id",
+        validate="many_to_one",
+    )
+    timings = pd.concat(
+        [
+            pd.read_csv(directory / run_id / "haplotype_timings.csv")
+            for run_id in runs.loc[runs.method.eq("greedy"), "run_id"]
+        ],
+        ignore_index=True,
+    )
+    timings = timings.merge(
+        runs[["run_id", "dataset", "mode"]], on="run_id", validate="many_to_one"
+    )
+    runs.to_csv(cache / "performance_summary.csv", index=False)
+    stages.to_csv(cache / "recorded_stages.csv", index=False)
+    timings.to_csv(cache / "haplotype_timings.csv", index=False)
+    return ConditioningBenchmark(runs, quality, stages, timings)
+
+
+@dataclasses.dataclass
+class ConditioningBenchmark:
+    runs: pd.DataFrame
+    quality: pd.DataFrame
+    stages: pd.DataFrame
+    timings: pd.DataFrame
+
+
+def conditioning_bottlenecks(benchmark: ConditioningBenchmark) -> pd.DataFrame:
+    """Compare packing, drain and the native HMM CPU measured within drain."""
+    metrics = {
+        "coordinator_packing_completion": ("wall_s", "packing_s"),
+        "coordinator_matching_drain": ("wall_s", "drain_s"),
+        "gap_native_find_path": ("thread_cpu_s", "native_hmm_cpu_s"),
+        "coordinator_result_wait": ("wall_s", "result_wait_s"),
+        "first_sample_slab_latency": ("wall_s", "first_sample_slab_s"),
+        "first_result_latency": ("wall_s", "first_result_s"),
+        "resident_sample_preload": ("wall_s", "resident_preload_s"),
+        "assembly_output": ("thread_cpu_s", "assembly_cpu_s"),
+    }
+    trials = benchmark.runs.set_index("run_id")
+    result = trials[["dataset", "mode", "method", "wall_s", "effective_cores"]].copy()
+    for stage, (metric, column) in metrics.items():
+        rows = benchmark.stages.loc[benchmark.stages.stage.eq(stage)]
+        result[column] = rows.set_index("run_id")[metric]
+    end_to_end = result["mode"].eq("from_reference")
+    result["packing_percent_of_trial"] = (
+        100 * result.packing_s / result.wall_s
+    ).where(end_to_end)
+    result["drain_percent_of_trial"] = (
+        100 * result.drain_s / result.wall_s
+    ).where(end_to_end)
+    result["native_hmm_cores_during_drain"] = result.native_hmm_cpu_s / result.drain_s
+    result["native_hmm_cpu_percent"] = (
+        100 * result.native_hmm_cpu_s / (trials.user_s + trials.system_s)
+    )
+    return result.reset_index()
+
+
+def conditioning_haplotype_timings(timings: pd.DataFrame) -> pd.DataFrame:
+    """Report worker service tails and their association with gap workload."""
+    rows = []
+    for (dataset, mode), frame in timings.groupby(["dataset", "mode"], sort=False):
+        elapsed = frame.match_wall_s
+        rows.append(
+            {
+                "dataset": dataset,
+                "mode": mode,
+                "haplotypes": len(frame),
+                "median_match_s": elapsed.median(),
+                "p95_match_s": elapsed.quantile(0.95),
+                "max_match_s": elapsed.max(),
+                "total_match_cpu_s": frame.match_thread_cpu_s.sum(),
+                "median_gap_sites": frame.gap_sites.median(),
+                "median_gap_calls": frame.gap_calls.median(),
+                "gap_sites_cpu_spearman": frame.gap_sites.corr(
+                    frame.match_thread_cpu_s, method="spearman"
+                ),
+                "gap_calls_cpu_spearman": frame.gap_calls.corr(
+                    frame.match_thread_cpu_s, method="spearman"
+                ),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def conditioning_tree_paths(config: dict, control: dict) -> dict:
+    """Identify the three saved matched trees per cohort."""
+    control_datasets = {
+        dataset["name"]: dataset for dataset in control["manifest"]["datasets"]
+    }
+    return {
+        dataset["name"]: {
+            "full_hmm": config["data_dir"] / dataset["full_hmm"],
+            "greedy": config["data_dir"] / dataset["runs"][0]["stitched"],
+            "unconditioned": control["data_dir"]
+            / control_datasets[dataset["name"]]["runs"][0]["stitched"],
+        }
+        for dataset in config["manifest"]["datasets"]
+    }
+
+
+def conditioning_tree_counts(config: dict, control: dict) -> pd.DataFrame:
+    """Report raw tree counts and percentage changes against Full HMM."""
+    rows = []
+    for dataset, cases in conditioning_tree_paths(config, control).items():
+        counts = {method: tszip.load(path).num_trees for method, path in cases.items()}
+        full_count = counts["full_hmm"]
+        for method, count in counts.items():
+            rows.append({
+                "dataset": dataset,
+                "method": method,
+                "num_trees": count,
+                "full_hmm_num_trees": full_count,
+                "trees_change_percentage": 100 * (count - full_count) / full_count,
+            })
+    sizes = cohort_table(config)[["dataset", "num_samples"]]
+    return pd.DataFrame(rows).merge(sizes, on="dataset", validate="many_to_one")
+
+
+@dataclasses.dataclass
+class ConditioningArgJob:
+    dataset: str
+    method: str
+    reference_method: str
+    comparison_path: pathlib.Path
+    reference_path: pathlib.Path
+    extent: list[float]
+    cache: pathlib.Path
+
+
+def conditioning_arg_pair(job: ConditioningArgJob) -> pd.DataFrame:
+    """Align one matched tree to its benchmark and measure node-span agreement."""
+    stamp = input_signature(
+        [job.comparison_path, job.reference_path], {"extent": job.extent}
+    )
+    output = (
+        job.cache / "arg_metrics"
+        / f"{job.dataset}_{job.method}_vs_{job.reference_method}.csv"
+    )
+    cached = cached_table(output, stamp)
+    if cached is not None:
+        return cached
+    comparison = tszip.load(job.comparison_path)
+    reference = tszip.load(job.reference_path)
+    identities = None
+    if job.reference_method == "true_arg":
+        identities = truth_sample_nodes(reference)
+    aligned = align_tree_sequences(comparison, reference, job.extent, identities)
+    del comparison, reference
+    metric = haplotype_arf(aligned.comparison, aligned.reference)
+    row = {
+        "dataset": job.dataset,
+        "method": job.method,
+        "reference_method": job.reference_method,
+        "analysis_start_bp": job.extent[0],
+        "analysis_end_bp": job.extent[1],
+        "arf": float(metric.arf),
+        "tpr": float(metric.tpr),
+    }
+    table = pd.DataFrame([row])
+    output.parent.mkdir(parents=True, exist_ok=True)
+    save_table(table, output, stamp)
+    return table
+
+
+def conditioning_arg_metrics(config: dict, control: dict) -> pd.DataFrame:
+    """Compare both greedy arms to Full HMM and all simulation outputs to truth."""
+    matched_paths = conditioning_tree_paths(config, control)
+    jobs = []
+    for dataset in config["manifest"]["datasets"]:
+        name = dataset["name"]
+        cases = matched_paths[name]
+        for method, path in cases.items():
+            references = {}
+            if method != "full_hmm":
+                references["full_hmm"] = cases["full_hmm"]
+            if dataset["truth"] is not None:
+                references["true_arg"] = config["data_dir"] / dataset["truth"]
+            for reference_method, reference_path in references.items():
+                jobs.append(ConditioningArgJob(
+                    name, method, reference_method, path, reference_path,
+                    dataset["analysis_extent_bp"], config["cache_dir"],
+                ))
+    workers = config["workers"]
+    if workers is None:
+        workers = min(multiprocessing.cpu_count(), len(jobs))
+    context = multiprocessing.get_context("spawn")
+    rows = []
+    with cf.ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+        futures = {pool.submit(conditioning_arg_pair, job): job for job in jobs}
+        for future in cf.as_completed(futures):
+            rows.append(future.result())
+            job = futures[future]
+            logger.info("ARG metrics: %s %s vs %s", job.dataset, job.method, job.reference_method)
+    metrics = pd.concat(rows, ignore_index=True)
+    sizes = cohort_table(config)[["dataset", "num_samples"]]
+    metrics = metrics.merge(sizes, on="dataset", validate="many_to_one")
+    return metrics.sort_values(["reference_method", "num_samples", "method"])
